@@ -1,3 +1,9 @@
 {
-  "svelte.enable-ts-plugin": true
+  "svelte.enable-ts-plugin": true,
+  "terminal.integrated.env.osx": {
+    "npm_config_devdir": ""
+  },
+  "terminal.integrated.env.linux": {
+    "npm_config_devdir": ""
+  }
 }

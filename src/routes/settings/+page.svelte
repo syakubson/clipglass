@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { listen } from "@tauri-apps/api/event";
+  import { getCurrentWindow } from "@tauri-apps/api/window";
   import type { AppSettings, AudioInputDevice, ExcludedApp, ModelCatalog, ModelOption } from "$lib/types";
   import {
     addExcludedApp,
@@ -22,6 +23,10 @@
     type OllamaStatus,
   } from "$lib/api";
   import { openUrl } from "@tauri-apps/plugin-opener";
+
+  function openOllamaDownload() {
+    void openUrl("https://ollama.com/download");
+  }
 
   let settings = $state<AppSettings>({
     ollama_model: "qwen3:4b-instruct-2507-q4_K_M",
@@ -46,6 +51,7 @@
   let savedModel = $state("");
 
   let accessibilityGranted = $state<boolean | null>(null);
+  let accessibilityNotice = $state("");
 
   let ollamaStatus = $state<OllamaStatus | null>(null);
   let ollamaLoading = $state(false);
@@ -115,6 +121,54 @@
     }
   }
 
+  /** macOS trust prompt already shown this settings-window visit. */
+  let a11yPromptedThisVisit = false;
+
+  async function updateAccessibilityStatus() {
+    const granted = await checkAccessibility(false);
+    accessibilityGranted = granted;
+    if (!granted) {
+      accessibilityNotice = "";
+    }
+    return granted;
+  }
+
+  /** One macOS prompt per settings visit when access is still missing. */
+  async function promptAccessibilityIfNeeded() {
+    accessibilityNotice = "";
+    let granted = await checkAccessibility(false);
+    if (!granted && !a11yPromptedThisVisit) {
+      await checkAccessibility(true);
+      a11yPromptedThisVisit = true;
+      granted = await checkAccessibility(false);
+    }
+    accessibilityGranted = granted;
+    if (!granted) {
+      accessibilityNotice = "";
+    }
+    return granted;
+  }
+
+  async function handleRequestAccessibility() {
+    accessibilityNotice = "";
+    await checkAccessibility(true);
+    a11yPromptedThisVisit = true;
+    accessibilityGranted = await checkAccessibility(false);
+  }
+
+  async function handleRecheckAccessibility() {
+    accessibilityNotice = "";
+    const granted = await checkAccessibility(false);
+    accessibilityGranted = granted;
+    if (granted) {
+      accessibilityNotice = "Accessibility verified — paste automation is ready.";
+      return;
+    }
+    await checkAccessibility(true);
+    a11yPromptedThisVisit = true;
+    accessibilityGranted = await checkAccessibility(false);
+  }
+
   onMount(() => {
     // Load everything in parallel instead of sequentially
     loadSettings();
@@ -122,7 +176,9 @@
     loadExcludedApps();
     refreshOllamaStatus();
     listMicrophones().then((m) => (microphones = m));
-    checkAccessibility().then((v) => (accessibilityGranted = v));
+
+    const win = getCurrentWindow();
+    void promptAccessibilityIfNeeded();
 
     const unlistenPull = listen<string>("ollama-pull-progress", (event) => {
       pullProgress = event.payload;
@@ -134,9 +190,22 @@
       await refreshOllamaStatus();
     });
 
+    const unlistenShown = listen("settings-shown", () => {
+      a11yPromptedThisVisit = false;
+      void promptAccessibilityIfNeeded();
+    });
+
+    const unlistenFocus = win.onFocusChanged(({ payload: focused }) => {
+      if (focused) {
+        void updateAccessibilityStatus();
+      }
+    });
+
     return () => {
       unlistenPull.then((fn) => fn());
       unlistenPullDone.then((fn) => fn());
+      unlistenShown.then((fn) => fn());
+      unlistenFocus.then((fn) => fn());
     };
   });
 
@@ -206,7 +275,7 @@
 </script>
 
 <div class="settings-page">
-  <div class="settings-head">
+  <div class="settings-head" data-tauri-drag-region>
     <div class="settings-title">Settings</div>
     <div class="settings-subtitle">Local AI and history behavior</div>
   </div>
@@ -220,11 +289,11 @@
           {accessibilityGranted === null ? "Checking..." : accessibilityGranted ? "Accessibility granted" : "Accessibility not granted"}
         </span>
         {#if accessibilityGranted === false}
-          <button class="status-action" type="button" onclick={async () => { accessibilityGranted = await checkAccessibility(); }}>
+          <button class="status-action" type="button" onclick={handleRequestAccessibility}>
             Request
           </button>
         {:else if accessibilityGranted === true}
-          <button class="status-action" type="button" onclick={async () => { accessibilityGranted = await checkAccessibility(); }}>
+          <button class="status-action" type="button" onclick={handleRecheckAccessibility}>
             Recheck
           </button>
         {/if}
@@ -235,6 +304,12 @@
           Click "Request" to open System Settings, then enable Copyosity under Privacy → Accessibility.
         </div>
       {/if}
+      {#if accessibilityNotice}
+        <div class="status-hint ok a11y-notice">{accessibilityNotice}</div>
+      {/if}
+      <div class="status-hint">
+        After a new build or reinstall, remove Copyosity from Accessibility and add it again if paste stops working.
+      </div>
     </div>
   </section>
 
@@ -255,7 +330,7 @@
             {ollamaStatus.cli_installed ? "Ollama installed" : "Ollama not installed"}
           </span>
           {#if !ollamaStatus.cli_installed}
-            <button class="status-action" type="button" onclick={() => openUrl("https://ollama.com/download")}>
+            <button class="status-action" type="button" onclick={openOllamaDownload}>
               Open ollama.com
             </button>
           {/if}
@@ -263,7 +338,7 @@
         {#if !ollamaStatus.cli_installed}
           <div class="status-hint">
             Ollama runs AI models locally on your machine. Download it from
-            <button class="link-btn" type="button" onclick={() => openUrl("https://ollama.com/download")}>ollama.com</button>,
+            <button class="link-btn" type="button" onclick={openOllamaDownload}>ollama.com</button>,
             install the app, and click "Check again".
           </div>
         {/if}
@@ -558,13 +633,15 @@
   }
 
   .settings-page {
-    padding: 20px;
+    padding: 36px 20px 20px;
     max-width: 540px;
     margin: 0 auto;
   }
 
   .settings-head {
     margin-bottom: 16px;
+    cursor: default;
+    -webkit-app-region: drag;
   }
 
   .settings-title {
@@ -941,6 +1018,10 @@
     color: #6ecf8a;
   }
 
+  .a11y-notice {
+    margin-top: 10px;
+  }
+
   .status-hint.fail {
     color: #f0a0a0;
   }
@@ -951,17 +1032,6 @@
     border-radius: 4px;
     font-family: "SF Mono", Menlo, monospace;
     font-size: 10.5px;
-    color: #c8cee0;
-  }
-
-  kbd {
-    display: inline-block;
-    padding: 1px 6px;
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 5px;
-    font-family: "SF Mono", Menlo, monospace;
-    font-size: 11px;
     color: #c8cee0;
   }
 

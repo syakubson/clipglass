@@ -828,13 +828,63 @@ mod tests {
         assert_eq!(s.retention_days, 30);
     }
 
+    fn seed_full_settings(db: &Database) {
+        db.update_app_settings(
+            Some("custom-model"),
+            Some(7),
+            Some("https://whisper.example/v1"),
+            Some("token-abc"),
+            Some("whisper-1"),
+            Some("option+space"),
+            Some("Built-in Microphone"),
+        )
+        .unwrap();
+    }
+
     #[test]
     fn update_settings() {
         let db = test_db();
-        db.update_app_settings(Some("custom-model"), Some(7)).unwrap();
+        seed_full_settings(&db);
         let s = db.get_app_settings().unwrap();
         assert_eq!(s.ollama_model, "custom-model");
         assert_eq!(s.retention_days, 7);
+        assert_eq!(s.whisper_server_url, "https://whisper.example/v1");
+        assert_eq!(s.whisper_server_token, "token-abc");
+        assert_eq!(s.whisper_server_model, "whisper-1");
+        assert_eq!(s.voice_shortcut, "option+space");
+        assert_eq!(s.selected_microphone, "Built-in Microphone");
+    }
+
+    #[test]
+    fn partial_update_preserves_other_settings() {
+        let db = test_db();
+        seed_full_settings(&db);
+
+        db.update_app_settings(None, Some(30), None, None, None, None, None)
+            .unwrap();
+        let s = db.get_app_settings().unwrap();
+        assert_eq!(s.retention_days, 30);
+        assert_eq!(s.ollama_model, "custom-model");
+        assert_eq!(s.whisper_server_url, "https://whisper.example/v1");
+        assert_eq!(s.whisper_server_token, "token-abc");
+        assert_eq!(s.whisper_server_model, "whisper-1");
+        assert_eq!(s.voice_shortcut, "option+space");
+        assert_eq!(s.selected_microphone, "Built-in Microphone");
+    }
+
+    #[test]
+    fn partial_update_whisper_url_only() {
+        let db = test_db();
+        seed_full_settings(&db);
+
+        db.update_app_settings(None, None, Some("https://new.example"), None, None, None, None)
+            .unwrap();
+        let s = db.get_app_settings().unwrap();
+        assert_eq!(s.whisper_server_url, "https://new.example");
+        assert_eq!(s.ollama_model, "custom-model");
+        assert_eq!(s.retention_days, 7);
+        assert_eq!(s.voice_shortcut, "option+space");
+        assert_eq!(s.selected_microphone, "Built-in Microphone");
     }
 
     #[test]

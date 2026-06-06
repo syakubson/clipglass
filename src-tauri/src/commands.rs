@@ -3,45 +3,19 @@ use crate::db::{AppSettings, ClipboardEntry, Collection, Database, ExcludedApp, 
 #[cfg(target_os = "macos")]
 fn simulate_paste() {
     std::thread::sleep(std::time::Duration::from_millis(150));
-
-    unsafe {
-        // CoreGraphics FFI — CGEvent for Cmd+V
-        type CGEventSourceRef = *mut std::ffi::c_void;
-        type CGEventRef = *mut std::ffi::c_void;
-
-        #[link(name = "CoreGraphics", kind = "framework")]
-        extern "C" {
-            fn CGEventCreateKeyboardEvent(source: CGEventSourceRef, keycode: u16, key_down: bool) -> CGEventRef;
-            fn CGEventSetFlags(event: CGEventRef, flags: u64);
-            fn CGEventPost(tap: u32, event: CGEventRef);
-            fn CFRelease(cf: *mut std::ffi::c_void);
-        }
-
-        const K_CG_EVENT_FLAG_COMMAND: u64 = 0x00100000;
-        const K_CG_HID_EVENT_TAP: u32 = 0;
-        const K_V_KEYCODE: u16 = 9;
-
-        let event_down = CGEventCreateKeyboardEvent(std::ptr::null_mut(), K_V_KEYCODE, true);
-        let event_up = CGEventCreateKeyboardEvent(std::ptr::null_mut(), K_V_KEYCODE, false);
-
-        if !event_down.is_null() && !event_up.is_null() {
-            CGEventSetFlags(event_down, K_CG_EVENT_FLAG_COMMAND);
-            CGEventSetFlags(event_up, K_CG_EVENT_FLAG_COMMAND);
-            CGEventPost(K_CG_HID_EVENT_TAP, event_down);
-            CGEventPost(K_CG_HID_EVENT_TAP, event_up);
-            CFRelease(event_down);
-            CFRelease(event_up);
-        }
-    }
+    crate::clipboard_macos::simulate_cmd_v();
 }
 
 #[cfg(not(target_os = "macos"))]
 fn simulate_paste() {}
+
 use crate::ollama;
 use arboard::{Clipboard, ImageData};
 use base64::Engine;
 use image::GenericImageView;
 use std::borrow::Cow;
+
+use crate::clipboard_write::{self, ClipboardWriteMode};
 use std::sync::Arc;
 use tauri::{Emitter, Manager, State};
 
@@ -115,12 +89,26 @@ pub fn hide_main_window(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(target_os = "macos")]
+fn activate_for_settings_window() {
+    use objc2::MainThreadMarker;
+    use objc2_app_kit::NSApplication;
+
+    if let Some(mtm) = MainThreadMarker::new() {
+        let app = NSApplication::sharedApplication(mtm);
+        app.activate();
+    }
+}
+
 #[tauri::command]
 pub fn open_settings_window(app: tauri::AppHandle) -> Result<(), String> {
     // If settings window already exists, just focus it
     if let Some(window) = app.get_webview_window("settings") {
         let _ = window.show();
         let _ = window.set_focus();
+        #[cfg(target_os = "macos")]
+        activate_for_settings_window();
+        let _ = window.emit("settings-shown", ());
         return Ok(());
     }
 
@@ -132,13 +120,13 @@ pub fn open_settings_window(app: tauri::AppHandle) -> Result<(), String> {
     )
     .title("Copyosity Settings")
     .inner_size(580.0, 680.0)
-    .resizable(true)
-    .center();
+    .resizable(true);
 
+    let window = builder.build().map_err(|e| e.to_string())?;
+    let _ = window.show();
+    let _ = window.set_focus();
     #[cfg(target_os = "macos")]
-    let builder = builder.title_bar_style(tauri::TitleBarStyle::Overlay);
-
-    let _window = builder.build().map_err(|e| e.to_string())?;
+    activate_for_settings_window();
 
     Ok(())
 }
@@ -164,6 +152,10 @@ pub fn update_app_settings(
     voice_shortcut: Option<String>,
     selected_microphone: Option<String>,
 ) -> Result<AppSettings, String> {
+    if let Some(model) = ollama_model.as_deref() {
+        ollama::validate_model_name(model)?;
+    }
+
     let settings = db
         .update_app_settings(
             ollama_model.as_deref(),
@@ -248,31 +240,82 @@ pub fn copy_entry(db: State<'_, Arc<Database>>, entry_id: i64) -> Result<(), Str
     match entry.content_type.as_str() {
         "text" => {
             if let Some(text) = entry.text_content {
-                clipboard.set_text(text).map_err(|e| e.to_string())?;
+                clipboard_write::set_text(&mut clipboard, text)?;
             }
         }
         "image" => {
-            let encoded = entry
-                .image_data
-                .or(entry.image_thumb)
-                .ok_or_else(|| "Image data is missing".to_string())?;
-            let bytes = base64::engine::general_purpose::STANDARD
-                .decode(encoded)
-                .map_err(|e| e.to_string())?;
-            let image = image::load_from_memory(&bytes).map_err(|e| e.to_string())?;
-            let rgba = image.to_rgba8();
-            let (width, height) = image.dimensions();
-            clipboard
-                .set_image(ImageData {
-                    width: width as usize,
-                    height: height as usize,
-                    bytes: Cow::Owned(rgba.into_raw()),
-                })
-                .map_err(|e| e.to_string())?;
+            clipboard_write::set_image(&mut clipboard, image_data_from_entry(&entry)?)?;
         }
         _ => {}
     }
 
+    Ok(())
+}
+
+fn write_entry_for_paste(clipboard: &mut Clipboard, entry: &ClipboardEntry) -> Result<(), String> {
+    match entry.content_type.as_str() {
+        "text" => {
+            if let Some(text) = &entry.text_content {
+                clipboard_write::write_text(clipboard, text.clone(), ClipboardWriteMode::Paste)?;
+            }
+        }
+        "image" => {
+            clipboard_write::write_image(
+                clipboard,
+                image_data_from_entry(entry)?,
+                ClipboardWriteMode::Paste,
+            )?;
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn finish_paste(app: &tauri::AppHandle) {
+    crate::hide_panel(app);
+    crate::clipboard_macos::restore_paste_target();
+
+    // Auto-paste needs Accessibility; prompt until the user grants it.
+    if crate::clipboard_macos::accessibility_trusted(false) {
+        simulate_paste();
+    } else {
+        crate::clipboard_macos::accessibility_trusted(true);
+        if crate::clipboard_macos::accessibility_trusted(false) {
+            simulate_paste();
+        }
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn finish_paste(app: &tauri::AppHandle) {
+    crate::hide_panel(app);
+    simulate_paste();
+}
+
+fn image_data_from_entry(entry: &ClipboardEntry) -> Result<ImageData<'static>, String> {
+    let encoded = entry
+        .image_data
+        .as_ref()
+        .or(entry.image_thumb.as_ref())
+        .ok_or_else(|| "Image data is missing".to_string())?;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(encoded)
+        .map_err(|e| e.to_string())?;
+    let image = image::load_from_memory(&bytes).map_err(|e| e.to_string())?;
+    let rgba = image.to_rgba8();
+    let (width, height) = image.dimensions();
+    Ok(ImageData {
+        width: width as usize,
+        height: height as usize,
+        bytes: Cow::Owned(rgba.into_raw()),
+    })
+}
+
+fn paste_text_into_target(app: &tauri::AppHandle, text: String) -> Result<(), String> {
+    let mut clipboard = Clipboard::new().map_err(|e| e.to_string())?;
+    clipboard_write::write_text(&mut clipboard, text, ClipboardWriteMode::Paste)?;
+    finish_paste(app);
     Ok(())
 }
 
@@ -282,87 +325,28 @@ pub fn activate_entry(app: tauri::AppHandle, db: State<'_, Arc<Database>>, entry
         return Ok(());
     };
 
-    let mut clipboard = Clipboard::new().map_err(|e| e.to_string())?;
-
-    match entry.content_type.as_str() {
-        "text" => {
-            if let Some(text) = entry.text_content {
-                clipboard.set_text(text).map_err(|e| e.to_string())?;
-            }
-        }
-        "image" => {
-            let encoded = entry
-                .image_data
-                .or(entry.image_thumb)
-                .ok_or_else(|| "Image data is missing".to_string())?;
-            let bytes = base64::engine::general_purpose::STANDARD
-                .decode(encoded)
-                .map_err(|e| e.to_string())?;
-            let image = image::load_from_memory(&bytes).map_err(|e| e.to_string())?;
-            let rgba = image.to_rgba8();
-            let (width, height) = image.dimensions();
-            clipboard
-                .set_image(ImageData {
-                    width: width as usize,
-                    height: height as usize,
-                    bytes: Cow::Owned(rgba.into_raw()),
-                })
-                .map_err(|e| e.to_string())?;
-        }
-        _ => return Ok(()),
+    if entry.content_type == "text" {
+        let Some(text) = entry.text_content else {
+            return Ok(());
+        };
+        return paste_text_into_target(&app, text);
     }
 
-    crate::hide_panel(&app);
-    simulate_paste();
+    let mut clipboard = Clipboard::new().map_err(|e| e.to_string())?;
+    write_entry_for_paste(&mut clipboard, &entry)?;
+    finish_paste(&app);
 
     Ok(())
 }
 
 #[tauri::command]
 pub fn paste_entry(app: tauri::AppHandle, text: String) -> Result<(), String> {
-    let mut clipboard = Clipboard::new().map_err(|e| e.to_string())?;
-    clipboard.set_text(&text).map_err(|e| e.to_string())?;
-
-    crate::hide_panel(&app);
-    simulate_paste();
-
-    Ok(())
+    paste_text_into_target(&app, text)
 }
 
 #[tauri::command]
-pub fn check_accessibility() -> Result<bool, String> {
-    #[cfg(target_os = "macos")]
-    {
-        // AXIsProcessTrustedWithOptions with prompt: true shows the system dialog
-        unsafe {
-            #[link(name = "ApplicationServices", kind = "framework")]
-            extern "C" {
-                fn AXIsProcessTrustedWithOptions(options: *const std::ffi::c_void) -> bool;
-            }
-
-            use objc::{msg_send, sel, sel_impl};
-            use objc::runtime::Object;
-
-            let key: *mut Object = msg_send![
-                objc::runtime::Class::get("NSString").unwrap(),
-                stringWithUTF8String: b"AXTrustedCheckOptionPrompt\0".as_ptr()
-            ];
-            let yes: *mut Object = msg_send![
-                objc::runtime::Class::get("NSNumber").unwrap(),
-                numberWithBool: true
-            ];
-            let dict: *mut Object = msg_send![
-                objc::runtime::Class::get("NSDictionary").unwrap(),
-                dictionaryWithObject: yes forKey: key
-            ];
-
-            let trusted = AXIsProcessTrustedWithOptions(dict as *const _);
-            return Ok(trusted);
-        }
-    }
-
-    #[cfg(not(target_os = "macos"))]
-    Ok(true)
+pub fn check_accessibility(prompt: bool) -> Result<bool, String> {
+    Ok(crate::clipboard_macos::accessibility_trusted(prompt))
 }
 
 #[tauri::command]

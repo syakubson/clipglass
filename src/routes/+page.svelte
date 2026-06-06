@@ -2,13 +2,13 @@
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
-  import { getCurrentWindow } from "@tauri-apps/api/window";
   import type { ClipboardEntry, Collection } from "$lib/types";
   import {
     getEntries,
     getCollections,
     hideMainWindow,
     openSettingsWindow,
+    activateEntry,
   } from "$lib/api";
   import ClipboardCard from "$lib/components/ClipboardCard.svelte";
   import SearchBar from "$lib/components/SearchBar.svelte";
@@ -115,11 +115,8 @@
       if (e.key === "Enter" && selectedIndex >= 0 && selectedIndex < filteredEntries.length) {
         e.preventDefault();
         const entry = filteredEntries[selectedIndex];
-        if (entry.text_content) {
-          import("$lib/api").then(({ pasteEntry }) => {
-            pasteEntry(entry.text_content!);
-            animateOut();
-          });
+        if (entry.content_type === "text" || entry.content_type === "image") {
+          void activateEntry(entry.id).then(() => animateOut());
         }
       }
     };

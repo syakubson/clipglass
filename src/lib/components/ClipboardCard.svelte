@@ -68,16 +68,15 @@
   let clickTimer: ReturnType<typeof setTimeout> | undefined;
 
   function handleClick() {
-    // Disambiguate single vs double click
     if (clickTimer) {
       clearTimeout(clickTimer);
       clickTimer = undefined;
-      handleDoubleClick();
+      void handleDoubleClick();
       return;
     }
     clickTimer = setTimeout(() => {
       clickTimer = undefined;
-      handleSingleClick();
+      void handleSingleClick();
     }, 250);
   }
 
@@ -139,7 +138,7 @@
   class:pinned={entry.is_pinned}
   class:copied
   onclick={handleClick}
-  onkeydown={(e) => e.key === 'Enter' && handleDoubleClick()}
+  onkeydown={(e) => e.key === "Enter" && handleDoubleClick()}
   role="button"
   tabindex="0"
   title={entry.text_content ?? ""}

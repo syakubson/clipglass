@@ -48,6 +48,9 @@ pub fn try_start_server() -> bool {
 
 pub fn try_pull_model(app: Option<&AppHandle>) -> bool {
     let model = ollama_model();
+    if validate_model_name(&model).is_err() {
+        return false;
+    }
     if !ollama_available() {
         return false;
     }
@@ -117,6 +120,22 @@ static ACTIVE_MODEL: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(No
 
 pub fn set_active_model(model: &str) {
     *ACTIVE_MODEL.lock().unwrap() = Some(model.to_string());
+}
+
+/// Reject malformed model names before they reach `ollama pull` or settings storage.
+pub fn validate_model_name(name: &str) -> Result<(), String> {
+    let name = name.trim();
+    if name.is_empty() || name.len() > 128 {
+        return Err("Invalid Ollama model name".to_string());
+    }
+    let valid = name.chars().all(|c| {
+        c.is_ascii_alphanumeric() || matches!(c, ':' | '-' | '_' | '.' | '/')
+    });
+    if valid {
+        Ok(())
+    } else {
+        Err("Invalid Ollama model name".to_string())
+    }
 }
 
 #[derive(Serialize)]
@@ -272,6 +291,14 @@ fn pull_model(model: &str) {
 
 fn pull_model_via_api(model: &str, app: Option<&AppHandle>) {
     use std::io::BufRead;
+
+    if validate_model_name(model).is_err() {
+        log_debug(format!("refusing to pull invalid model name: {}", model));
+        if let Some(app) = app {
+            let _ = app.emit("ollama-pull-progress", "Invalid model name");
+        }
+        return;
+    }
 
     log_debug(format!("pulling model via API: {}", model));
 
@@ -837,6 +864,45 @@ mod tests {
     #[test]
     fn opaque_not_lowercase_only() {
         assert!(!looks_like_opaque_code("abcdef"));
+    }
+
+    // --- validate_model_name ---
+
+    #[test]
+    fn validate_model_name_accepts_common_names() {
+        for name in [
+            "qwen3:4b-instruct-2507-q4_K_M",
+            "llama3.2",
+            "org/model",
+            "model-name_v1.0",
+        ] {
+            assert!(validate_model_name(name).is_ok(), "expected ok for {name}");
+        }
+    }
+
+    #[test]
+    fn validate_model_name_trims_whitespace() {
+        assert!(validate_model_name("  llama3.2  ").is_ok());
+    }
+
+    #[test]
+    fn validate_model_name_rejects_empty() {
+        assert!(validate_model_name("").is_err());
+        assert!(validate_model_name("   ").is_err());
+    }
+
+    #[test]
+    fn validate_model_name_rejects_too_long() {
+        let name = "a".repeat(129);
+        assert!(validate_model_name(&name).is_err());
+        assert!(validate_model_name(&"a".repeat(128)).is_ok());
+    }
+
+    #[test]
+    fn validate_model_name_rejects_shell_injection_chars() {
+        for name in ["; rm -rf", "$(whoami)", "model name", "model@host", "model|tag"] {
+            assert!(validate_model_name(name).is_err(), "expected err for {name}");
+        }
     }
 
     // --- check_status (unit, no Ollama needed) ---

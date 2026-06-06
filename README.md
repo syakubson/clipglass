@@ -45,14 +45,14 @@ Built with Tauri 2, Svelte 5, Rust, and SQLite.
 
 ## Install
 
-1. Download `Copyosity_0.2.1_aarch64.dmg` from the [latest release](https://github.com/vakovalskii/copyosity/releases/latest).
+1. Download the DMG for your Mac (`Copyosity_0.4.0_aarch64.dmg` or `Copyosity_0.4.0_x86_64.dmg`) from the [latest release](https://github.com/vakovalskii/copyosity/releases/latest).
 2. Open the DMG and drag **Copyosity** to Applications.
 3. Launch the app — it appears in the menu bar.
 
 ### Permissions
 
 macOS will ask for:
-- **Accessibility** — needed for paste automation (Cmd+V simulation) and global shortcut
+- **Accessibility** — needed for paste automation (Cmd+V simulation) and global shortcut. After rebuilding or reinstalling the app, remove Copyosity from the list and add it again if double-click paste stops working.
 - **Input Monitoring** — may be required for reliable hotkey detection
 
 ### Local AI (optional)
@@ -100,6 +100,13 @@ cd src-tauri && cargo check
 ### Release
 
 ```bash
-make release-macos    # Build, sign, notarize
-make notarize-info    # Check notarization status
+make build-macos-intel   # Intel Mac .app + DMG → dist/macos/
+make build-macos-arm     # Apple Silicon (on M-series or cross-target)
+make build-macos         # Native arch for current Mac
+
+make release-macos-intel # Signed + notarized Intel DMG (Developer ID)
+make release-macos       # Signed + notarized, native arch
+make notarize-info       # Check notarization status
 ```
+
+Artifacts for local testing land in `dist/macos/` (for example `Copyosity_0.4.0_x86_64.dmg`).

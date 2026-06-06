@@ -1,4 +1,9 @@
+#![allow(unexpected_cfgs)]
+
+#[cfg(target_os = "macos")]
+mod clipboard_macos;
 mod clipboard_monitor;
+mod clipboard_write;
 mod commands;
 mod db;
 mod ollama;
@@ -147,6 +152,10 @@ pub fn run() {
 
     builder
         .setup(|app| {
+            // Menu-bar app: no Dock icon, no Cmd+Tab entry.
+            #[cfg(target_os = "macos")]
+            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+
             let app_dir = app.path().app_data_dir().expect("Failed to get app data dir");
             let db = Arc::new(Database::new(app_dir).expect("Failed to initialize database"));
             app.manage(db.clone());
@@ -309,6 +318,7 @@ fn toggle_window(app: &tauri::AppHandle) {
                 if let Some(window) = app.get_webview_window("main") {
                     position_window_bottom(&window);
                 }
+                clipboard_macos::remember_paste_target();
                 LAST_SHOW_MS.store(now_ms(), Ordering::Relaxed);
                 panel.show_and_make_key();
                 let _ = app.emit("window-show", ());
@@ -438,10 +448,18 @@ fn handle_voice_event(app: &tauri::AppHandle, state: ShortcutState) {
                         Ok(text) if !text.is_empty() => {
                             eprintln!("[voice] transcription: \"{}\"", text);
                             if let Ok(mut clipboard) = arboard::Clipboard::new() {
-                                let _ = clipboard.set_text(&text);
+                                let _ = clipboard_write::write_text(
+                                    &mut clipboard,
+                                    text,
+                                    clipboard_write::ClipboardWriteMode::Paste,
+                                );
                             }
                             std::thread::sleep(std::time::Duration::from_millis(100));
-                            simulate_cmd_v();
+                            #[cfg(target_os = "macos")]
+                            {
+                                clipboard_macos::restore_paste_target();
+                                clipboard_macos::simulate_cmd_v();
+                            }
                         }
                         Ok(_) => eprintln!("[voice] transcription returned empty text"),
                         Err(e) => eprintln!("[voice] transcription ERROR: {}", e),
@@ -526,34 +544,6 @@ fn hide_voice_overlay(app: &tauri::AppHandle) {
         }
     }
 }
-
-#[cfg(target_os = "macos")]
-fn simulate_cmd_v() {
-    unsafe {
-        type CGEventSourceRef = *mut std::ffi::c_void;
-        type CGEventRef = *mut std::ffi::c_void;
-        #[link(name = "CoreGraphics", kind = "framework")]
-        extern "C" {
-            fn CGEventCreateKeyboardEvent(source: CGEventSourceRef, keycode: u16, key_down: bool) -> CGEventRef;
-            fn CGEventSetFlags(event: CGEventRef, flags: u64);
-            fn CGEventPost(tap: u32, event: CGEventRef);
-            fn CFRelease(cf: *mut std::ffi::c_void);
-        }
-        let down = CGEventCreateKeyboardEvent(std::ptr::null_mut(), 9, true);
-        let up = CGEventCreateKeyboardEvent(std::ptr::null_mut(), 9, false);
-        if !down.is_null() && !up.is_null() {
-            CGEventSetFlags(down, 0x00100000);
-            CGEventSetFlags(up, 0x00100000);
-            CGEventPost(0, down);
-            CGEventPost(0, up);
-            CFRelease(down);
-            CFRelease(up);
-        }
-    }
-}
-
-#[cfg(not(target_os = "macos"))]
-fn simulate_cmd_v() {}
 
 pub(crate) fn position_window_bottom(window: &tauri::WebviewWindow) {
     use tauri::PhysicalPosition;

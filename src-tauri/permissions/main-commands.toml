@@ -1,0 +1,21 @@
+"$schema" = "../gen/schemas/desktop-schema.json"
+
+[[permission]]
+identifier = "main-window-commands"
+description = "Clipboard panel: entries, copy, activate, hide, open settings"
+commands.allow = [
+  "frontend_ready",
+  "get_entries",
+  "delete_entry",
+  "pin_entry",
+  "set_entry_collection",
+  "get_collections",
+  "create_collection",
+  "delete_collection",
+  "hide_main_window",
+  "open_settings_window",
+  "copy_entry",
+  "activate_entry",
+  "paste_entry",
+  "retag_entry",
+]

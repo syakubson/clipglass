@@ -121,6 +121,7 @@ export async function quitApp(): Promise<void> {
   return invoke("quit_app");
 }
 
+/** @deprecated Use activateEntry for paste-into-target behavior. */
 export async function pasteEntry(text: string): Promise<void> {
   return invoke("paste_entry", { text });
 }
@@ -132,8 +133,8 @@ export interface OllamaStatus {
   model_name: string;
 }
 
-export async function checkAccessibility(): Promise<boolean> {
-  return invoke("check_accessibility");
+export async function checkAccessibility(prompt = false): Promise<boolean> {
+  return invoke("check_accessibility", { prompt });
 }
 
 export async function checkOllamaStatus(): Promise<OllamaStatus> {
