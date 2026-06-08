@@ -19,8 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Ollama model name validation** before `ollama pull`.
 - **Release CI checks** — `cargo audit`, `npm run check`, and `cargo test` on tagged releases.
 - **README** — Apple Silicon vs Intel install table and dual-architecture DMG guidance.
-- **Unit tests** — expanded Rust coverage (clipboard monitor retry/hash-poisoning fix, image format, DB backfill and migration round-trip, GIF paste temp-file path, model validation, settings partial updates, `open_accessibility_settings` IPC); 70 tests in `copyosity_lib`.
+- **Unit tests** — expanded Rust coverage (clipboard monitor retry/hash-poisoning fix, image format, DB backfill and migration round-trip, GIF paste temp-file path, model validation, settings partial updates, voice transcription toggle, `open_accessibility_settings` IPC); 72 tests in `copyosity_lib`.
 - **Voice transcription toggle** — Settings switch (off by default) to enable or disable hold-to-record transcription and its global shortcut without clearing Whisper configuration.
+- **Shared button interaction** (`app-btn`, `button-interaction.css`) — macOS-like press, focus, disabled, and busy states for buttons across Settings, the main window, clipboard cards, and collection tabs.
 
 ### Changed
 
@@ -32,6 +33,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Tray click** — opens the menu only; use **Open Copyosity** or `Cmd+Shift+V` to show the clipboard panel.
 - **Makefile** — portable `APP_DIR` (`CURDIR`); `make check` runs `cargo test`.
 - **Settings unload feedback** — "Model unloaded from memory" appears under the active model name instead of at the bottom of the page.
+- **Voice transcription Settings UI** — compact on/off toggle; Whisper fields sit in a disabled fieldset when off; active toggle uses the same green as status indicators.
+- **Settings Save button** — muted blue aligned with other Settings accents; stable width during save (overlay spinner, reserved “Saved” slot); macOS-style press/focus feedback without hover lift.
+- **Button hover/press** — removed `translateY` lift on hover; press uses inset darken/brightness instead of scale; async Settings actions expose `aria-busy` while loading.
 
 ### Fixed
 
@@ -42,6 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Clipboard card action icons** — copy, retag, pin, and delete use uniform 16×16 SVG icons instead of mismatched Unicode glyphs; pinned star is filled and highlighted.
 - **Clipboard card text preview** — long text no longer bleeds into the inner border or bottom padding; preview uses a padded outer box with grid clipping, and truncated text shows a CSS ellipsis (`line-clamp`: 9 lines without tags, 8 when tags are shown).
 - **Clipboard card footer** — character count sits on its own line below tags instead of sharing a row, so many tags no longer wrap into the count label.
+- **Settings Save layout jump** — saving no longer resizes the button or shifts the “Saved” label when loading state appears.
 
 ### Dependencies
 

@@ -310,11 +310,11 @@
           {accessibilityGranted === null ? "Checking..." : accessibilityGranted ? "Accessibility granted" : "Accessibility not granted"}
         </span>
         {#if accessibilityGranted === false}
-          <button class="status-action" type="button" onclick={handleRequestAccessibility}>
+          <button class="status-action app-btn" type="button" onclick={handleRequestAccessibility}>
             Request
           </button>
         {:else if accessibilityGranted === true}
-          <button class="status-action" type="button" onclick={handleRecheckAccessibility}>
+          <button class="status-action app-btn" type="button" onclick={handleRecheckAccessibility}>
             Recheck
           </button>
         {/if}
@@ -351,7 +351,7 @@
             {ollamaStatus.cli_installed ? "Ollama installed" : "Ollama not installed"}
           </span>
           {#if !ollamaStatus.cli_installed}
-            <button class="status-action" type="button" onclick={openOllamaDownload}>
+            <button class="status-action app-btn" type="button" onclick={openOllamaDownload}>
               Open ollama.com
             </button>
           {/if}
@@ -359,7 +359,7 @@
         {#if !ollamaStatus.cli_installed}
           <div class="status-hint">
             Ollama runs AI models locally on your machine. Download it from
-            <button class="link-btn" type="button" onclick={openOllamaDownload}>ollama.com</button>,
+            <button class="link-btn app-btn" type="button" onclick={openOllamaDownload}>ollama.com</button>,
             install the app, and click "Check again".
           </div>
         {/if}
@@ -373,7 +373,7 @@
             {ollamaStatus.server_running ? "Server running" : "Server not running"}
           </span>
           {#if ollamaStatus.cli_installed && !ollamaStatus.server_running}
-            <button class="status-action" type="button" disabled={ollamaLoading} onclick={handleStartServer}>
+            <button class="status-action app-btn" type="button" disabled={ollamaLoading} aria-busy={ollamaLoading} onclick={handleStartServer}>
               {#if ollamaLoading}<span class="spinner"></span> Starting...{:else}Start{/if}
             </button>
           {/if}
@@ -394,12 +394,12 @@
             {ollamaStatus.model_installed ? `Model ready` : `Model not installed`}
           </span>
           {#if ollamaStatus.server_running && !ollamaStatus.model_installed}
-            <button class="status-action" type="button" disabled={ollamaLoading} onclick={handlePullModel}>
+            <button class="status-action app-btn" type="button" disabled={ollamaLoading} aria-busy={ollamaLoading} onclick={handlePullModel}>
               {#if ollamaLoading}<span class="spinner"></span> Pulling...{:else}Download{/if}
             </button>
           {/if}
           {#if ollamaStatus.model_installed}
-            <button class="status-action" type="button" onclick={handleUnloadModel}>
+            <button class="status-action app-btn" type="button" onclick={handleUnloadModel}>
               Unload
             </button>
           {/if}
@@ -438,7 +438,7 @@
             {/if}
           </span>
           {#if ollamaStatus.model_installed}
-            <button class="status-action" type="button" disabled={taggingLoading || modelDirty} onclick={handleTestTagging} title={modelDirty ? "Save settings first" : ""}>
+            <button class="status-action app-btn" type="button" disabled={taggingLoading || modelDirty} aria-busy={taggingLoading} onclick={handleTestTagging} title={modelDirty ? "Save settings first" : ""}>
               {#if taggingLoading}
                 <span class="spinner"></span> Testing...
               {:else}
@@ -470,7 +470,7 @@
         {/if}
       </div>
 
-      <button class="settings-ghost-btn refresh-btn" type="button" disabled={ollamaLoading} onclick={refreshOllamaStatus}>
+      <button class="settings-ghost-btn refresh-btn app-btn" type="button" disabled={ollamaLoading} aria-busy={ollamaLoading} onclick={refreshOllamaStatus}>
         Check again
       </button>
     {/if}
@@ -540,11 +540,11 @@
           bind:value={excludedAppInput}
           placeholder="App name, for example Telegram"
         />
-        <button class="settings-small-btn" type="button" onclick={handleAddExcludedApp}>
+        <button class="settings-small-btn app-btn" type="button" onclick={handleAddExcludedApp}>
           Add
         </button>
       </div>
-      <button class="settings-ghost-btn" type="button" onclick={handleAddFrontmostApp}>
+      <button class="settings-ghost-btn app-btn" type="button" onclick={handleAddFrontmostApp}>
         Exclude current app
       </button>
       {#if excludedApps.length > 0}
@@ -553,7 +553,7 @@
             <div class="excluded-app-row">
               <span class="excluded-app-name">{app.bundle_id}</span>
               <button
-                class="excluded-remove-btn"
+                class="excluded-remove-btn app-btn"
                 type="button"
                 onclick={() => handleRemoveExcludedApp(app.id)}
               >
@@ -644,18 +644,29 @@
   </section>
 
   <div class="settings-actions">
-    <button class="settings-save-btn" type="button" disabled={savingSettings} onclick={saveSettings}>
-      {savingSettings ? "Saving..." : "Save settings"}
+    <button
+      class="settings-save-btn app-btn"
+      type="button"
+      disabled={savingSettings}
+      aria-busy={savingSettings}
+      onclick={saveSettings}
+    >
+      <span class="settings-save-btn-label">Save settings</span>
+      {#if savingSettings}
+        <span class="settings-save-spinner-wrap" aria-hidden="true">
+          <span class="spinner"></span>
+        </span>
+      {/if}
     </button>
-    {#if settingsNotice}
-      <div class="settings-note">{settingsNotice}</div>
-    {/if}
+    <div class="settings-note" class:visible={!!settingsNotice} aria-live="polite">
+      {settingsNotice}
+    </div>
   </div>
 
   <div class="settings-divider"></div>
 
   <div class="settings-secondary">
-    <button class="settings-item danger" type="button" onclick={handleClearHistory}>Clear unpinned history</button>
+    <button class="settings-item danger app-btn" type="button" onclick={handleClearHistory}>Clear unpinned history</button>
   </div>
 </div>
 
@@ -903,7 +914,6 @@
     border-radius: 11px;
     font: inherit;
     cursor: pointer;
-    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
   }
 
   .settings-small-btn {
@@ -914,9 +924,9 @@
     white-space: nowrap;
   }
 
-  .settings-small-btn:hover,
-  .settings-ghost-btn:hover {
-    transform: translateY(-1px);
+  .settings-small-btn:hover:not(:disabled):not([aria-busy="true"]) {
+    background: rgba(96, 134, 230, 0.24);
+    border-color: rgba(120, 160, 255, 0.3);
   }
 
   .settings-ghost-btn {
@@ -925,6 +935,11 @@
     border: 1px solid rgba(255, 255, 255, 0.08);
     color: #d8dce6;
     width: fit-content;
+  }
+
+  .settings-ghost-btn:hover:not(:disabled):not([aria-busy="true"]) {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.12);
   }
 
   .settings-actions {
@@ -936,32 +951,63 @@
   }
 
   .settings-save-btn {
+    position: relative;
+    min-width: 118px;
     min-height: 42px;
     padding: 0 16px;
-    background: linear-gradient(180deg, rgba(103, 145, 255, 0.95), rgba(75, 121, 244, 0.92));
-    border: 1px solid rgba(144, 177, 255, 0.35);
+    background: linear-gradient(
+      180deg,
+      rgba(96, 134, 230, 0.34) 0%,
+      rgba(82, 118, 206, 0.46) 100%
+    );
+    border: 1px solid rgba(120, 160, 255, 0.28);
     border-radius: 12px;
-    color: #f7f9ff;
+    color: #edf1f8;
     font: inherit;
     font-weight: 700;
     cursor: pointer;
-    transition: transform 0.15s ease, filter 0.15s ease, opacity 0.15s ease;
   }
 
-  .settings-save-btn:hover {
-    transform: translateY(-1px);
-    filter: brightness(1.04);
+  .settings-save-btn-label {
+    transition: opacity 0.15s ease;
   }
 
-  .settings-save-btn:disabled {
-    opacity: 0.6;
-    cursor: default;
+  .settings-save-btn[aria-busy="true"] .settings-save-btn-label {
+    opacity: 0;
+  }
+
+  .settings-save-spinner-wrap {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+  }
+
+  .settings-save-btn:hover:not(:disabled):not([aria-busy="true"]) {
+    background: linear-gradient(
+      180deg,
+      rgba(96, 134, 230, 0.42) 0%,
+      rgba(82, 118, 206, 0.52) 100%
+    );
+    border-color: rgba(120, 160, 255, 0.36);
   }
 
   .settings-note {
+    flex: 0 0 3.5rem;
+    min-height: 1.35em;
     padding: 0 2px;
     font-size: 11px;
+    line-height: 1.35;
+    text-align: right;
     color: #91d6a6;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+
+  .settings-note.visible {
+    opacity: 1;
   }
 
   .settings-divider {
@@ -1014,6 +1060,10 @@
     white-space: nowrap;
   }
 
+  .excluded-remove-btn:hover:not(:disabled) {
+    color: #f0c890;
+  }
+
   .settings-item {
     width: 100%;
     min-height: 40px;
@@ -1025,10 +1075,9 @@
     text-align: left;
     cursor: pointer;
     font: inherit;
-    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
   }
 
-  .settings-item:hover {
+  .settings-item:hover:not(:disabled):not([aria-busy="true"]) {
     background: rgba(255, 255, 255, 0.07);
     border-color: rgba(255, 255, 255, 0.1);
   }
@@ -1037,7 +1086,7 @@
     color: #f0c8c8;
   }
 
-  .settings-item.danger:hover {
+  .settings-item.danger:hover:not(:disabled):not([aria-busy="true"]) {
     background: rgba(255, 107, 107, 0.08);
     border-color: rgba(255, 107, 107, 0.14);
   }
@@ -1102,17 +1151,11 @@
     font-size: 11px;
     cursor: pointer;
     white-space: nowrap;
-    transition: background 0.15s ease, transform 0.15s ease;
   }
 
-  .status-action:hover:not(:disabled) {
+  .status-action:hover:not(:disabled):not([aria-busy="true"]) {
     background: rgba(96, 134, 230, 0.28);
-    transform: translateY(-1px);
-  }
-
-  .status-action:disabled {
-    opacity: 0.5;
-    cursor: default;
+    border-color: rgba(120, 160, 255, 0.32);
   }
 
   .refresh-btn {
@@ -1169,7 +1212,7 @@
     text-underline-offset: 2px;
   }
 
-  .link-btn:hover {
+  .link-btn:hover:not(:disabled):not([aria-busy="true"]) {
     color: #a8c4ff;
   }
 

@@ -207,7 +207,7 @@
     />
     <div class="header-actions">
       <button
-        class="settings-btn"
+        class="settings-btn app-btn"
         type="button"
         aria-label="Open settings"
         onclick={() => openSettingsWindow()}
@@ -224,7 +224,7 @@
   {#if topTags.length > 0}
     <div class="tag-groups">
       <button
-        class="tag-group-chip"
+        class="tag-group-chip app-btn"
         class:active={!activeTag}
         type="button"
         onclick={() => {
@@ -237,7 +237,7 @@
 
       {#each topTags as [tag, count]}
         <button
-          class="tag-group-chip"
+          class="tag-group-chip app-btn"
           class:active={activeTag === tag}
           type="button"
           onclick={() => {
@@ -365,7 +365,7 @@
     transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
   }
 
-  .tag-group-chip:hover {
+  .tag-group-chip:hover:not(:disabled):not([aria-busy="true"]) {
     background: rgba(255, 255, 255, 0.07);
     border-color: rgba(255, 255, 255, 0.12);
   }
@@ -404,13 +404,11 @@
     border-radius: 10px;
     color: #d8d8d8;
     cursor: pointer;
-    transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
   }
 
-  .settings-btn:hover {
+  .settings-btn:hover:not(:disabled):not([aria-busy="true"]) {
     background: rgba(255, 255, 255, 0.1);
     border-color: rgba(255, 255, 255, 0.16);
-    transform: translateY(-1px);
   }
 
   .settings-btn svg {

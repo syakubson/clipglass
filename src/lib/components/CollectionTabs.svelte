@@ -37,16 +37,18 @@
 
 <div class="tabs-container">
   <button
-    class="tab"
+    class="tab app-btn"
     class:active={activeId === null && !activePinned}
+    type="button"
     onclick={() => onselect?.(null)}
   >
     Clipboard History
   </button>
 
   <button
-    class="tab"
+    class="tab app-btn"
     class:active={activePinned}
+    type="button"
     onclick={() => onselect?.(-1)}
   >
     Starred
@@ -63,7 +65,7 @@
     >
       <span class="tab-dot" style:background={col.color ?? '#666'}></span>
       {col.name}
-      <button class="tab-delete" onclick={(e) => handleDelete(e, col.id)}>×</button>
+      <button class="tab-delete app-btn" type="button" onclick={(e) => handleDelete(e, col.id)}>×</button>
     </div>
   {/each}
 
@@ -78,7 +80,7 @@
       />
     </form>
   {:else}
-    <button class="tab add-tab" onclick={() => (showAdd = true)}>+</button>
+    <button class="tab add-tab app-btn" type="button" onclick={() => (showAdd = true)}>+</button>
   {/if}
 </div>
 
@@ -113,7 +115,7 @@
     transition: all 0.15s;
   }
 
-  .tab:hover {
+  .tab:hover:not(:disabled):not([aria-busy="true"]) {
     color: #ddd;
     background: rgba(255, 255, 255, 0.06);
   }
@@ -146,7 +148,7 @@
     opacity: 1;
   }
 
-  .tab-delete:hover {
+  .tab-delete:hover:not(:disabled):not([aria-busy="true"]) {
     color: #ff6b6b;
   }
 
