@@ -160,17 +160,37 @@
     </div>
     <div class="card-actions">
       <button class="action-btn" onclick={handleCopy} title="Copy">
-        ⎘
+        <svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+        </svg>
       </button>
       {#if entry.content_type === "text"}
         <button class="action-btn" onclick={handleRetag} title="Retag">
-          ↻
+          <svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+            <path d="M21 3v5h-5" />
+            <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+            <path d="M8 16H3v5" />
+          </svg>
         </button>
       {/if}
-      <button class="action-btn" onclick={handlePin} title={entry.is_pinned ? "Unpin" : "Pin"}>
-        {entry.is_pinned ? "★" : "☆"}
+      <button
+        class="action-btn"
+        class:pinned={entry.is_pinned}
+        onclick={handlePin}
+        title={entry.is_pinned ? "Unpin" : "Pin"}
+      >
+        <svg class="action-icon" viewBox="0 0 24 24" fill={entry.is_pinned ? "currentColor" : "none"} stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+        </svg>
       </button>
-      <button class="action-btn delete" onclick={handleDelete} title="Delete">×</button>
+      <button class="action-btn delete" onclick={handleDelete} title="Delete">
+        <svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="18" y1="6" x2="6" y2="18" />
+          <line x1="6" y1="6" x2="18" y2="18" />
+        </svg>
+      </button>
     </div>
   </div>
 
@@ -309,19 +329,33 @@
   }
 
   .action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
     background: none;
     border: none;
     color: #888;
     cursor: pointer;
-    font-size: 16px;
-    padding: 2px 4px;
+    padding: 0;
     border-radius: 4px;
-    line-height: 1;
+    flex-shrink: 0;
+  }
+
+  .action-icon {
+    width: 16px;
+    height: 16px;
+    display: block;
   }
 
   .action-btn:hover {
     color: #fff;
     background: rgba(255, 255, 255, 0.1);
+  }
+
+  .action-btn.pinned {
+    color: #ffc832;
   }
 
   .action-btn.delete:hover {
