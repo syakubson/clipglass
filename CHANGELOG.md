@@ -19,9 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Ollama model name validation** before `ollama pull`.
 - **Release CI checks** — `cargo audit`, `npm run check`, and `cargo test` on tagged releases.
 - **README** — Apple Silicon vs Intel install table and dual-architecture DMG guidance.
-- **Unit tests** — expanded Rust coverage (clipboard monitor retry/hash-poisoning fix, image format, DB backfill and migration round-trip, GIF paste temp-file path, model validation, settings partial updates, voice transcription toggle, `open_accessibility_settings` IPC); 72 tests in `copyosity_lib`.
+- **Unit tests** — expanded Rust coverage (clipboard monitor retry/hash-poisoning fix, image format, DB backfill and migration round-trip, GIF paste temp-file path, model validation, settings partial updates, voice transcription toggle, `open_accessibility_settings` IPC, Ollama `/api/ps` matching and unload response parsing); 77 tests in `copyosity_lib`.
 - **Voice transcription toggle** — Settings switch (off by default) to enable or disable hold-to-record transcription and its global shortcut without clearing Whisper configuration.
-- **Shared button interaction** (`app-btn`, `button-interaction.css`) — macOS-like press, focus, disabled, and busy states for buttons across Settings, the main window, clipboard cards, and collection tabs.
+- **Shared button interaction** (`app-btn`, `button-interaction.css`) — macOS-like press, focus, disabled, and busy states for buttons across Settings, the main window, clipboard cards, and collection tabs; overlay spinner on busy buttons without layout shift; `prepareBusyUi()` yields before blocking IPC so spinners paint reliably.
+- **Shared form controls** (`form-controls.css`) — compact macOS-style inputs, selects, section layout, and form buttons reused in Settings.
 
 ### Changed
 
@@ -32,9 +33,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Voice overlay** — pre-created NSPanel with non-activating behavior so showing the overlay no longer steals focus from the target app; audio level meter uses a logarithmic dB scale for quiet laptop mics.
 - **Tray click** — opens the menu only; use **Open Copyosity** or `Cmd+Shift+V` to show the clipboard panel.
 - **Makefile** — portable `APP_DIR` (`CURDIR`); `make check` runs `cargo test`.
-- **Settings unload feedback** — "Model unloaded from memory" appears under the active model name instead of at the bottom of the page.
+- **Settings unload feedback** — Ollama step 3 shows three distinct states: model ready (green), model on disk but unloaded (static yellow), model not installed (red); `model_loaded` comes from Ollama `/api/ps`.
+- **Settings Ollama actions** — Unload, Test, Start, and Download run on a background thread (`spawn_blocking`) so the WebView stays responsive; busy buttons use `is-busy` (not `disabled`) so WebKit keeps spinner animations running.
 - **Voice transcription Settings UI** — compact on/off toggle; Whisper fields sit in a disabled fieldset when off; active toggle uses the same green as status indicators.
 - **Settings Save button** — muted blue aligned with other Settings accents; stable width during save (overlay spinner, reserved “Saved” slot); macOS-style press/focus feedback without hover lift.
+- **Settings form controls** — compact macOS-style inputs (32px, 13px type), consistent section spacing, shared `form-controls.css` reused across form blocks; clear-history action moved into Storage section, footer reserved for Save only.
 - **Button hover/press** — removed `translateY` lift on hover; press uses inset darken/brightness instead of scale; async Settings actions expose `aria-busy` while loading.
 
 ### Fixed
@@ -47,6 +50,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Clipboard card text preview** — long text no longer bleeds into the inner border or bottom padding; preview uses a padded outer box with grid clipping, and truncated text shows a CSS ellipsis (`line-clamp`: 9 lines without tags, 8 when tags are shown).
 - **Clipboard card footer** — character count sits on its own line below tags instead of sharing a row, so many tags no longer wrap into the count label.
 - **Settings Save layout jump** — saving no longer resizes the button or shifts the “Saved” label when loading state appears.
+- **Settings Unload** — works on the first click with a visible busy spinner; uses the documented Ollama unload request (`prompt: ""`, `keep_alive: 0`), verifies unload via `/api/ps` (with `ollama stop` fallback), and clears the tagging test result only after the model is confirmed unloaded.
+- **Settings tagging test** — repeatable after success; busy spinner and “Testing…” state render on every run; successful test display requires the model to be loaded in memory.
+- **Settings Ollama status dot** — “Model unloaded” uses a static yellow indicator instead of the pulsing animation reserved for in-progress checks.
 
 ### Dependencies
 

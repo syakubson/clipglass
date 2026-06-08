@@ -132,6 +132,7 @@ export interface OllamaStatus {
   cli_installed: boolean;
   server_running: boolean;
   model_installed: boolean;
+  model_loaded: boolean;
   model_name: string;
 }
 

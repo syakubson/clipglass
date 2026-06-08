@@ -1,0 +1,266 @@
+/*
+ * Shared macOS-like form controls for settings and future forms.
+ * Pair with button-interaction.css (app-btn) for button press states.
+ */
+
+.form-section {
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 14px;
+}
+
+.form-section + .form-section {
+  margin-top: 10px;
+}
+
+.form-section-title {
+  margin-bottom: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8f97aa;
+}
+
+.form-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.form-section-header .form-section-title {
+  margin-bottom: 0;
+}
+
+.form-section-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.form-section-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.form-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #c6cada;
+}
+
+.form-inline {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.form-input,
+.form-select {
+  width: 100%;
+  min-height: 32px;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 8px;
+  color: #edf1f8;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.25;
+  outline: none;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.form-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  padding-right: 32px;
+  background-image:
+    linear-gradient(45deg, transparent 50%, rgba(237, 241, 248, 0.9) 50%),
+    linear-gradient(135deg, rgba(237, 241, 248, 0.9) 50%, transparent 50%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01));
+  background-position:
+    calc(100% - 14px) calc(50% - 2px),
+    calc(100% - 8px) calc(50% - 2px),
+    0 0;
+  background-size:
+    6px 6px,
+    6px 6px,
+    100% 100%;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+
+.form-select:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.form-select option {
+  color: #edf1f8;
+  background: #23252c;
+}
+
+.form-input:focus,
+.form-select:focus {
+  border-color: rgba(120, 160, 255, 0.4);
+  box-shadow: 0 0 0 3px rgba(94, 140, 255, 0.15);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.form-input::placeholder {
+  color: rgba(237, 240, 248, 0.35);
+}
+
+.form-hint {
+  font-size: 11px;
+  line-height: calc(1em + 8px);
+  color: #97a0b4;
+  padding: 2px 0;
+}
+
+.form-hint.ok,
+.form-hint.fits {
+  color: #8fd1a1;
+}
+
+.form-hint.tight {
+  color: #e3b370;
+}
+
+.form-hint code {
+  display: inline-block;
+  padding: 2px 5px;
+  margin: 2px 1px 2px 0;
+  background: rgba(255, 255, 255, 0.07);
+  border-radius: 4px;
+  font-family: "SF Mono", Menlo, monospace;
+  font-size: 10.5px;
+  line-height: 1.2;
+  color: #c8cee0;
+  vertical-align: baseline;
+}
+
+.form-info-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+}
+
+.form-btn {
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.25;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.form-btn-primary {
+  position: relative;
+  background: linear-gradient(
+    180deg,
+    rgba(96, 134, 230, 0.34) 0%,
+    rgba(82, 118, 206, 0.46) 100%
+  );
+  border: 1px solid rgba(120, 160, 255, 0.28);
+  color: #edf1f8;
+  font-weight: 600;
+}
+
+.form-btn-primary:hover:not(.is-busy):not(.is-locked):not(:disabled) {
+  background: linear-gradient(
+    180deg,
+    rgba(96, 134, 230, 0.42) 0%,
+    rgba(82, 118, 206, 0.52) 100%
+  );
+  border-color: rgba(120, 160, 255, 0.36);
+}
+
+.form-btn-secondary {
+  background: rgba(96, 134, 230, 0.16);
+  border: 1px solid rgba(120, 160, 255, 0.22);
+  color: #edf1f8;
+}
+
+.form-btn-secondary:hover:not(.is-busy):not(.is-locked):not(:disabled) {
+  background: rgba(96, 134, 230, 0.24);
+  border-color: rgba(120, 160, 255, 0.3);
+}
+
+.form-btn-ghost {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #d8dce6;
+  width: fit-content;
+}
+
+.form-btn-ghost:hover:not(.is-busy):not(.is-locked):not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.form-btn-danger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  background: rgba(255, 107, 107, 0.06);
+  border: 1px solid rgba(255, 107, 107, 0.14);
+  color: #f0a0a0;
+}
+
+.form-btn-danger:hover:not(.is-busy):not(.is-locked):not(:disabled) {
+  background: rgba(255, 107, 107, 0.12);
+  border-color: rgba(255, 107, 107, 0.22);
+  color: #f5b8b8;
+}
+
+.form-btn-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.form-note {
+  flex: 0 0 3.5rem;
+  min-height: 1.35em;
+  padding: 0 2px;
+  font-size: 11px;
+  line-height: 1.35;
+  text-align: right;
+  color: #91d6a6;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.form-note.visible {
+  opacity: 1;
+}

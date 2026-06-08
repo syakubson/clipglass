@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { prepareBusyUi } from "$lib/run-with-busy-ui";
   import { listen } from "@tauri-apps/api/event";
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import type { AppSettings, AudioInputDevice, ExcludedApp, ModelCatalog, ModelOption } from "$lib/types";
@@ -56,9 +57,8 @@
   let accessibilityNotice = $state("");
 
   let ollamaStatus = $state<OllamaStatus | null>(null);
-  let ollamaLoading = $state(false);
+  let ollamaBusy = $state<"refresh" | "start" | "pull" | "unload" | null>(null);
   let pullProgress = $state("");
-  let unloadNotice = $state("");
   let taggingResult = $state<string[] | null | undefined>(undefined);
   let taggingLoading = $state(false);
 
@@ -86,49 +86,71 @@
     excludedApps = await getExcludedApps();
   }
 
-  async function refreshOllamaStatus() {
-    ollamaLoading = true;
-    taggingResult = undefined;
-    unloadNotice = "";
+  async function syncOllamaStatus() {
+    ollamaStatus = await checkOllamaStatus();
+  }
+
+  async function refreshOllamaStatus(showBusy = false) {
+    if (ollamaBusy || taggingLoading) return;
+    if (showBusy) {
+      ollamaBusy = "refresh";
+      taggingResult = undefined;
+      await prepareBusyUi();
+    }
     try {
-      ollamaStatus = await checkOllamaStatus();
+      await syncOllamaStatus();
     } finally {
-      ollamaLoading = false;
+      if (showBusy && ollamaBusy === "refresh") ollamaBusy = null;
     }
   }
 
   async function handleUnloadModel() {
-    unloadNotice = "";
-    const ok = await unloadOllamaModel();
-    unloadNotice = ok ? "Model unloaded from memory" : "Failed to unload model";
+    if (ollamaBusy || taggingLoading) return;
+    ollamaBusy = "unload";
+    await prepareBusyUi();
+    try {
+      const ok = await unloadOllamaModel();
+      await syncOllamaStatus();
+      if (ok && ollamaStatus && !ollamaStatus.model_loaded) {
+        taggingResult = undefined;
+      }
+    } finally {
+      if (ollamaBusy === "unload") ollamaBusy = null;
+    }
   }
 
   async function handleStartServer() {
-    ollamaLoading = true;
+    if (ollamaBusy || taggingLoading) return;
+    ollamaBusy = "start";
+    await prepareBusyUi();
     try {
       await startOllamaServer();
       await refreshOllamaStatus();
     } finally {
-      ollamaLoading = false;
+      if (ollamaBusy === "start") ollamaBusy = null;
     }
   }
 
   async function handlePullModel() {
-    ollamaLoading = true;
+    if (ollamaBusy || taggingLoading) return;
+    ollamaBusy = "pull";
     pullProgress = "Starting download...";
+    await prepareBusyUi();
     await pullOllamaModel();
     // Command returns immediately, progress comes via events
     // ollama-pull-done will reset the state
   }
 
   async function handleTestTagging() {
+    if (taggingLoading || modelDirty || ollamaBusy) return;
     taggingLoading = true;
-    taggingResult = undefined;
+    await prepareBusyUi();
     try {
       taggingResult = await testOllamaTagging();
     } finally {
       taggingLoading = false;
     }
+    await syncOllamaStatus();
   }
 
   /** macOS trust prompt already shown this settings-window visit. */
@@ -199,7 +221,7 @@
     });
 
     const unlistenPullDone = listen<boolean>("ollama-pull-done", async (event) => {
-      ollamaLoading = false;
+      ollamaBusy = null;
       pullProgress = "";
       await refreshOllamaStatus();
     });
@@ -224,6 +246,7 @@
   });
 
   async function saveSettings() {
+    if (savingSettings) return;
     savingSettings = true;
     settingsNotice = "";
     try {
@@ -293,7 +316,22 @@
   });
 
   let modelDirty = $derived(settings.ollama_model !== savedModel);
+
+  const ollamaBusyActive = $derived(ollamaBusy !== null);
+  const taggingSucceeded = $derived(
+    !!ollamaStatus?.model_loaded &&
+      taggingResult !== undefined &&
+      taggingResult !== null,
+  );
+  const taggingFailed = $derived(!!ollamaStatus?.model_loaded && taggingResult === null);
+  const taggingUntested = $derived(!ollamaStatus?.model_loaded || taggingResult === undefined);
 </script>
+
+{#snippet busySpinner()}
+  <span class="app-btn-spinner" aria-hidden="true">
+    <span class="app-btn-spinner-icon"></span>
+  </span>
+{/snippet}
 
 <div class="settings-page">
   <div class="settings-head" data-tauri-drag-region>
@@ -301,8 +339,9 @@
     <div class="settings-subtitle">Local AI and history behavior</div>
   </div>
 
-  <section class="settings-section">
-    <div class="settings-section-title">Permissions</div>
+  <section class="form-section">
+    <div class="form-section-title">Permissions</div>
+    <div class="form-section-body">
     <div class="status-step">
       <div class="status-row">
         <span class="status-dot" class:ok={accessibilityGranted === true} class:fail={accessibilityGranted === false} class:checking={accessibilityGranted === null}></span>
@@ -332,11 +371,12 @@
         After a new build or reinstall, remove Copyosity from Accessibility and add it again if paste stops working.
       </div>
     </div>
+    </div>
   </section>
 
-  <section class="settings-section">
-    <div class="settings-section-title">Local AI Status</div>
-
+  <section class="form-section">
+    <div class="form-section-title">Local AI Status</div>
+    <div class="form-section-body">
     {#if ollamaStatus === null}
       <div class="status-row">
         <span class="status-dot checking"></span>
@@ -373,8 +413,16 @@
             {ollamaStatus.server_running ? "Server running" : "Server not running"}
           </span>
           {#if ollamaStatus.cli_installed && !ollamaStatus.server_running}
-            <button class="status-action app-btn" type="button" disabled={ollamaLoading} aria-busy={ollamaLoading} onclick={handleStartServer}>
-              {#if ollamaLoading}<span class="spinner"></span> Starting...{:else}Start{/if}
+            <button
+              class="status-action app-btn"
+              type="button"
+              class:is-busy={ollamaBusy === "start"}
+              class:is-locked={(ollamaBusyActive && ollamaBusy !== "start") || taggingLoading}
+              aria-busy={ollamaBusy === "start" ? "true" : undefined}
+              onclick={handleStartServer}
+            >
+              <span class="app-btn-label">Start</span>
+              {@render busySpinner()}
             </button>
           {/if}
         </div>
@@ -389,24 +437,53 @@
       <!-- Step 3: Model installed -->
       <div class="status-step">
         <div class="status-row">
-          <span class="status-dot" class:ok={ollamaStatus.model_installed} class:fail={ollamaStatus.server_running && !ollamaStatus.model_installed} class:disabled={!ollamaStatus.server_running}></span>
+          <span
+            class="status-dot"
+            class:ok={ollamaStatus.model_installed && ollamaStatus.model_loaded}
+            class:warn={ollamaStatus.model_installed && !ollamaStatus.model_loaded}
+            class:fail={ollamaStatus.server_running && !ollamaStatus.model_installed}
+            class:disabled={!ollamaStatus.server_running}
+          ></span>
           <span class="status-text" class:dimmed={!ollamaStatus.server_running}>
-            {ollamaStatus.model_installed ? `Model ready` : `Model not installed`}
+            {#if !ollamaStatus.model_installed}
+              Model not installed
+            {:else if ollamaStatus.model_loaded}
+              Model ready
+            {:else}
+              Model unloaded
+            {/if}
           </span>
           {#if ollamaStatus.server_running && !ollamaStatus.model_installed}
-            <button class="status-action app-btn" type="button" disabled={ollamaLoading} aria-busy={ollamaLoading} onclick={handlePullModel}>
-              {#if ollamaLoading}<span class="spinner"></span> Pulling...{:else}Download{/if}
+            <button
+              class="status-action app-btn"
+              type="button"
+              class:is-busy={ollamaBusy === "pull"}
+              class:is-locked={(ollamaBusyActive && ollamaBusy !== "pull") || taggingLoading}
+              aria-busy={ollamaBusy === "pull" ? "true" : undefined}
+              onclick={handlePullModel}
+            >
+              <span class="app-btn-label">Download</span>
+              {@render busySpinner()}
             </button>
           {/if}
           {#if ollamaStatus.model_installed}
-            <button class="status-action app-btn" type="button" onclick={handleUnloadModel}>
-              Unload
+            <button
+              class="status-action app-btn"
+              type="button"
+              class:is-busy={ollamaBusy === "unload"}
+              class:is-locked={(ollamaBusyActive && ollamaBusy !== "unload") || taggingLoading}
+              aria-busy={ollamaBusy === "unload" ? "true" : undefined}
+              onclick={handleUnloadModel}
+            >
+              <span class="app-btn-label">Unload</span>
+              {@render busySpinner()}
             </button>
           {/if}
         </div>
         {#if pullProgress}
           <div class="status-hint pull-progress">
-            <span class="spinner"></span> {pullProgress}
+            <span class="app-btn-spinner-icon is-inline" aria-hidden="true"></span>
+            {pullProgress}
           </div>
         {:else if ollamaStatus.server_running && !ollamaStatus.model_installed}
           <div class="status-hint">
@@ -414,22 +491,31 @@
             Click "Download" or run <code>ollama pull {ollamaStatus.model_name}</code> in terminal.
             This may take a few minutes depending on your connection.
           </div>
-        {:else if ollamaStatus.model_installed}
+        {:else if ollamaStatus.model_installed && ollamaStatus.model_loaded}
           <div class="status-hint ok">
             Using <code>{ollamaStatus.model_name}</code>
           </div>
-          {#if unloadNotice}
-            <div class="status-hint ok">{unloadNotice}</div>
-          {/if}
+        {:else if ollamaStatus.model_installed}
+          <div class="status-hint">
+            Model is on disk but not loaded in memory. Click <strong>Test</strong> or use tagging to load it again.
+          </div>
         {/if}
       </div>
 
       <!-- Step 4: Tagging test -->
       <div class="status-step">
         <div class="status-row">
-          <span class="status-dot" class:ok={taggingResult !== undefined && taggingResult !== null} class:fail={taggingResult === null} class:disabled={!ollamaStatus.model_installed}></span>
+          <span
+            class="status-dot"
+            class:checking={taggingLoading}
+            class:ok={!taggingLoading && taggingSucceeded}
+            class:fail={!taggingLoading && taggingFailed}
+            class:disabled={!taggingLoading && taggingUntested}
+          ></span>
           <span class="status-text" class:dimmed={!ollamaStatus.model_installed}>
-            {#if taggingResult === undefined}
+            {#if taggingLoading}
+              Testing...
+            {:else if taggingUntested}
               Tagging not tested
             {:else if taggingResult !== null}
               Tagging works
@@ -438,12 +524,18 @@
             {/if}
           </span>
           {#if ollamaStatus.model_installed}
-            <button class="status-action app-btn" type="button" disabled={taggingLoading || modelDirty} aria-busy={taggingLoading} onclick={handleTestTagging} title={modelDirty ? "Save settings first" : ""}>
-              {#if taggingLoading}
-                <span class="spinner"></span> Testing...
-              {:else}
-                Test
-              {/if}
+            <button
+              class="status-action app-btn"
+              type="button"
+              disabled={modelDirty}
+              class:is-busy={taggingLoading}
+              class:is-locked={!modelDirty && ollamaBusyActive && !taggingLoading}
+              aria-busy={taggingLoading ? "true" : undefined}
+              onclick={handleTestTagging}
+              title={modelDirty ? "Save settings first" : ""}
+            >
+              <span class="app-btn-label">Test</span>
+              {@render busySpinner()}
             </button>
           {/if}
         </div>
@@ -453,35 +545,49 @@
           </div>
         {:else if taggingLoading}
           <div class="status-hint">
-            Sending test request... This can take up to 60 seconds on first run while the model loads into memory.
+            {#if taggingResult !== undefined}
+              Re-running test... Results below update when the request finishes.
+            {:else}
+              Sending test request... This can take up to 60 seconds on first run while the model loads into memory.
+            {/if}
           </div>
-        {:else if taggingResult !== undefined && taggingResult !== null}
+        {:else if taggingSucceeded}
           <div class="status-hint ok">
-            Test result: {taggingResult.join(", ")}
+            Test result: {taggingResult!.join(", ")}
           </div>
-        {:else if taggingResult === null}
+        {:else if taggingFailed}
           <div class="status-hint fail">
             The model did not return tags. Try a different model or check Ollama logs.
           </div>
         {:else if ollamaStatus.model_installed}
           <div class="status-hint">
-            Click "Test" to verify that the model can tag clipboard content.
+            Click "Test" to verify tagging. You can re-run the test anytime; "Check again" refreshes Ollama status and clears this result.
           </div>
         {/if}
       </div>
 
-      <button class="settings-ghost-btn refresh-btn app-btn" type="button" disabled={ollamaLoading} aria-busy={ollamaLoading} onclick={refreshOllamaStatus}>
-        Check again
+      <button
+        class="form-btn form-btn-ghost refresh-btn app-btn"
+        type="button"
+        class:is-busy={ollamaBusy === "refresh"}
+        class:is-locked={(ollamaBusyActive && ollamaBusy !== "refresh") || taggingLoading}
+        aria-busy={ollamaBusy === "refresh" ? "true" : undefined}
+        onclick={() => refreshOllamaStatus(true)}
+      >
+        <span class="app-btn-label">Check again</span>
+        {@render busySpinner()}
       </button>
     {/if}
+    </div>
   </section>
 
-  <section class="settings-section">
-    <div class="settings-section-title">AI Model</div>
-    <label class="settings-field">
-      <span class="settings-label">Ollama model</span>
+  <section class="form-section">
+    <div class="form-section-title">AI Model</div>
+    <div class="form-section-body">
+    <label class="form-field">
+      <span class="form-label">Ollama model</span>
       <select
-        class="settings-select"
+        class="form-select"
         bind:value={selectedModelPreset}
         onchange={(e) => handleModelPresetChange((e.currentTarget as HTMLSelectElement).value)}
       >
@@ -494,57 +600,81 @@
       </select>
       {#if selectedModelPreset === "__custom__"}
         <input
-          class="settings-input"
+          class="form-input"
           type="text"
           bind:value={settings.ollama_model}
           placeholder="qwen3:4b-instruct-2507-q4_K_M"
         />
       {/if}
-      <div class="settings-info-card">
-        <div class="settings-hint">
+      <div class="form-info-card">
+        <div class="form-hint">
           Machine RAM: {modelCatalog.total_memory_gb.toFixed(1)} GB
         </div>
-        <div class="settings-hint">
+        <div class="form-hint">
           Recommended Ollama budget: {modelCatalog.recommended_memory_gb.toFixed(1)} GB
         </div>
         {#if selectedModelMeta}
-          <div class="settings-hint" class:fits={selectedModelMeta.fits} class:tight={!selectedModelMeta.fits}>
+          <div class="form-hint" class:fits={selectedModelMeta.fits} class:tight={!selectedModelMeta.fits}>
             {selectedModelMeta.label} needs about {selectedModelMeta.memory_gb.toFixed(1)} GB and
             {selectedModelMeta.fits ? " should fit this machine." : " may be too heavy for this machine."}
           </div>
         {/if}
       </div>
     </label>
+    </div>
   </section>
 
-  <section class="settings-section">
-    <div class="settings-section-title">Storage</div>
-    <label class="settings-field">
-      <span class="settings-label">History retention</span>
-      <select class="settings-select" bind:value={settings.retention_days}>
+  <section class="form-section">
+    <div class="form-section-title">Storage</div>
+    <div class="form-section-body">
+    <label class="form-field">
+      <span class="form-label">History retention</span>
+      <select class="form-select" bind:value={settings.retention_days}>
         {#each retentionOptions as option}
           <option value={option.value}>{option.label}</option>
         {/each}
       </select>
     </label>
+    <div class="form-section-divider" role="separator"></div>
+    <button class="form-btn form-btn-danger app-btn" type="button" onclick={handleClearHistory}>
+      <svg
+        class="form-btn-icon"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <polyline points="3 6 5 6 21 6" />
+        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+        <path d="M10 11v6" />
+        <path d="M14 11v6" />
+        <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+      </svg>
+      Clear unpinned history
+    </button>
+    </div>
   </section>
 
-  <section class="settings-section">
-    <div class="settings-section-title">Privacy</div>
-    <div class="settings-field">
-      <span class="settings-label">Excluded apps</span>
-      <div class="settings-inline">
+  <section class="form-section">
+    <div class="form-section-title">Privacy</div>
+    <div class="form-section-body">
+    <div class="form-field">
+      <span class="form-label">Excluded apps</span>
+      <div class="form-inline">
         <input
-          class="settings-input"
+          class="form-input"
           type="text"
           bind:value={excludedAppInput}
           placeholder="App name, for example Telegram"
         />
-        <button class="settings-small-btn app-btn" type="button" onclick={handleAddExcludedApp}>
+        <button class="form-btn form-btn-secondary app-btn" type="button" onclick={handleAddExcludedApp}>
           Add
         </button>
       </div>
-      <button class="settings-ghost-btn app-btn" type="button" onclick={handleAddFrontmostApp}>
+      <button class="form-btn form-btn-ghost app-btn" type="button" onclick={handleAddFrontmostApp}>
         Exclude current app
       </button>
       {#if excludedApps.length > 0}
@@ -563,14 +693,15 @@
           {/each}
         </div>
       {:else}
-        <div class="settings-hint">Clipboard from excluded apps will not be stored or tagged.</div>
+        <div class="form-hint">Clipboard from excluded apps will not be stored or tagged.</div>
       {/if}
+    </div>
     </div>
   </section>
 
-  <section class="settings-section">
-    <div class="settings-section-header">
-      <div class="settings-section-title">Voice Transcription</div>
+  <section class="form-section">
+    <div class="form-section-header">
+      <div class="form-section-title">Voice Transcription</div>
       <label class="toggle" title="Enable voice transcription">
         <input
           type="checkbox"
@@ -583,58 +714,58 @@
       </label>
     </div>
     <fieldset
-      class="voice-transcription-body"
+      class="form-section-body voice-transcription-body"
       class:is-disabled={!settings.voice_transcription_enabled}
       disabled={!settings.voice_transcription_enabled}
     >
-      <div class="settings-hint voice-transcription-intro">
+      <div class="form-hint">
         Hold the shortcut to record, release to transcribe and paste at cursor.
         Requires an OpenAI-compatible Whisper server.
       </div>
-      <label class="settings-field">
-        <span class="settings-label">Shortcut (hold to record)</span>
+      <label class="form-field">
+        <span class="form-label">Shortcut (hold to record)</span>
         <input
-          class="settings-input"
+          class="form-input"
           type="text"
           bind:value={settings.voice_shortcut}
           placeholder="option+space"
         />
-        <div class="settings-hint">
+        <div class="form-hint">
           Use: <code>cmd</code>, <code>option</code>, <code>ctrl</code>, <code>shift</code> + key.
           Examples: <code>option+space</code>, <code>cmd+shift+r</code>, <code>ctrl+alt+space</code>
         </div>
       </label>
-      <label class="settings-field spaced">
-        <span class="settings-label">Microphone</span>
-        <select class="settings-select" bind:value={settings.selected_microphone}>
+      <label class="form-field">
+        <span class="form-label">Microphone</span>
+        <select class="form-select" bind:value={settings.selected_microphone}>
           <option value="">System default</option>
           {#each microphones as mic}
             <option value={mic.name}>{mic.name}{mic.is_default ? " (default)" : ""}</option>
           {/each}
         </select>
       </label>
-      <label class="settings-field spaced">
-        <span class="settings-label">Server URL</span>
+      <label class="form-field">
+        <span class="form-label">Server URL</span>
         <input
-          class="settings-input"
+          class="form-input"
           type="text"
           bind:value={settings.whisper_server_url}
           placeholder="http://localhost:8000/v1/audio/transcriptions"
         />
       </label>
-      <label class="settings-field spaced">
-        <span class="settings-label">API Token</span>
+      <label class="form-field">
+        <span class="form-label">API Token</span>
         <input
-          class="settings-input"
+          class="form-input"
           type="password"
           bind:value={settings.whisper_server_token}
           placeholder="Bearer token (optional)"
         />
       </label>
-      <label class="settings-field spaced">
-        <span class="settings-label">Model</span>
+      <label class="form-field">
+        <span class="form-label">Model</span>
         <input
-          class="settings-input"
+          class="form-input"
           type="text"
           bind:value={settings.whisper_server_model}
           placeholder="whisper-1"
@@ -643,31 +774,24 @@
     </fieldset>
   </section>
 
-  <div class="settings-actions">
-    <button
-      class="settings-save-btn app-btn"
-      type="button"
-      disabled={savingSettings}
-      aria-busy={savingSettings}
-      onclick={saveSettings}
-    >
-      <span class="settings-save-btn-label">Save settings</span>
-      {#if savingSettings}
-        <span class="settings-save-spinner-wrap" aria-hidden="true">
-          <span class="spinner"></span>
-        </span>
-      {/if}
-    </button>
-    <div class="settings-note" class:visible={!!settingsNotice} aria-live="polite">
-      {settingsNotice}
+  <footer class="settings-footer">
+    <div class="form-actions">
+      <button
+        class="form-btn form-btn-primary app-btn"
+        type="button"
+        class:is-busy={savingSettings}
+        class:is-locked={ollamaBusyActive || taggingLoading}
+        aria-busy={savingSettings ? "true" : undefined}
+        onclick={saveSettings}
+      >
+        <span class="app-btn-label">Save settings</span>
+        {@render busySpinner()}
+      </button>
+      <div class="form-note" class:visible={!!settingsNotice} aria-live="polite">
+        {settingsNotice}
+      </div>
     </div>
-  </div>
-
-  <div class="settings-divider"></div>
-
-  <div class="settings-secondary">
-    <button class="settings-item danger app-btn" type="button" onclick={handleClearHistory}>Clear unpinned history</button>
-  </div>
+  </footer>
 </div>
 
 <style>
@@ -708,33 +832,6 @@
     margin-top: 4px;
     font-size: 13px;
     color: #9097aa;
-  }
-
-  .settings-section {
-    padding: 14px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: 14px;
-  }
-
-  .settings-section + .settings-section {
-    margin-top: 10px;
-  }
-
-  .settings-section-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 10px;
-  }
-
-  .settings-section-title {
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: #8f97aa;
   }
 
   .toggle {
@@ -792,7 +889,6 @@
     border: none;
     margin: 0;
     padding: 0;
-    min-width: 0;
     transition: opacity 0.2s ease;
   }
 
@@ -802,224 +898,12 @@
     user-select: none;
   }
 
-  .voice-transcription-intro {
-    margin-bottom: 10px;
+  .settings-footer {
+    margin-top: 12px;
   }
 
-  .settings-field.spaced {
-    margin-top: 8px;
-  }
-
-  .settings-field {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .settings-inline {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-  }
-
-  .settings-label {
-    font-size: 12px;
-    font-weight: 600;
-    color: #c6cada;
-  }
-
-  .settings-input,
-  .settings-select {
-    width: 100%;
-    min-height: 42px;
-    padding: 10px 12px;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.11);
-    border-radius: 11px;
-    color: #edf1f8;
-    font: inherit;
-    outline: none;
-    transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
-  }
-
-  .settings-select {
-    appearance: none;
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    padding-right: 42px;
-    background-image:
-      linear-gradient(45deg, transparent 50%, rgba(237, 241, 248, 0.9) 50%),
-      linear-gradient(135deg, rgba(237, 241, 248, 0.9) 50%, transparent 50%),
-      linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01));
-    background-position:
-      calc(100% - 18px) calc(50% - 2px),
-      calc(100% - 12px) calc(50% - 2px),
-      0 0;
-    background-size:
-      6px 6px,
-      6px 6px,
-      100% 100%;
-    background-repeat: no-repeat;
-    cursor: pointer;
-  }
-
-  .settings-select:hover {
-    background-color: rgba(255, 255, 255, 0.08);
-    border-color: rgba(255, 255, 255, 0.16);
-  }
-
-  .settings-select option {
-    color: #edf1f8;
-    background: #23252c;
-  }
-
-  .settings-input:focus,
-  .settings-select:focus {
-    border-color: rgba(120, 160, 255, 0.4);
-    box-shadow: 0 0 0 3px rgba(94, 140, 255, 0.15);
-    background: rgba(255, 255, 255, 0.08);
-  }
-
-  .settings-input::placeholder {
-    color: rgba(237, 240, 248, 0.35);
-  }
-
-  .settings-info-card {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    padding: 10px 11px;
-    background: rgba(255, 255, 255, 0.035);
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    border-radius: 11px;
-  }
-
-  .settings-hint {
-    font-size: 11px;
-    line-height: 1.35;
-    color: #97a0b4;
-  }
-
-  .settings-hint.fits {
-    color: #8fd1a1;
-  }
-
-  .settings-hint.tight {
-    color: #e3b370;
-  }
-
-  .settings-small-btn,
-  .settings-ghost-btn {
-    min-height: 40px;
-    border-radius: 11px;
-    font: inherit;
-    cursor: pointer;
-  }
-
-  .settings-small-btn {
-    padding: 0 14px;
-    background: rgba(96, 134, 230, 0.16);
-    border: 1px solid rgba(120, 160, 255, 0.22);
-    color: #edf1f8;
-    white-space: nowrap;
-  }
-
-  .settings-small-btn:hover:not(:disabled):not([aria-busy="true"]) {
-    background: rgba(96, 134, 230, 0.24);
-    border-color: rgba(120, 160, 255, 0.3);
-  }
-
-  .settings-ghost-btn {
-    padding: 0 12px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    color: #d8dce6;
-    width: fit-content;
-  }
-
-  .settings-ghost-btn:hover:not(:disabled):not([aria-busy="true"]) {
-    background: rgba(255, 255, 255, 0.06);
-    border-color: rgba(255, 255, 255, 0.12);
-  }
-
-  .settings-actions {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    margin-top: 14px;
-  }
-
-  .settings-save-btn {
-    position: relative;
-    min-width: 118px;
-    min-height: 42px;
-    padding: 0 16px;
-    background: linear-gradient(
-      180deg,
-      rgba(96, 134, 230, 0.34) 0%,
-      rgba(82, 118, 206, 0.46) 100%
-    );
-    border: 1px solid rgba(120, 160, 255, 0.28);
-    border-radius: 12px;
-    color: #edf1f8;
-    font: inherit;
-    font-weight: 700;
-    cursor: pointer;
-  }
-
-  .settings-save-btn-label {
-    transition: opacity 0.15s ease;
-  }
-
-  .settings-save-btn[aria-busy="true"] .settings-save-btn-label {
-    opacity: 0;
-  }
-
-  .settings-save-spinner-wrap {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    pointer-events: none;
-  }
-
-  .settings-save-btn:hover:not(:disabled):not([aria-busy="true"]) {
-    background: linear-gradient(
-      180deg,
-      rgba(96, 134, 230, 0.42) 0%,
-      rgba(82, 118, 206, 0.52) 100%
-    );
-    border-color: rgba(120, 160, 255, 0.36);
-  }
-
-  .settings-note {
-    flex: 0 0 3.5rem;
-    min-height: 1.35em;
-    padding: 0 2px;
-    font-size: 11px;
-    line-height: 1.35;
-    text-align: right;
-    color: #91d6a6;
-    opacity: 0;
-    transition: opacity 0.2s ease;
-  }
-
-  .settings-note.visible {
-    opacity: 1;
-  }
-
-  .settings-divider {
-    height: 1px;
-    margin: 14px 0 12px;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
-  }
-
-  .settings-secondary {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
+  .settings-footer .form-actions {
+    margin-top: 0;
   }
 
   .excluded-apps {
@@ -1036,10 +920,10 @@
     align-items: center;
     justify-content: space-between;
     gap: 10px;
-    padding: 9px 10px;
+    padding: 7px 10px;
     background: rgba(255, 255, 255, 0.035);
     border: 1px solid rgba(255, 255, 255, 0.05);
-    border-radius: 10px;
+    border-radius: 8px;
   }
 
   .excluded-app-name {
@@ -1062,33 +946,6 @@
 
   .excluded-remove-btn:hover:not(:disabled) {
     color: #f0c890;
-  }
-
-  .settings-item {
-    width: 100%;
-    min-height: 40px;
-    padding: 10px 12px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    border-radius: 10px;
-    color: #dfe3ec;
-    text-align: left;
-    cursor: pointer;
-    font: inherit;
-  }
-
-  .settings-item:hover:not(:disabled):not([aria-busy="true"]) {
-    background: rgba(255, 255, 255, 0.07);
-    border-color: rgba(255, 255, 255, 0.1);
-  }
-
-  .settings-item.danger {
-    color: #f0c8c8;
-  }
-
-  .settings-item.danger:hover:not(:disabled):not([aria-busy="true"]) {
-    background: rgba(255, 107, 107, 0.08);
-    border-color: rgba(255, 107, 107, 0.14);
   }
 
   .status-row {
@@ -1116,13 +973,18 @@
     box-shadow: 0 0 6px rgba(248, 113, 113, 0.4);
   }
 
-  .status-dot.checking {
-    background: #fbbf24;
-    animation: pulse 1s infinite;
-  }
-
   .status-dot.disabled {
     background: rgba(255, 255, 255, 0.08);
+  }
+
+  .status-dot.warn,
+  .status-dot.checking {
+    background: #fbbf24;
+    box-shadow: 0 0 6px rgba(251, 191, 36, 0.35);
+  }
+
+  .status-dot.checking {
+    animation: pulse 1s infinite;
   }
 
   @keyframes pulse {
@@ -1153,15 +1015,13 @@
     white-space: nowrap;
   }
 
-  .status-action:hover:not(:disabled):not([aria-busy="true"]) {
+  .status-action:hover:not(.is-busy):not(.is-locked):not(:disabled) {
     background: rgba(96, 134, 230, 0.28);
     border-color: rgba(120, 160, 255, 0.32);
   }
 
   .refresh-btn {
-    margin-top: 8px;
-    min-height: 32px;
-    font-size: 12px;
+    margin-top: 4px;
   }
 
   .status-step {
@@ -1212,23 +1072,8 @@
     text-underline-offset: 2px;
   }
 
-  .link-btn:hover:not(:disabled):not([aria-busy="true"]) {
+  .link-btn:hover:not(.is-busy):not(.is-locked):not(:disabled) {
     color: #a8c4ff;
-  }
-
-  .spinner {
-    display: inline-block;
-    width: 10px;
-    height: 10px;
-    border: 2px solid rgba(255, 255, 255, 0.2);
-    border-top-color: #c4d4ff;
-    border-radius: 50%;
-    animation: spin 0.6s linear infinite;
-    vertical-align: middle;
-  }
-
-  @keyframes spin {
-    to { transform: rotate(360deg); }
   }
 
   .pull-progress {

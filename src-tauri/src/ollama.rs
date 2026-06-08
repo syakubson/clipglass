@@ -12,6 +12,7 @@ pub struct OllamaStatus {
     pub cli_installed: bool,
     pub server_running: bool,
     pub model_installed: bool,
+    pub model_loaded: bool,
     pub model_name: String,
 }
 
@@ -20,11 +21,17 @@ pub fn check_status() -> OllamaStatus {
     let cli = ollama_cli_available();
     let server = if cli { ollama_available() } else { false };
     let has_model = if server { model_installed(&model) } else { false };
+    let loaded = if server && has_model {
+        model_loaded_in_memory(&model)
+    } else {
+        false
+    };
 
     OllamaStatus {
         cli_installed: cli,
         server_running: server,
         model_installed: has_model,
+        model_loaded: loaded,
         model_name: model,
     }
 }
@@ -65,21 +72,25 @@ pub fn unload_model() -> bool {
     if !ollama_available() {
         return false;
     }
-    log_debug(format!("unloading model: {}", model));
-    let agent = ollama_agent(2, 10);
-    let result = agent
-        .post("http://127.0.0.1:11434/api/generate")
-        .send_json(serde_json::json!({ "model": model, "keep_alive": 0 }));
-    match result {
-        Ok(_) => {
-            log_debug("model unloaded");
-            true
-        }
-        Err(err) => {
-            log_debug(format!("unload failed: {}", err));
-            false
+    if !model_loaded_in_memory(&model) {
+        log_debug(format!("model already unloaded: {}", model));
+        return true;
+    }
+
+    let mut targets = loaded_matching_model_names(&model);
+    if targets.is_empty() {
+        targets.push(model.clone());
+    }
+
+    log_debug(format!("unloading model(s): {:?}", targets));
+    for name in &targets {
+        if !unload_model_via_api(name) && !unload_model_via_cli(name) {
+            log_debug(format!("failed to unload {}", name));
+            return false;
         }
     }
+
+    wait_until_model_unloaded(&model, Duration::from_secs(15))
 }
 
 pub fn test_tagging() -> Option<Vec<String>> {
@@ -114,6 +125,7 @@ pub fn test_tagging() -> Option<Vec<String>> {
 
 const DEFAULT_OLLAMA_CHAT_URL: &str = "http://127.0.0.1:11434/api/chat";
 const DEFAULT_OLLAMA_TAGS_URL: &str = "http://127.0.0.1:11434/api/tags";
+const DEFAULT_OLLAMA_PS_URL: &str = "http://127.0.0.1:11434/api/ps";
 const DEFAULT_OLLAMA_MODEL: &str = "qwen3:4b-instruct-2507-q4_K_M";
 
 static ACTIVE_MODEL: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
@@ -175,6 +187,152 @@ struct OllamaTagsResponse {
 #[derive(Deserialize)]
 struct OllamaModelTag {
     name: String,
+}
+
+#[derive(Deserialize)]
+struct OllamaPsResponse {
+    models: Vec<OllamaPsModel>,
+}
+
+#[derive(Deserialize)]
+struct OllamaPsModel {
+    name: String,
+    model: String,
+}
+
+fn model_names_match(candidate: &str, model: &str) -> bool {
+    candidate == model
+        || candidate
+            .strip_prefix(model)
+            .is_some_and(|suffix| suffix.starts_with(':'))
+        || model
+            .strip_prefix(candidate)
+            .is_some_and(|suffix| suffix.starts_with(':'))
+}
+
+#[derive(Deserialize)]
+struct OllamaGenerateUnloadResponse {
+    done: Option<bool>,
+    done_reason: Option<String>,
+}
+
+fn ps_entry_matches(entry: &OllamaPsModel, model: &str) -> bool {
+    model_names_match(&entry.name, model) || model_names_match(&entry.model, model)
+}
+
+fn fetch_ps_response() -> Option<OllamaPsResponse> {
+    match ollama_agent(1, 2).get(DEFAULT_OLLAMA_PS_URL).call() {
+        Ok(response) => match response.into_json() {
+            Ok(ps) => Some(ps),
+            Err(err) => {
+                log_debug(format!("failed to decode /api/ps: {}", err));
+                None
+            }
+        },
+        Err(err) => {
+            log_debug(format!("failed /api/ps request: {}", err));
+            None
+        }
+    }
+}
+
+fn loaded_matching_model_names(model: &str) -> Vec<String> {
+    fetch_ps_response()
+        .map(|ps| matching_names_in_ps(&ps, model))
+        .unwrap_or_default()
+}
+
+fn unload_api_succeeded(body: &OllamaGenerateUnloadResponse) -> bool {
+    body.done.unwrap_or(false) || body.done_reason.as_deref() == Some("unload")
+}
+
+fn matching_names_in_ps(ps: &OllamaPsResponse, model: &str) -> Vec<String> {
+    let mut names = Vec::new();
+    for running in &ps.models {
+        if !ps_entry_matches(running, model) {
+            continue;
+        }
+        for candidate in [&running.name, &running.model] {
+            if !candidate.is_empty() && !names.iter().any(|existing| existing == candidate) {
+                names.push(candidate.clone());
+            }
+        }
+    }
+    names
+}
+
+fn model_loaded_in_ps(ps: &OllamaPsResponse, model: &str) -> bool {
+    ps.models.iter().any(|entry| ps_entry_matches(entry, model))
+}
+
+fn unload_model_via_api(model: &str) -> bool {
+    log_debug(format!("unload via API: {}", model));
+    let response = match ollama_agent(2, 30)
+        .post("http://127.0.0.1:11434/api/generate")
+        .send_json(serde_json::json!({
+            "model": model,
+            "prompt": "",
+            "stream": false,
+            "keep_alive": 0
+        })) {
+        Ok(response) => response,
+        Err(err) => {
+            log_debug(format!("unload API request failed for {}: {}", model, err));
+            return false;
+        }
+    };
+
+    match response.into_json::<OllamaGenerateUnloadResponse>() {
+        Ok(body) => {
+            log_debug(format!(
+                "unload API response for {}: done={:?} reason={:?}",
+                model, body.done, body.done_reason
+            ));
+            unload_api_succeeded(&body)
+        }
+        Err(err) => {
+            log_debug(format!("unload API decode failed for {}: {}", model, err));
+            false
+        }
+    }
+}
+
+fn unload_model_via_cli(model: &str) -> bool {
+    if !ollama_cli_available() {
+        return false;
+    }
+    log_debug(format!("unload via CLI: ollama stop {}", model));
+    Command::new(ollama_bin())
+        .args(["stop", model])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|status| status.success())
+        .unwrap_or(false)
+}
+
+fn wait_until_model_unloaded(model: &str, timeout: Duration) -> bool {
+    let deadline = std::time::Instant::now() + timeout;
+    loop {
+        if !model_loaded_in_memory(model) {
+            log_debug(format!("model confirmed unloaded: {}", model));
+            return true;
+        }
+        if std::time::Instant::now() >= deadline {
+            log_debug(format!("timed out waiting for model unload: {}", model));
+            return false;
+        }
+        thread::sleep(Duration::from_millis(150));
+    }
+}
+
+fn model_loaded_in_memory(model: &str) -> bool {
+    log_debug(format!("checking model loaded in memory: {}", model));
+    let loaded = fetch_ps_response()
+        .map(|ps| model_loaded_in_ps(&ps, model))
+        .unwrap_or(false);
+    log_debug(format!("model loaded in memory {} => {}", model, loaded));
+    loaded
 }
 
 fn ollama_model() -> String {
@@ -910,7 +1068,58 @@ mod tests {
     #[test]
     fn check_status_returns_struct() {
         let status = check_status();
-        // Just verify it returns without panic and model name is populated
         assert!(!status.model_name.is_empty());
+    }
+
+    #[test]
+    fn model_names_match_handles_tag_suffixes() {
+        assert!(model_names_match(
+            "qwen3:4b-instruct-2507-q4_K_M",
+            "qwen3:4b-instruct-2507-q4_K_M"
+        ));
+        assert!(model_names_match(
+            "qwen3:4b-instruct-2507-q4_K_M:latest",
+            "qwen3:4b-instruct-2507-q4_K_M"
+        ));
+        assert!(!model_names_match("llama3:8b", "qwen3:4b-instruct-2507-q4_K_M"));
+    }
+
+    fn ps_fixture(json: &str) -> OllamaPsResponse {
+        serde_json::from_str(json).expect("valid /api/ps fixture")
+    }
+
+    #[test]
+    fn model_loaded_in_ps_matches_either_name_or_model_field() {
+        let ps = ps_fixture(r#"{"models":[{"name":"qwen3:4b:latest","model":"qwen3:4b"}]}"#);
+        assert!(model_loaded_in_ps(&ps, "qwen3:4b"));
+        assert!(!model_loaded_in_ps(&ps, "llama3:8b"));
+    }
+
+    #[test]
+    fn matching_names_in_ps_collects_unload_targets_without_duplicates() {
+        let ps = ps_fixture(
+            r#"{"models":[
+                {"name":"qwen3:4b:latest","model":"qwen3:4b-instruct-2507-q4_K_M"},
+                {"name":"llama3:8b","model":"llama3:8b"}
+            ]}"#,
+        );
+        assert_eq!(
+            matching_names_in_ps(&ps, "qwen3:4b-instruct-2507-q4_K_M"),
+            vec!["qwen3:4b:latest", "qwen3:4b-instruct-2507-q4_K_M"]
+        );
+    }
+
+    #[test]
+    fn unload_api_succeeded_accepts_done_reason_unload() {
+        let body: OllamaGenerateUnloadResponse =
+            serde_json::from_str(r#"{"done":true,"done_reason":"unload"}"#).unwrap();
+        assert!(unload_api_succeeded(&body));
+    }
+
+    #[test]
+    fn unload_api_succeeded_rejects_incomplete_response() {
+        let body: OllamaGenerateUnloadResponse =
+            serde_json::from_str(r#"{"done":false}"#).unwrap();
+        assert!(!unload_api_succeeded(&body));
     }
 }

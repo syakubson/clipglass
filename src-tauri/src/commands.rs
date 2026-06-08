@@ -380,13 +380,17 @@ pub fn pull_ollama_model(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn unload_ollama_model() -> Result<bool, String> {
-    Ok(ollama::unload_model())
+pub async fn unload_ollama_model() -> Result<bool, String> {
+    tauri::async_runtime::spawn_blocking(ollama::unload_model)
+        .await
+        .map_err(|err| format!("Unload failed: {err}"))
 }
 
 #[tauri::command]
-pub fn test_ollama_tagging() -> Result<Option<Vec<String>>, String> {
-    Ok(ollama::test_tagging())
+pub async fn test_ollama_tagging() -> Result<Option<Vec<String>>, String> {
+    tauri::async_runtime::spawn_blocking(ollama::test_tagging)
+        .await
+        .map_err(|err| format!("Tagging test failed: {err}"))
 }
 
 #[tauri::command]

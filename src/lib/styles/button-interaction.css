@@ -1,8 +1,12 @@
 /*
  * Shared macOS-like button interaction states.
  * Apply class="app-btn" to <button> elements; keep per-button colors locally.
+ *
+ * Busy buttons: label in .app-btn-label, overlay spinner in .app-btn-spinner.
+ * Use class "is-busy" while loading — do NOT set disabled during busy (WebKit pauses animations).
  */
 button.app-btn {
+  position: relative;
   -webkit-tap-highlight-color: transparent;
   transition:
     background 0.15s ease,
@@ -13,7 +17,62 @@ button.app-btn {
     box-shadow 0.15s ease;
 }
 
-button.app-btn:active:not(:disabled):not([aria-busy="true"]) {
+.app-btn-label {
+  transition: opacity 0.15s ease;
+}
+
+button.app-btn.is-busy .app-btn-label {
+  opacity: 0;
+}
+
+.app-btn-spinner {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+button.app-btn.is-busy .app-btn-spinner {
+  opacity: 1;
+}
+
+.app-btn-spinner-icon {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  border-top-color: rgba(255, 255, 255, 0.92);
+  border-radius: 50%;
+  animation: app-btn-spin 0.72s linear infinite;
+}
+
+@keyframes app-btn-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.app-btn-spinner-icon.is-inline {
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+button.app-btn.is-busy {
+  pointer-events: none;
+  cursor: default;
+  opacity: 0.88;
+}
+
+button.app-btn.is-locked {
+  pointer-events: none;
+  cursor: default;
+  opacity: 0.48;
+}
+
+button.app-btn:active:not(.is-busy):not(.is-locked):not(:disabled) {
   filter: brightness(0.9);
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
   transition-duration: 0.05s;
@@ -24,18 +83,14 @@ button.app-btn:focus-visible {
   box-shadow: 0 0 0 3px rgba(120, 160, 255, 0.22);
 }
 
-button.app-btn:focus-visible:active:not(:disabled):not([aria-busy="true"]) {
+button.app-btn:focus-visible:active:not(.is-busy):not(.is-locked):not(:disabled) {
   box-shadow:
     inset 0 1px 2px rgba(0, 0, 0, 0.2),
     0 0 0 3px rgba(120, 160, 255, 0.22);
 }
 
-button.app-btn[aria-busy="true"] {
-  opacity: 0.72;
-  cursor: default;
-}
-
-button.app-btn:disabled:not([aria-busy="true"]) {
+button.app-btn:disabled {
   opacity: 0.48;
   cursor: default;
+  pointer-events: none;
 }
