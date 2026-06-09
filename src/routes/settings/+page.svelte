@@ -52,6 +52,7 @@
   let excludedAppInput = $state("");
   let savingSettings = $state(false);
   let settingsNotice = $state("");
+  let clearHistoryNotice = $state("");
   let savedModel = $state("");
 
   let accessibilityGranted = $state<boolean | null>(null);
@@ -314,7 +315,7 @@
 
   async function handleClearHistory() {
     await clearHistory();
-    settingsNotice = "History cleared";
+    clearHistoryNotice = "History cleared";
   }
 
   async function handleVoiceToggle(enabled: boolean) {
@@ -693,25 +694,34 @@
       </select>
     </label>
     <div class="form-section-divider" role="separator"></div>
-    <button class="form-btn form-btn-danger app-btn" type="button" onclick={handleClearHistory}>
-      <svg
-        class="form-btn-icon"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        aria-hidden="true"
+    <div class="form-actions">
+      <button class="form-btn form-btn-danger app-btn" type="button" onclick={handleClearHistory}>
+        <svg
+          class="form-btn-icon"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <polyline points="3 6 5 6 21 6" />
+          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
+          <path d="M10 11v6" />
+          <path d="M14 11v6" />
+          <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+        </svg>
+        Clear unpinned history
+      </button>
+      <div
+        class="form-note form-note-neutral"
+        class:visible={!!clearHistoryNotice}
+        aria-live="polite"
       >
-        <polyline points="3 6 5 6 21 6" />
-        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-        <path d="M10 11v6" />
-        <path d="M14 11v6" />
-        <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-      </svg>
-      Clear unpinned history
-    </button>
+        {clearHistoryNotice}
+      </div>
+    </div>
     </div>
   </section>
 
@@ -844,7 +854,11 @@
         <span class="app-btn-label">Save settings</span>
         {@render busySpinner()}
       </button>
-      <div class="form-note" class:visible={!!settingsNotice} aria-live="polite">
+      <div
+        class="form-note form-note-success"
+        class:visible={!!settingsNotice}
+        aria-live="polite"
+      >
         {settingsNotice}
       </div>
     </div>

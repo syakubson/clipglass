@@ -54,6 +54,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Success palette** — cool sage green scale (`--color-success` for dots and overlays, `--color-success-text` for hints and save feedback, `--color-success-control` for toggles) tuned to dark-theme accent/danger weight.
 - **Settings toggles** — accent focus ring when off, `--ring-success-control` when on; no neon fill or outer glow.
 - **Privacy excluded apps** — Remove uses red `form-link-danger` instead of amber text.
+- **Settings clear-history feedback** — confirmation sits in the Storage action row (button left, status right) instead of the Save footer; neutral `--color-text-tertiary` for destructive completion, success green reserved for Save; `form-note-success` / `form-note-neutral` variants; status copy stays on one line (`white-space: nowrap`).
 
 ### Fixed
 

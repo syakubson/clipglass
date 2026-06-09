@@ -304,20 +304,35 @@
   margin-top: 14px;
 }
 
+.form-section-body > .form-actions {
+  margin-top: 0;
+}
+
 .form-note {
-  flex: 0 0 3.5rem;
+  flex: 0 0 auto;
+  min-width: 3.5rem;
   min-height: 1.35em;
   padding: 0 2px;
   font-size: 11px;
   line-height: 1.35;
   text-align: right;
-  color: var(--color-success-text);
+  white-space: nowrap;
   opacity: 0;
   transition: opacity 0.2s ease;
 }
 
 .form-note.visible {
   opacity: 1;
+}
+
+/* Positive confirmation (e.g. settings saved) */
+.form-note-success {
+  color: var(--color-success-text);
+}
+
+/* Neutral completion — destructive or informational actions (Apple secondary label) */
+.form-note-neutral {
+  color: var(--color-text-tertiary);
 }
 
 /* Compact status checklist (Permissions, AI Setup, etc.) */
