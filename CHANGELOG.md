@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Voice transcription toggle** — Settings switch (off by default) to enable or disable hold-to-record transcription and its global shortcut without clearing Whisper configuration.
 - **Shared button interaction** (`app-btn`, `button-interaction.css`) — macOS-like press, focus, disabled, and busy states for buttons across Settings, the main window, clipboard cards, and collection tabs; overlay spinner on busy buttons without layout shift; `prepareBusyUi()` yields before blocking IPC so spinners paint reliably.
 - **Shared form controls** (`form-controls.css`) — compact macOS-style inputs, selects, section layout, and form buttons reused in Settings.
+- **Settings section icons** (`SectionIcon.svelte`) — semantic line icons to the left of each Settings block title: Permissions (shield), AI Tagging (tag), Setup (checklist), Ollama Model (package), This Mac (chip), Storage (database), Privacy (lock), Voice Transcription (microphone).
 - **AI tagging toggle** — Settings switch (off by default) to enable or disable automatic Ollama tagging; when off, the clipboard monitor skips tag requests and startup backfill does not run.
 - **`is_tagging_ready` IPC** — main window queries whether retag is available (tagging on + Ollama CLI, server, and model installed; unloaded model still counts).
 - **Shared status-list layout** — compact checklist styling in `form-controls.css` with spacing tokens from `tokens.css` for consistent Settings rhythm.
@@ -43,6 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Voice transcription Settings UI** — compact on/off toggle; Whisper fields sit in a disabled fieldset when off; active toggle uses muted `--color-success-control` (no glow).
 - **Settings Save button** — muted blue aligned with other Settings accents; stable width during save (overlay spinner, reserved “Saved” slot); macOS-style press/focus feedback without hover lift.
 - **Settings form controls** — compact macOS-style inputs (32px, 13px type), consistent section spacing, shared `form-controls.css` reused across form blocks; clear-history action moved into Storage section, footer reserved for Save only.
+- **Settings section headers** — all block and subsection titles use a shared icon + label layout (`form-section-title--with-icon`, `form-title-icon`) aligned with the existing This Mac chip icon style.
 - **Button hover/press** — removed `translateY` lift on hover; press uses inset darken/brightness instead of scale; async Settings actions expose `aria-busy` while loading.
 - **Settings AI section** — merged “Local AI Status” and “AI Model” into a single **AI Tagging** block with on/off toggle; Setup checklist uses `status-list` with symmetric step padding; Ollama model picker lives in the same section.
 - **Settings Ollama model UI** — preset options show memory estimate plus **Fits** / **Too large** and **Installed** in the picker; **This Mac** subsection (inset memory panel with RAM and recommended Ollama budget) is separated from the model field; custom models show a hint that memory use cannot be estimated.

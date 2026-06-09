@@ -51,12 +51,14 @@
   color: var(--color-text-label-muted);
 }
 
-.form-subsection-title--with-icon {
+.form-subsection-title--with-icon,
+.form-section-title--with-icon {
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
+.form-title-icon,
 .form-subsection-icon {
   width: 13px;
   height: 13px;

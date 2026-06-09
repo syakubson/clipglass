@@ -25,6 +25,7 @@
     type OllamaStatus,
   } from "$lib/api";
   import { openUrl } from "@tauri-apps/plugin-opener";
+  import SectionIcon from "$lib/components/SectionIcon.svelte";
 
   function openOllamaDownload() {
     void openUrl("https://ollama.com/download");
@@ -374,7 +375,10 @@
   </div>
 
   <section class="form-section">
-    <div class="form-section-title">Permissions</div>
+    <div class="form-section-title form-section-title--with-icon">
+      <SectionIcon name="permissions" />
+      Permissions
+    </div>
     <div class="form-section-body">
     <div class="status-list">
       <div class="status-step">
@@ -416,7 +420,10 @@
 
   <section class="form-section">
     <div class="form-section-header">
-      <div class="form-section-title">AI Tagging</div>
+      <div class="form-section-title form-section-title--with-icon">
+        <SectionIcon name="ai-tagging" />
+        AI Tagging
+      </div>
       <label class="toggle" title="Enable AI tagging">
         <input
           type="checkbox"
@@ -436,7 +443,10 @@
     <div class="form-hint">
       Automatically tag clipboard text entries using a local Ollama model.
     </div>
-    <div class="form-subsection-title">Setup</div>
+    <div class="form-subsection-title form-subsection-title--with-icon">
+      <SectionIcon name="setup" />
+      Setup
+    </div>
     <div class="status-list">
     {#if ollamaStatus === null}
       <div class="status-step">
@@ -647,7 +657,10 @@
     {/if}
     </div>
     <div class="form-section-divider" role="separator"></div>
-    <div class="form-subsection-title">Ollama Model</div>
+    <div class="form-subsection-title form-subsection-title--with-icon">
+      <SectionIcon name="ollama-model" />
+      Ollama Model
+    </div>
     <div class="form-field">
       <select
         class="form-select"
@@ -674,19 +687,7 @@
     </div>
     <div class="form-section-divider" role="separator"></div>
     <div class="form-subsection-title form-subsection-title--with-icon">
-      <svg
-        class="form-subsection-icon"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.75"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        aria-hidden="true"
-      >
-        <rect x="6" y="6" width="12" height="12" rx="1.25" />
-        <path d="M9 6V4M12 6V4M15 6V4M9 18v2M12 18v2M15 18v2M6 9H4M6 12H4M6 15H4M18 9h2M18 12h2M18 15h2" />
-      </svg>
+      <SectionIcon name="this-mac" />
       This Mac
     </div>
     <dl class="form-meta" aria-label="Machine memory details">
@@ -703,7 +704,10 @@
   </section>
 
   <section class="form-section">
-    <div class="form-section-title">Storage</div>
+    <div class="form-section-title form-section-title--with-icon">
+      <SectionIcon name="storage" />
+      Storage
+    </div>
     <div class="form-section-body">
     <label class="form-field">
       <span class="form-label">History retention</span>
@@ -746,7 +750,10 @@
   </section>
 
   <section class="form-section">
-    <div class="form-section-title">Privacy</div>
+    <div class="form-section-title form-section-title--with-icon">
+      <SectionIcon name="privacy" />
+      Privacy
+    </div>
     <div class="form-section-body">
     <div class="form-field">
       <span class="form-label">Excluded apps</span>
@@ -788,7 +795,10 @@
 
   <section class="form-section">
     <div class="form-section-header">
-      <div class="form-section-title">Voice Transcription</div>
+      <div class="form-section-title form-section-title--with-icon">
+        <SectionIcon name="voice" />
+        Voice Transcription
+      </div>
       <label class="toggle" title="Enable voice transcription">
         <input
           type="checkbox"
