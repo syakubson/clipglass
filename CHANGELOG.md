@@ -43,6 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Settings form controls** — compact macOS-style inputs (32px, 13px type), consistent section spacing, shared `form-controls.css` reused across form blocks; clear-history action moved into Storage section, footer reserved for Save only.
 - **Button hover/press** — removed `translateY` lift on hover; press uses inset darken/brightness instead of scale; async Settings actions expose `aria-busy` while loading.
 - **Settings AI section** — merged “Local AI Status” and “AI Model” into a single **AI Tagging** block with on/off toggle; Setup checklist uses `status-list` with symmetric step padding; Ollama model picker lives in the same section.
+- **Settings Ollama model UI** — preset options show memory estimate plus **Fits** / **Too large** and **Installed** in the picker; **This Mac** subsection (inset memory panel with RAM and recommended Ollama budget) is separated from the model field; custom models show a hint that memory use cannot be estimated.
 - **Settings Permissions** — accessibility status uses the shared `status-list` pattern.
 - **Voice transcription fieldset** — reuses `toggle-section-body` instead of a duplicate disabled-state class.
 - **Retag button** — shown on text cards only when AI tagging is ready; hidden when tagging is off or Ollama is not set up.

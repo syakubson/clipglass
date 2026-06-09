@@ -3,7 +3,7 @@
   import { prepareBusyUi } from "$lib/run-with-busy-ui";
   import { listen } from "@tauri-apps/api/event";
   import { getCurrentWindow } from "@tauri-apps/api/window";
-  import type { AppSettings, AudioInputDevice, ExcludedApp, ModelCatalog, ModelOption } from "$lib/types";
+  import type { AppSettings, AudioInputDevice, ExcludedApp, ModelCatalog } from "$lib/types";
   import {
     addExcludedApp,
     addFrontmostAppToExcluded,
@@ -332,10 +332,6 @@
     }
   }
 
-  let selectedModelMeta = $derived.by<ModelOption | null>(() => {
-    return modelCatalog.options.find((o) => o.value === settings.ollama_model) ?? null;
-  });
-
   let modelDirty = $derived(settings.ollama_model !== savedModel);
 
   const ollamaBusyActive = $derived(ollamaBusy !== null);
@@ -640,7 +636,7 @@
       >
         {#each modelCatalog.options as option}
           <option value={option.value}>
-            {option.label} · ~{option.memory_gb.toFixed(1)} GB · {option.fits ? "fits" : "tight"}{option.installed ? " · installed" : ""}
+            {option.label} · ~{option.memory_gb.toFixed(1)} GB · {option.fits ? "Fits" : "Too large"}{option.installed ? " · Installed" : ""}
           </option>
         {/each}
         <option value="__custom__">Custom model</option>
@@ -652,22 +648,36 @@
           bind:value={settings.ollama_model}
           placeholder="qwen3:4b-instruct-2507-q4_K_M"
         />
+        <div class="form-hint">Memory use cannot be estimated for custom models.</div>
       {/if}
-      <div class="form-info-card">
-        <div class="form-hint">
-          Machine RAM: {modelCatalog.total_memory_gb.toFixed(1)} GB
-        </div>
-        <div class="form-hint">
-          Recommended Ollama budget: {modelCatalog.recommended_memory_gb.toFixed(1)} GB
-        </div>
-        {#if selectedModelMeta}
-          <div class="form-hint" class:fits={selectedModelMeta.fits} class:tight={!selectedModelMeta.fits}>
-            {selectedModelMeta.label} needs about {selectedModelMeta.memory_gb.toFixed(1)} GB and
-            {selectedModelMeta.fits ? " should fit this machine." : " may be too heavy for this machine."}
-          </div>
-        {/if}
-      </div>
     </div>
+    <div class="form-section-divider" role="separator"></div>
+    <div class="form-subsection-title form-subsection-title--with-icon">
+      <svg
+        class="form-subsection-icon"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.75"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <rect x="6" y="6" width="12" height="12" rx="1.25" />
+        <path d="M9 6V4M12 6V4M15 6V4M9 18v2M12 18v2M15 18v2M6 9H4M6 12H4M6 15H4M18 9h2M18 12h2M18 15h2" />
+      </svg>
+      This Mac
+    </div>
+    <dl class="form-meta" aria-label="Machine memory details">
+      <div class="form-meta-item">
+        <dt>Machine RAM</dt>
+        <dd>{modelCatalog.total_memory_gb.toFixed(1)} GB</dd>
+      </div>
+      <div class="form-meta-item">
+        <dt>Recommended Ollama budget</dt>
+        <dd>{modelCatalog.recommended_memory_gb.toFixed(1)} GB</dd>
+      </div>
+    </dl>
     </fieldset>
   </section>
 

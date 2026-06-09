@@ -57,6 +57,19 @@
   color: #7d8598;
 }
 
+.form-subsection-title--with-icon {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.form-subsection-icon {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  color: #8fa8dc;
+}
+
 .form-section-divider {
   height: 1px;
   background: rgba(255, 255, 255, 0.06);
@@ -159,15 +172,6 @@
   padding: 2px 0;
 }
 
-.form-hint.ok,
-.form-hint.fits {
-  color: #8fd1a1;
-}
-
-.form-hint.tight {
-  color: #e3b370;
-}
-
 .form-hint code {
   display: inline-block;
   padding: 2px 5px;
@@ -181,15 +185,40 @@
   vertical-align: baseline;
 }
 
-.form-info-card {
+.form-meta {
+  margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-top: 4px;
-  padding: 8px 10px;
-  background: rgba(255, 255, 255, 0.035);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  padding: 5px 12px;
+  background: rgba(96, 134, 230, 0.08);
   border-radius: 8px;
+}
+
+.form-meta-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 6px;
+  padding: 8px 0;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.form-meta-item + .form-meta-item {
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.form-meta-item dt {
+  margin: 0;
+  font-weight: 500;
+  color: #9aa3b6;
+}
+
+.form-meta-item dd {
+  margin: 0;
+  color: #dde2ec;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 .form-btn {
