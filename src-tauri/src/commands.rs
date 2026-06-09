@@ -137,6 +137,7 @@ pub fn get_app_settings(db: State<'_, Arc<Database>>) -> Result<AppSettings, Str
 
 #[tauri::command]
 pub fn update_app_settings(
+    app: tauri::AppHandle,
     db: State<'_, Arc<Database>>,
     ollama_model: Option<String>,
     retention_days: Option<i64>,
@@ -146,10 +147,13 @@ pub fn update_app_settings(
     voice_shortcut: Option<String>,
     selected_microphone: Option<String>,
     voice_transcription_enabled: Option<bool>,
+    ai_tagging_enabled: Option<bool>,
 ) -> Result<AppSettings, String> {
     if let Some(model) = ollama_model.as_deref() {
         ollama::validate_model_name(model)?;
     }
+
+    let was_tagging_enabled = db.is_ai_tagging_enabled();
 
     let settings = db
         .update_app_settings(
@@ -161,11 +165,18 @@ pub fn update_app_settings(
             voice_shortcut.as_deref(),
             selected_microphone.as_deref(),
             voice_transcription_enabled,
+            ai_tagging_enabled,
         )
         .map_err(|e| e.to_string())?;
 
     ollama::set_active_model(&settings.ollama_model);
-    ollama::ensure_runtime();
+
+    if settings.ai_tagging_enabled {
+        ollama::ensure_runtime();
+        if !was_tagging_enabled {
+            ollama::backfill_existing_tags(app, db.inner().clone());
+        }
+    }
 
     db.cleanup_old_entries(settings.retention_days)
         .map_err(|e| e.to_string())?;
@@ -210,6 +221,10 @@ pub fn retag_entry(
     db: State<'_, Arc<Database>>,
     entry_id: i64,
 ) -> Result<(), String> {
+    if !ollama::is_tagging_ready(db.inner()) {
+        return Ok(());
+    }
+
     let Some(text) = db.get_entry_text(entry_id).map_err(|e| e.to_string())? else {
         return Ok(());
     };
@@ -363,6 +378,11 @@ pub fn open_accessibility_settings() -> Result<(), String> {
 #[tauri::command]
 pub fn check_ollama_status() -> Result<ollama::OllamaStatus, String> {
     Ok(ollama::check_status())
+}
+
+#[tauri::command]
+pub fn is_tagging_ready(db: State<'_, Arc<Database>>) -> Result<bool, String> {
+    Ok(ollama::is_tagging_ready(db.inner()))
 }
 
 #[tauri::command]

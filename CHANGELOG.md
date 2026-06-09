@@ -5,7 +5,7 @@ All notable changes to Copyosity are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.4.0] - 2026-06-08
+## [0.4.0] - 2026-06-09
 
 ### Added
 
@@ -19,10 +19,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Ollama model name validation** before `ollama pull`.
 - **Release CI checks** — `cargo audit`, `npm run check`, and `cargo test` on tagged releases.
 - **README** — Apple Silicon vs Intel install table and dual-architecture DMG guidance.
-- **Unit tests** — expanded Rust coverage (clipboard monitor retry/hash-poisoning fix, image format, DB backfill and migration round-trip, GIF paste temp-file path, model validation, settings partial updates, voice transcription toggle, `open_accessibility_settings` IPC, Ollama `/api/ps` matching and unload response parsing); 77 tests in `copyosity_lib`.
 - **Voice transcription toggle** — Settings switch (off by default) to enable or disable hold-to-record transcription and its global shortcut without clearing Whisper configuration.
 - **Shared button interaction** (`app-btn`, `button-interaction.css`) — macOS-like press, focus, disabled, and busy states for buttons across Settings, the main window, clipboard cards, and collection tabs; overlay spinner on busy buttons without layout shift; `prepareBusyUi()` yields before blocking IPC so spinners paint reliably.
 - **Shared form controls** (`form-controls.css`) — compact macOS-style inputs, selects, section layout, and form buttons reused in Settings.
+- **AI tagging toggle** — Settings switch (off by default) to enable or disable automatic Ollama tagging; when off, the clipboard monitor skips tag requests and startup backfill does not run.
+- **`is_tagging_ready` IPC** — main window queries whether retag is available (tagging on + Ollama CLI, server, and model installed; unloaded model still counts).
+- **Shared status-list layout** — compact checklist styling in `form-controls.css` with spacing tokens (`--space-section`, `--space-field`, `--space-row`, `--space-hint`) for consistent Settings rhythm.
+- **Unit tests** — **82 tests** in `copyosity_lib` for 0.4.0, with emphasis on clipboard monitor dedup/hash-poisoning, image format and animated GIF paste paths, DB migration and tag backfill, settings partial updates (Whisper, voice transcription, AI tagging toggles), `tagging_ready` / `is_ai_tagging_enabled`, Ollama model validation plus `/api/ps` load-unload matching, and `open_accessibility_settings` IPC.
 
 ### Changed
 
@@ -39,6 +42,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Settings Save button** — muted blue aligned with other Settings accents; stable width during save (overlay spinner, reserved “Saved” slot); macOS-style press/focus feedback without hover lift.
 - **Settings form controls** — compact macOS-style inputs (32px, 13px type), consistent section spacing, shared `form-controls.css` reused across form blocks; clear-history action moved into Storage section, footer reserved for Save only.
 - **Button hover/press** — removed `translateY` lift on hover; press uses inset darken/brightness instead of scale; async Settings actions expose `aria-busy` while loading.
+- **Settings AI section** — merged “Local AI Status” and “AI Model” into a single **AI Tagging** block with on/off toggle; Setup checklist uses `status-list` with symmetric step padding; Ollama model picker lives in the same section.
+- **Settings Permissions** — accessibility status uses the shared `status-list` pattern.
+- **Voice transcription fieldset** — reuses `toggle-section-body` instead of a duplicate disabled-state class.
+- **Retag button** — shown on text cards only when AI tagging is ready; hidden when tagging is off or Ollama is not set up.
+- **Enabling AI tagging** — triggers tag backfill for existing untagged entries (on Save or toggle); `ensure_runtime` runs only while tagging is enabled.
 
 ### Fixed
 
@@ -53,6 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Settings Unload** — works on the first click with a visible busy spinner; uses the documented Ollama unload request (`prompt: ""`, `keep_alive: 0`), verifies unload via `/api/ps` (with `ollama stop` fallback), and clears the tagging test result only after the model is confirmed unloaded.
 - **Settings tagging test** — repeatable after success; busy spinner and “Testing…” state render on every run; successful test display requires the model to be loaded in memory.
 - **Settings Ollama status dot** — “Model unloaded” uses a static yellow indicator instead of the pulsing animation reserved for in-progress checks.
+- **Settings status hints** — symmetric vertical padding within checklist rows; hint copy split across lines where it improves readability (model unloaded, tagging test).
 
 ### Dependencies
 

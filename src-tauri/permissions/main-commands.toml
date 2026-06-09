@@ -18,4 +18,5 @@ commands.allow = [
   "activate_entry",
   "paste_entry",
   "retag_entry",
+  "is_tagging_ready",
 ]

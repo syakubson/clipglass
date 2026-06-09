@@ -245,9 +245,11 @@ pub fn run() {
             ollama::set_active_model(&settings.ollama_model);
             let _ = db.cleanup_old_entries(settings.retention_days);
 
-            ollama::ensure_runtime();
+            if settings.ai_tagging_enabled {
+                ollama::ensure_runtime();
+                ollama::backfill_existing_tags(app.handle().clone(), db.clone());
+            }
             clipboard_write::sweep_stale_gif_temp_files();
-            ollama::backfill_existing_tags(app.handle().clone(), db.clone());
             {
                 let db_backfill = db.clone();
                 std::thread::spawn(move || {
@@ -284,6 +286,7 @@ pub fn run() {
             commands::add_frontmost_app_to_excluded,
             commands::update_app_settings,
             commands::retag_entry,
+            commands::is_tagging_ready,
             commands::copy_entry,
             commands::activate_entry,
             commands::paste_entry,

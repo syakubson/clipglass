@@ -256,6 +256,9 @@ impl CaptureContext {
                     let db = self.db.clone();
                     let app = self.app.clone();
                     std::thread::spawn(move || {
+                        if !db.is_ai_tagging_enabled() {
+                            return;
+                        }
                         if let Some(tags) = ollama::tag_text(&text) {
                             if db.set_entry_tags(id, &tags).is_ok() {
                                 let _ = app.emit("entry-tagged", id);

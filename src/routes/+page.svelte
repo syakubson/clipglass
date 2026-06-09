@@ -9,6 +9,7 @@
     hideMainWindow,
     openSettingsWindow,
     activateEntry,
+    isTaggingReady,
   } from "$lib/api";
   import ClipboardCard from "$lib/components/ClipboardCard.svelte";
   import SearchBar from "$lib/components/SearchBar.svelte";
@@ -24,7 +25,12 @@
   let gridEl: HTMLDivElement | undefined = $state();
   let visible = $state(false);
   let revealCycle = $state(0);
+  let retagAvailable = $state(false);
   const hiddenTopTags = new Set(["code", "otp", "token", "log"]);
+
+  async function syncRetagAvailability() {
+    retagAvailable = await isTaggingReady();
+  }
 
   async function loadEntries() {
     entries = await getEntries({
@@ -43,6 +49,7 @@
     searchQuery = "";
     activeTag = null;
     selectedIndex = -1;
+    void syncRetagAvailability();
     loadEntries();
     revealCycle += 1;
     // Reset scroll to start
@@ -71,6 +78,7 @@
   }
 
   onMount(() => {
+    void syncRetagAvailability();
     loadEntries();
     loadCollections();
 
@@ -267,10 +275,12 @@
         <div class="card-wrapper" style="animation-delay: {Math.min(i * 30, 300)}ms">
           <ClipboardCard
             {entry}
+            {retagAvailable}
             selected={i === selectedIndex}
             onpasted={handlePasted}
             ondeleted={handleEntryAction}
             onpinned={handleEntryAction}
+            onretagged={handleEntryAction}
           />
         </div>
       {/each}

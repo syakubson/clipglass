@@ -16,6 +16,19 @@ pub struct OllamaStatus {
     pub model_name: String,
 }
 
+/// Retag is available when AI tagging is on and Ollama can reach an installed model.
+/// Unloaded (not in memory) still counts — retag loads the model on demand.
+pub fn tagging_ready(ai_enabled: bool, status: &OllamaStatus) -> bool {
+    ai_enabled
+        && status.cli_installed
+        && status.server_running
+        && status.model_installed
+}
+
+pub fn is_tagging_ready(db: &Database) -> bool {
+    tagging_ready(db.is_ai_tagging_enabled(), &check_status())
+}
+
 pub fn check_status() -> OllamaStatus {
     let model = ollama_model();
     let cli = ollama_cli_available();
@@ -640,6 +653,11 @@ pub fn ensure_runtime() {
 
 pub fn backfill_existing_tags(app: AppHandle, db: Arc<Database>) {
     thread::spawn(move || {
+        if !db.is_ai_tagging_enabled() {
+            log_debug("backfill skipped: ai tagging disabled");
+            return;
+        }
+
         let model = ollama_model();
         log_debug(format!("backfill start model={}", model));
 
@@ -1061,6 +1079,46 @@ mod tests {
         for name in ["; rm -rf", "$(whoami)", "model name", "model@host", "model|tag"] {
             assert!(validate_model_name(name).is_err(), "expected err for {name}");
         }
+    }
+
+    fn ready_status() -> OllamaStatus {
+        OllamaStatus {
+            cli_installed: true,
+            server_running: true,
+            model_installed: true,
+            model_loaded: true,
+            model_name: "qwen3:4b".to_string(),
+        }
+    }
+
+    #[test]
+    fn tagging_ready_requires_ai_enabled() {
+        assert!(!tagging_ready(false, &ready_status()));
+        assert!(tagging_ready(true, &ready_status()));
+    }
+
+    #[test]
+    fn tagging_ready_requires_ollama_stack() {
+        let ready = ready_status();
+
+        let mut no_cli = ready.clone();
+        no_cli.cli_installed = false;
+        assert!(!tagging_ready(true, &no_cli));
+
+        let mut no_server = ready.clone();
+        no_server.server_running = false;
+        assert!(!tagging_ready(true, &no_server));
+
+        let mut no_model = ready.clone();
+        no_model.model_installed = false;
+        assert!(!tagging_ready(true, &no_model));
+    }
+
+    #[test]
+    fn tagging_ready_allows_unloaded_model() {
+        let mut unloaded = ready_status();
+        unloaded.model_loaded = false;
+        assert!(tagging_ready(true, &unloaded));
     }
 
     // --- check_status (unit, no Ollama needed) ---

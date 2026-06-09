@@ -62,6 +62,7 @@ export async function updateAppSettings(opts: {
   voice_shortcut?: string | null;
   selected_microphone?: string | null;
   voice_transcription_enabled?: boolean | null;
+  ai_tagging_enabled?: boolean | null;
 }): Promise<AppSettings> {
   return invoke("update_app_settings", {
     ollamaModel: opts.ollama_model ?? null,
@@ -72,6 +73,7 @@ export async function updateAppSettings(opts: {
     voiceShortcut: opts.voice_shortcut ?? null,
     selectedMicrophone: opts.selected_microphone ?? null,
     voiceTranscriptionEnabled: opts.voice_transcription_enabled ?? null,
+    aiTaggingEnabled: opts.ai_tagging_enabled ?? null,
   });
 }
 
@@ -105,6 +107,10 @@ export async function addFrontmostAppToExcluded(): Promise<string | null> {
 
 export async function retagEntry(entryId: number): Promise<void> {
   return invoke("retag_entry", { entryId });
+}
+
+export async function isTaggingReady(): Promise<boolean> {
+  return invoke("is_tagging_ready");
 }
 
 export async function copyEntry(entryId: number): Promise<void> {

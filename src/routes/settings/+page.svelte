@@ -39,6 +39,7 @@
     voice_shortcut: "option+space",
     selected_microphone: "",
     voice_transcription_enabled: false,
+    ai_tagging_enabled: false,
   });
   let microphones: AudioInputDevice[] = $state([]);
   let modelCatalog = $state<ModelCatalog>({
@@ -237,11 +238,21 @@
       }
     });
 
+    // Retag / auto-tag can load an unloaded model — refresh step 3 only then.
+    let ollamaSyncTimer: ReturnType<typeof setTimeout>;
+    const unlistenEntryTagged = listen("entry-tagged", () => {
+      if (ollamaStatus?.model_loaded) return;
+      clearTimeout(ollamaSyncTimer);
+      ollamaSyncTimer = setTimeout(() => void syncOllamaStatus(), 150);
+    });
+
     return () => {
+      clearTimeout(ollamaSyncTimer);
       unlistenPull.then((fn) => fn());
       unlistenPullDone.then((fn) => fn());
       unlistenShown.then((fn) => fn());
       unlistenFocus.then((fn) => fn());
+      unlistenEntryTagged.then((fn) => fn());
     };
   });
 
@@ -259,6 +270,7 @@
         voice_shortcut: settings.voice_shortcut,
         selected_microphone: settings.selected_microphone,
         voice_transcription_enabled: settings.voice_transcription_enabled,
+        ai_tagging_enabled: settings.ai_tagging_enabled,
       });
       savedModel = settings.ollama_model;
       settingsNotice = "Saved";
@@ -311,6 +323,15 @@
     await rebindVoiceShortcut();
   }
 
+  async function handleAiTaggingToggle(enabled: boolean) {
+    settings.ai_tagging_enabled = enabled;
+    settings = await updateAppSettings({ ai_tagging_enabled: enabled });
+    if (enabled) {
+      taggingResult = undefined;
+      await refreshOllamaStatus();
+    }
+  }
+
   let selectedModelMeta = $derived.by<ModelOption | null>(() => {
     return modelCatalog.options.find((o) => o.value === settings.ollama_model) ?? null;
   });
@@ -342,45 +363,70 @@
   <section class="form-section">
     <div class="form-section-title">Permissions</div>
     <div class="form-section-body">
-    <div class="status-step">
-      <div class="status-row">
-        <span class="status-dot" class:ok={accessibilityGranted === true} class:fail={accessibilityGranted === false} class:checking={accessibilityGranted === null}></span>
-        <span class="status-text">
-          {accessibilityGranted === null ? "Checking..." : accessibilityGranted ? "Accessibility granted" : "Accessibility not granted"}
-        </span>
-        {#if accessibilityGranted === false}
-          <button class="status-action app-btn" type="button" onclick={handleRequestAccessibility}>
-            Request
-          </button>
-        {:else if accessibilityGranted === true}
-          <button class="status-action app-btn" type="button" onclick={handleRecheckAccessibility}>
-            Recheck
-          </button>
-        {/if}
-      </div>
-      {#if accessibilityGranted === false}
-        <div class="status-hint">
-          Required for paste automation (Cmd+V) and global shortcut.
-          Click "Request" to open System Settings, then enable <strong>Copyosity</strong>.
+    <div class="status-list">
+      <div class="status-step">
+        <div class="status-row">
+          <span class="status-dot" class:ok={accessibilityGranted === true} class:fail={accessibilityGranted === false} class:checking={accessibilityGranted === null}></span>
+          <span class="status-text">
+            {accessibilityGranted === null ? "Checking..." : accessibilityGranted ? "Accessibility granted" : "Accessibility not granted"}
+          </span>
+          {#if accessibilityGranted === false}
+            <button class="status-action app-btn" type="button" onclick={handleRequestAccessibility}>
+              Request
+            </button>
+          {:else if accessibilityGranted === true}
+            <button class="status-action app-btn" type="button" onclick={handleRecheckAccessibility}>
+              Recheck
+            </button>
+          {/if}
         </div>
-      {/if}
-      {#if accessibilityNotice}
-        <div class="status-hint ok a11y-notice">{accessibilityNotice}</div>
-      {/if}
-      <div class="status-hint">
-        After a new build or reinstall, remove Copyosity from Accessibility and add it again if paste stops working.
+        {#if accessibilityGranted === false}
+          <div class="status-hint">
+            Required for paste automation (Cmd+V) and global shortcut.
+            Click "Request" to open System Settings, then enable <strong>Copyosity</strong>.
+          </div>
+        {/if}
+        {#if accessibilityNotice}
+          <div class="status-hint ok a11y-notice">{accessibilityNotice}</div>
+        {/if}
+        <div class="status-hint">
+          After a new build or reinstall, remove Copyosity from Accessibility and add it again if paste stops working.
+        </div>
       </div>
     </div>
     </div>
   </section>
 
   <section class="form-section">
-    <div class="form-section-title">Local AI Status</div>
-    <div class="form-section-body">
+    <div class="form-section-header">
+      <div class="form-section-title">AI Tagging</div>
+      <label class="toggle" title="Enable AI tagging">
+        <input
+          type="checkbox"
+          role="switch"
+          aria-label="Enable AI tagging"
+          checked={settings.ai_tagging_enabled}
+          onchange={(e) => void handleAiTaggingToggle((e.currentTarget as HTMLInputElement).checked)}
+        />
+        <span class="toggle-slider" aria-hidden="true"></span>
+      </label>
+    </div>
+    <fieldset
+      class="form-section-body toggle-section-body"
+      class:is-disabled={!settings.ai_tagging_enabled}
+      disabled={!settings.ai_tagging_enabled}
+    >
+    <div class="form-hint">
+      Automatically tag clipboard text entries using a local Ollama model.
+    </div>
+    <div class="form-subsection-title">Setup</div>
+    <div class="status-list">
     {#if ollamaStatus === null}
-      <div class="status-row">
-        <span class="status-dot checking"></span>
-        <span class="status-text">Checking...</span>
+      <div class="status-step">
+        <div class="status-row">
+          <span class="status-dot checking"></span>
+          <span class="status-text">Checking...</span>
+        </div>
       </div>
     {:else}
       <!-- Step 1: Ollama installed -->
@@ -497,7 +543,8 @@
           </div>
         {:else if ollamaStatus.model_installed}
           <div class="status-hint">
-            Model is on disk but not loaded in memory. Click <strong>Test</strong> or use tagging to load it again.
+            Model is on disk but not loaded in memory.<br />
+            Click <strong>Test</strong> or use tagging to load it again.
           </div>
         {/if}
       </div>
@@ -561,33 +608,33 @@
           </div>
         {:else if ollamaStatus.model_installed}
           <div class="status-hint">
-            Click "Test" to verify tagging. You can re-run the test anytime; "Check again" refreshes Ollama status and clears this result.
+            Click "Test" to verify tagging. You can re-run the test anytime.<br />
+            "Check again" refreshes Ollama status and clears this result.
           </div>
         {/if}
       </div>
 
-      <button
-        class="form-btn form-btn-ghost refresh-btn app-btn"
-        type="button"
-        class:is-busy={ollamaBusy === "refresh"}
-        class:is-locked={(ollamaBusyActive && ollamaBusy !== "refresh") || taggingLoading}
-        aria-busy={ollamaBusy === "refresh" ? "true" : undefined}
-        onclick={() => refreshOllamaStatus(true)}
-      >
-        <span class="app-btn-label">Check again</span>
-        {@render busySpinner()}
-      </button>
+      <div class="status-list-footer">
+        <button
+          class="form-btn form-btn-ghost app-btn"
+          type="button"
+          class:is-busy={ollamaBusy === "refresh"}
+          class:is-locked={(ollamaBusyActive && ollamaBusy !== "refresh") || taggingLoading}
+          aria-busy={ollamaBusy === "refresh" ? "true" : undefined}
+          onclick={() => refreshOllamaStatus(true)}
+        >
+          <span class="app-btn-label">Check again</span>
+          {@render busySpinner()}
+        </button>
+      </div>
     {/if}
     </div>
-  </section>
-
-  <section class="form-section">
-    <div class="form-section-title">AI Model</div>
-    <div class="form-section-body">
-    <label class="form-field">
-      <span class="form-label">Ollama model</span>
+    <div class="form-section-divider" role="separator"></div>
+    <div class="form-subsection-title">Ollama Model</div>
+    <div class="form-field">
       <select
         class="form-select"
+        aria-label="Ollama model"
         bind:value={selectedModelPreset}
         onchange={(e) => handleModelPresetChange((e.currentTarget as HTMLSelectElement).value)}
       >
@@ -620,8 +667,8 @@
           </div>
         {/if}
       </div>
-    </label>
     </div>
+    </fieldset>
   </section>
 
   <section class="form-section">
@@ -714,7 +761,7 @@
       </label>
     </div>
     <fieldset
-      class="form-section-body voice-transcription-body"
+      class="form-section-body toggle-section-body"
       class:is-disabled={!settings.voice_transcription_enabled}
       disabled={!settings.voice_transcription_enabled}
     >
@@ -731,7 +778,7 @@
           placeholder="option+space"
         />
         <div class="form-hint">
-          Use: <code>cmd</code>, <code>option</code>, <code>ctrl</code>, <code>shift</code> + key.
+          Use: <code>cmd</code>, <code>option</code>, <code>ctrl</code>, <code>shift</code> + key<br />
           Examples: <code>option+space</code>, <code>cmd+shift+r</code>, <code>ctrl+alt+space</code>
         </div>
       </label>
@@ -885,21 +932,8 @@
     box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.22);
   }
 
-  .voice-transcription-body {
-    border: none;
-    margin: 0;
-    padding: 0;
-    transition: opacity 0.2s ease;
-  }
-
-  .voice-transcription-body.is-disabled {
-    opacity: 0.42;
-    pointer-events: none;
-    user-select: none;
-  }
-
   .settings-footer {
-    margin-top: 12px;
+    margin-top: var(--space-section);
   }
 
   .settings-footer .form-actions {
@@ -909,7 +943,7 @@
   .excluded-apps {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: var(--space-field);
     max-height: 160px;
     overflow-y: auto;
     padding-right: 2px;
@@ -946,143 +980,5 @@
 
   .excluded-remove-btn:hover:not(:disabled) {
     color: #f0c890;
-  }
-
-  .status-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 8px 0;
-  }
-
-  .status-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    flex-shrink: 0;
-    background: rgba(255, 255, 255, 0.15);
-  }
-
-  .status-dot.ok {
-    background: #4ade80;
-    box-shadow: 0 0 6px rgba(74, 222, 128, 0.4);
-  }
-
-  .status-dot.fail {
-    background: #f87171;
-    box-shadow: 0 0 6px rgba(248, 113, 113, 0.4);
-  }
-
-  .status-dot.disabled {
-    background: rgba(255, 255, 255, 0.08);
-  }
-
-  .status-dot.warn,
-  .status-dot.checking {
-    background: #fbbf24;
-    box-shadow: 0 0 6px rgba(251, 191, 36, 0.35);
-  }
-
-  .status-dot.checking {
-    animation: pulse 1s infinite;
-  }
-
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.4; }
-  }
-
-  .status-text {
-    flex: 1;
-    font-size: 12px;
-    color: #d8dce6;
-  }
-
-  .status-text.dimmed {
-    color: #6b7280;
-  }
-
-  .status-action {
-    padding: 4px 12px;
-    min-height: 28px;
-    border-radius: 8px;
-    background: rgba(96, 134, 230, 0.16);
-    border: 1px solid rgba(120, 160, 255, 0.22);
-    color: #c4d4ff;
-    font: inherit;
-    font-size: 11px;
-    cursor: pointer;
-    white-space: nowrap;
-  }
-
-  .status-action:hover:not(.is-busy):not(.is-locked):not(:disabled) {
-    background: rgba(96, 134, 230, 0.28);
-    border-color: rgba(120, 160, 255, 0.32);
-  }
-
-  .refresh-btn {
-    margin-top: 4px;
-  }
-
-  .status-step {
-    padding: 6px 0;
-  }
-
-  .status-step + .status-step {
-    border-top: 1px solid rgba(255, 255, 255, 0.04);
-  }
-
-  .status-hint {
-    margin: 6px 0 2px 18px;
-    font-size: 11px;
-    line-height: 1.5;
-    color: #8a90a0;
-  }
-
-  .status-hint.ok {
-    color: #6ecf8a;
-  }
-
-  .a11y-notice {
-    margin-top: 10px;
-  }
-
-  .status-hint.fail {
-    color: #f0a0a0;
-  }
-
-  .status-hint code {
-    padding: 1px 5px;
-    background: rgba(255, 255, 255, 0.07);
-    border-radius: 4px;
-    font-family: "SF Mono", Menlo, monospace;
-    font-size: 10.5px;
-    color: #c8cee0;
-  }
-
-  .link-btn {
-    background: none;
-    border: none;
-    padding: 0;
-    color: #7da4ff;
-    cursor: pointer;
-    font: inherit;
-    font-size: 11px;
-    text-decoration: underline;
-    text-underline-offset: 2px;
-  }
-
-  .link-btn:hover:not(.is-busy):not(.is-locked):not(:disabled) {
-    color: #a8c4ff;
-  }
-
-  .pull-progress {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: #c4d4ff;
-    font-family: "SF Mono", Menlo, monospace;
-    font-size: 10.5px;
-    word-break: break-all;
   }
 </style>

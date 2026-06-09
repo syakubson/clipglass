@@ -3,6 +3,13 @@
  * Pair with button-interaction.css (app-btn) for button press states.
  */
 
+:root {
+  --space-section: 12px;
+  --space-field: 6px;
+  --space-row: 4px;
+  --space-hint: 4px;
+}
+
 .form-section {
   padding: 14px;
   background: rgba(255, 255, 255, 0.03);
@@ -27,7 +34,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--space-section);
   margin-bottom: 10px;
 }
 
@@ -38,8 +45,16 @@
 .form-section-body {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-section);
   min-width: 0;
+}
+
+.form-subsection-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #7d8598;
 }
 
 .form-section-divider {
@@ -47,10 +62,23 @@
   background: rgba(255, 255, 255, 0.06);
 }
 
+.toggle-section-body {
+  border: none;
+  margin: 0;
+  padding: 0;
+  transition: opacity 0.2s ease;
+}
+
+.toggle-section-body.is-disabled {
+  opacity: 0.42;
+  pointer-events: none;
+  user-select: none;
+}
+
 .form-field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-field);
   min-width: 0;
 }
 
@@ -263,4 +291,155 @@
 
 .form-note.visible {
   opacity: 1;
+}
+
+/* Compact status checklist (Permissions, AI Setup, etc.) */
+
+.status-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+}
+
+.status-list-footer {
+  padding-top: calc(var(--space-row) * 2);
+}
+
+.status-step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-hint);
+  padding: calc(var(--space-row) * 2) 0;
+}
+
+.status-step + .status-step {
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.status-dot.ok {
+  background: #4ade80;
+  box-shadow: 0 0 6px rgba(74, 222, 128, 0.4);
+}
+
+.status-dot.fail {
+  background: #f87171;
+  box-shadow: 0 0 6px rgba(248, 113, 113, 0.4);
+}
+
+.status-dot.disabled {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.status-dot.warn,
+.status-dot.checking {
+  background: #fbbf24;
+  box-shadow: 0 0 6px rgba(251, 191, 36, 0.35);
+}
+
+.status-dot.checking {
+  animation: status-pulse 1s infinite;
+}
+
+@keyframes status-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.4;
+  }
+}
+
+.status-text {
+  flex: 1;
+  font-size: 12px;
+  color: #d8dce6;
+}
+
+.status-text.dimmed {
+  color: #6b7280;
+}
+
+.status-action {
+  padding: 4px 12px;
+  min-height: 28px;
+  border-radius: 8px;
+  background: rgba(96, 134, 230, 0.16);
+  border: 1px solid rgba(120, 160, 255, 0.22);
+  color: #c4d4ff;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.status-action:hover:not(.is-busy):not(.is-locked):not(:disabled) {
+  background: rgba(96, 134, 230, 0.28);
+  border-color: rgba(120, 160, 255, 0.32);
+}
+
+.status-hint {
+  margin: 0 0 0 18px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #8a90a0;
+}
+
+.status-hint.ok {
+  color: #6ecf8a;
+}
+
+.status-hint.fail {
+  color: #f0a0a0;
+}
+
+.status-hint code {
+  padding: 1px 5px;
+  background: rgba(255, 255, 255, 0.07);
+  border-radius: 4px;
+  font-family: "SF Mono", Menlo, monospace;
+  font-size: 10.5px;
+  color: #c8cee0;
+}
+
+.status-hint.pull-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #c4d4ff;
+  font-family: "SF Mono", Menlo, monospace;
+  font-size: 10.5px;
+  word-break: break-all;
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #7da4ff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.link-btn:hover:not(.is-busy):not(.is-locked):not(:disabled) {
+  color: #a8c4ff;
 }
