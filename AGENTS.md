@@ -29,6 +29,12 @@ Do not treat the task as complete until both checks pass, unless a blocker is ex
 - Commit completed fixes and features with descriptive messages.
 - If process or workflow changes, update both `AGENTS.md` and `CLAUDE.md`.
 
+## Load by task
+
+| Topic | File |
+| ----- | ---- |
+| macOS paste automation (AXPaste, Cmd+V, Messages) | [docs/architecture/macos-paste-pipeline.md](docs/architecture/macos-paste-pipeline.md) |
+
 ## TODO — Next Iteration
 
 Security hardening (from audit 2026-03-17):

@@ -1,4 +1,6 @@
 //! macOS pasteboard: change detection, paste target, skipping app-owned copies.
+//!
+//! Paste-into-target flow: see `docs/architecture/macos-paste-pipeline.md`.
 
 mod accessibility;
 mod paste;
@@ -8,8 +10,9 @@ pub use accessibility::{accessibility_trusted, open_accessibility_settings};
 pub use paste::{paste_into_target, simulate_cmd_v, spawn_automated_paste};
 
 pub(crate) use accessibility::{
-    capture_focus_for_pid, has_paste_focus, refresh_paste_focus_if_needed,
-    restore_focused_ui_element, store_focused_ui_element, try_ax_paste,
+    capture_focus_for_pid, has_paste_focus, prefers_keyboard_paste,
+    refresh_paste_focus_if_needed, restore_focused_ui_element, store_focused_ui_element,
+    try_ax_paste_for_pid,
 };
 pub(crate) use paste::{activate_pid, capture_mouse_location};
 

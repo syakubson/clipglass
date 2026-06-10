@@ -7,6 +7,36 @@ use objc2_foundation::NSString;
 
 use super::{paste_log, restore_paste_target, FocusRef, PASTE_TARGET_FOCUS, PASTE_TARGET_PID};
 
+/// Bundle IDs where `AXPaste` is unreliable; use synthetic Cmd+V instead.
+pub(crate) const KEYBOARD_PASTE_BUNDLE_IDS: &[&str] =
+    &["com.apple.MobileSMS", "com.apple.iChat"];
+
+pub(crate) fn bundle_prefers_keyboard_paste(bundle_id: &str) -> bool {
+    KEYBOARD_PASTE_BUNDLE_IDS.contains(&bundle_id)
+}
+
+/// Apps where `AXPaste` is unreliable; use synthetic Cmd+V instead.
+#[cfg(target_os = "macos")]
+pub(crate) fn prefers_keyboard_paste(pid: i32) -> bool {
+    crate::macos_app::app_identity_for_pid(pid)
+        .is_some_and(|identity| bundle_prefers_keyboard_paste(&identity.bundle_id))
+}
+
+#[cfg(target_os = "macos")]
+pub(crate) fn try_ax_paste_for_pid(pid: i32) -> bool {
+    !prefers_keyboard_paste(pid) && try_ax_paste()
+}
+
+#[cfg(not(target_os = "macos"))]
+pub(crate) fn prefers_keyboard_paste(_pid: i32) -> bool {
+    false
+}
+
+#[cfg(not(target_os = "macos"))]
+pub(crate) fn try_ax_paste_for_pid(_pid: i32) -> bool {
+    false
+}
+
 #[cfg(target_os = "macos")]
 pub(crate) fn try_ax_paste() -> bool {
     const K_AX_ERROR_SUCCESS: i32 = 0;
@@ -128,46 +158,61 @@ fn find_editable_element_for_pid(pid: i32) -> Option<*mut std::ffi::c_void> {
 }
 
 #[cfg(target_os = "macos")]
-const EDITABLE_ROLES: &[&str] = &[
-    "AXTextArea",
-    "AXTextField",
-    "AXComboBox",
-    "AXWebArea",
-    "AXSearchField",
-    "AXScrollArea",
-];
+fn editable_role_priority(role: &str) -> Option<u8> {
+    match role {
+        "AXTextArea" => Some(0),
+        "AXTextField" => Some(1),
+        "AXSearchField" => Some(2),
+        "AXComboBox" => Some(3),
+        "AXWebArea" => Some(4),
+        // Last resort — message lists in Messages are scroll areas, not paste targets.
+        "AXScrollArea" => Some(5),
+        _ => None,
+    }
+}
 
 #[cfg(target_os = "macos")]
 unsafe fn find_editable_element(
     element: *mut std::ffi::c_void,
     depth: u8,
 ) -> Option<*mut std::ffi::c_void> {
+    let mut best: Option<(u8, *mut std::ffi::c_void)> = None;
+    find_best_editable_element(element, depth, &mut best);
+    best.map(|(_, element)| element)
+}
+
+#[cfg(target_os = "macos")]
+unsafe fn find_best_editable_element(
+    element: *mut std::ffi::c_void,
+    depth: u8,
+    best: &mut Option<(u8, *mut std::ffi::c_void)>,
+) {
     if depth > 12 {
-        return None;
+        return;
     }
 
     if let Some(role) = copy_attribute_as_string(element, "AXRole") {
-        if EDITABLE_ROLES.iter().any(|r| role == *r) {
-            cf_retain(element);
-            return Some(element);
+        if let Some(priority) = editable_role_priority(&role) {
+            let replace = best
+                .as_ref()
+                .map_or(true, |(best_priority, _)| priority < *best_priority);
+            if replace {
+                if let Some((_, old)) = best.take() {
+                    release_ax_element(old);
+                }
+                cf_retain(element);
+                *best = Some((priority, element));
+            }
         }
     }
 
-    let children = copy_attribute_as_element_array(element, "AXChildren")?;
-    for (idx, child) in children.iter().copied().enumerate() {
-        if let Some(found) = find_editable_element(child, depth + 1) {
-            for (other_idx, other) in children.iter().copied().enumerate() {
-                if other_idx != idx {
-                    release_ax_element(other);
-                }
-            }
-            release_ax_element(child);
-            return Some(found);
-        }
+    let Some(children) = copy_attribute_as_element_array(element, "AXChildren") else {
+        return;
+    };
+    for child in children {
+        find_best_editable_element(child, depth + 1, best);
         release_ax_element(child);
     }
-
-    None
 }
 
 #[cfg(target_os = "macos")]
@@ -297,11 +342,6 @@ unsafe fn cf_array_to_elements(value: *mut std::ffi::c_void) -> Vec<*mut std::ff
         }
     }
     out
-}
-
-#[cfg(not(target_os = "macos"))]
-fn copy_focused_ui_element() -> Option<*mut std::ffi::c_void> {
-    None
 }
 
 #[cfg(target_os = "macos")]
@@ -569,4 +609,31 @@ pub fn accessibility_trusted(prompt: bool) -> bool {
 #[cfg(not(target_os = "macos"))]
 pub fn accessibility_trusted(_prompt: bool) -> bool {
     true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bundle_prefers_keyboard_paste_matches_messages() {
+        assert!(bundle_prefers_keyboard_paste("com.apple.MobileSMS"));
+        assert!(bundle_prefers_keyboard_paste("com.apple.iChat"));
+        assert!(!bundle_prefers_keyboard_paste("com.apple.Notes"));
+        assert!(!bundle_prefers_keyboard_paste("com.tinyspeck.slackmacgap"));
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn editable_role_priority_prefers_text_fields_over_scroll_areas() {
+        assert!(
+            editable_role_priority("AXTextArea").unwrap()
+                < editable_role_priority("AXScrollArea").unwrap()
+        );
+        assert!(
+            editable_role_priority("AXTextField").unwrap()
+                < editable_role_priority("AXScrollArea").unwrap()
+        );
+        assert!(editable_role_priority("AXGroup").is_none());
+    }
 }

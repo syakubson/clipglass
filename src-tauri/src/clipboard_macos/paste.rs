@@ -6,10 +6,15 @@ use std::sync::atomic::Ordering;
 use objc2_app_kit::NSRunningApplication;
 
 use super::{
-    accessibility_trusted, has_paste_focus, paste_log, refresh_paste_focus_if_needed,
-    restore_paste_target, try_ax_paste, frontmost_pid, PASTE_MOUSE_VALID, PASTE_MOUSE_X,
-    PASTE_MOUSE_Y, PASTE_TARGET_PID,
+    accessibility_trusted, frontmost_pid, has_paste_focus, paste_log,
+    prefers_keyboard_paste, refresh_paste_focus_if_needed, restore_paste_target,
+    try_ax_paste_for_pid, PASTE_MOUSE_VALID, PASTE_MOUSE_X, PASTE_MOUSE_Y, PASTE_TARGET_PID,
 };
+
+/// Whether synthetic Cmd+V should use the session event tap (frontmost app) vs `CGEventPostToPid`.
+pub(crate) fn cmd_v_uses_session_tap(pid: i32, frontmost: Option<i32>) -> bool {
+    pid <= 0 || frontmost == Some(pid)
+}
 
 /// Spawn automated paste on a background thread after optional accessibility prompt.
 pub fn spawn_automated_paste(prompt_if_needed: bool) {
@@ -53,7 +58,12 @@ pub fn paste_into_target() {
     ));
     refresh_paste_focus_if_needed();
 
-    if try_ax_paste() {
+    let keyboard_paste = prefers_keyboard_paste(pid);
+    if keyboard_paste {
+        paste_log("target prefers keyboard paste");
+    }
+
+    if try_ax_paste_for_pid(pid) {
         paste_log("succeeded via AXPaste");
         return;
     }
@@ -63,7 +73,7 @@ pub fn paste_into_target() {
             paste_log("clicked saved mouse position");
             std::thread::sleep(std::time::Duration::from_millis(150));
             refresh_paste_focus_if_needed();
-            if try_ax_paste() {
+            if try_ax_paste_for_pid(pid) {
                 paste_log("succeeded via AXPaste after click");
                 return;
             }
@@ -111,7 +121,6 @@ pub fn simulate_cmd_v() -> bool {
 
         const K_CG_EVENT_FLAG_COMMAND: u64 = 0x00100000;
         const K_CG_EVENT_SOURCE_STATE_HID_SYSTEM_STATE: i32 = 1;
-        const K_CG_HID_EVENT_TAP: u32 = 0;
         const K_CG_SESSION_EVENT_TAP: u32 = 1;
         const K_V_KEYCODE: u16 = 9;
 
@@ -130,16 +139,16 @@ pub fn simulate_cmd_v() -> bool {
         CGEventSetFlags(event_up, K_CG_EVENT_FLAG_COMMAND);
 
         let pid = PASTE_TARGET_PID.load(Ordering::SeqCst);
-        if pid > 0 {
-            // Deliver only to the target process — session/HID would hit whoever is frontmost
-            // (often Copyosity right after the panel hides).
-            CGEventPostToPid(pid, event_down);
-            CGEventPostToPid(pid, event_up);
-        } else {
+        if cmd_v_uses_session_tap(pid, frontmost_pid()) {
+            // Session tap reaches the frontmost app — required for Messages and similar
+            // native apps that ignore CGEventPostToPid. Post to one tap only; session + HID
+            // together would deliver two paste events.
             CGEventPost(K_CG_SESSION_EVENT_TAP, event_down);
             CGEventPost(K_CG_SESSION_EVENT_TAP, event_up);
-            CGEventPost(K_CG_HID_EVENT_TAP, event_down);
-            CGEventPost(K_CG_HID_EVENT_TAP, event_up);
+        } else {
+            // Target not frontmost yet — deliver directly to the process.
+            CGEventPostToPid(pid, event_down);
+            CGEventPostToPid(pid, event_up);
         }
         CFRelease(event_down);
         CFRelease(event_up);
@@ -367,4 +376,26 @@ pub(crate) fn activate_pid(pid: i32) -> bool {
 #[cfg(not(target_os = "macos"))]
 pub(crate) fn activate_pid(_pid: i32) -> bool {
     false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cmd_v_uses_session_tap_when_target_is_frontmost() {
+        assert!(cmd_v_uses_session_tap(42, Some(42)));
+    }
+
+    #[test]
+    fn cmd_v_uses_session_tap_when_pid_unknown() {
+        assert!(cmd_v_uses_session_tap(0, None));
+        assert!(cmd_v_uses_session_tap(-1, Some(99)));
+    }
+
+    #[test]
+    fn cmd_v_uses_post_to_pid_when_target_not_frontmost() {
+        assert!(!cmd_v_uses_session_tap(42, Some(99)));
+        assert!(!cmd_v_uses_session_tap(42, None));
+    }
 }

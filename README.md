@@ -105,6 +105,10 @@ npm install
 npm run tauri dev
 ```
 
+### macOS paste pipeline
+
+See [docs/architecture/macos-paste-pipeline.md](docs/architecture/macos-paste-pipeline.md).
+
 ### Checks
 
 ```bash
