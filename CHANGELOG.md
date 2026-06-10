@@ -65,6 +65,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Settings model-dirty hint** — “Model changed — save settings first, then test.” uses warning orange instead of error red.
 - **Voice overlay layout** — mic icon and level meter share a centered row with tighter side padding, 12pt gap between icon and meter, and larger 22/24px proportions in a compact 96×44 HUD window.
 - **Voice overlay mic color** — live recording indicator uses `--color-recording` so it reads as active capture, not an error state.
+- **Clipboard card footer** — source app and character count share one row (app left, count right) to save vertical space; tags stay on a separate line below when present.
 
 ### Fixed
 
@@ -76,7 +77,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Settings partial updates** — changing one field no longer wipes Whisper/voice/microphone settings.
 - **Clipboard card action icons** — copy, retag, pin, and delete use uniform 16×16 SVG icons instead of mismatched Unicode glyphs; pinned star is filled and highlighted.
 - **Clipboard card text preview** — long text no longer bleeds into the inner border or bottom padding; preview uses a padded outer box with grid clipping, and truncated text shows a CSS ellipsis (`line-clamp`: 9 lines without tags, 8 when tags are shown).
-- **Clipboard card footer** — character count sits on its own line below tags instead of sharing a row, so many tags no longer wrap into the count label.
+- **Clipboard card footer** — tags sit on a separate row below the source app / character-count line so tag chips no longer wrap into the count label.
 - **Settings Save layout jump** — saving no longer resizes the button or shifts the “Saved” label when loading state appears.
 - **Settings Unload** — works on the first click with a visible busy spinner; uses the documented Ollama unload request (`prompt: ""`, `keep_alive: 0`), verifies unload via `/api/ps` (with `ollama stop` fallback), and clears the tagging test result only after the model is confirmed unloaded.
 - **Settings accessibility hint** — “Enable Copyosity in the list.” no longer disappears when the Settings window regains focus; it stays until Accessibility is actually granted (then switches to the verified success message); the verified message clears when access is revoked.

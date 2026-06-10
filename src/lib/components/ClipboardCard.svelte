@@ -211,20 +211,22 @@
   </div>
 
   <div class="card-footer">
-    <div class="footer-meta">
-      {#if entry.source_app}
-        <span class="source-app">{entry.source_app}</span>
-      {/if}
-      {#if tags.length > 0}
-        <div class="tags">
-          {#each tags.slice(0, 3) as tag}
-            <span class="tag-chip">{tag}</span>
-          {/each}
-        </div>
-      {/if}
-    </div>
-    {#if charLabel}
-      <span class="char-count">{charLabel}</span>
+    {#if entry.source_app || charLabel}
+      <div class="footer-row">
+        {#if entry.source_app}
+          <span class="source-app">{entry.source_app}</span>
+        {/if}
+        {#if charLabel}
+          <span class="char-count">{charLabel}</span>
+        {/if}
+      </div>
+    {/if}
+    {#if tags.length > 0}
+      <div class="tags">
+        {#each tags.slice(0, 3) as tag}
+          <span class="tag-chip">{tag}</span>
+        {/each}
+      </div>
     {/if}
   </div>
 
@@ -445,17 +447,19 @@
     margin-top: 8px;
   }
 
-  .footer-meta {
+  .footer-row {
     display: flex;
-    flex-direction: column;
-    gap: 6px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
     min-width: 0;
   }
 
   .source-app {
+    flex: 1;
+    min-width: 0;
     font-size: 11px;
     color: var(--color-text-subtle);
-    max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -483,7 +487,6 @@
   .char-count {
     font-size: 11px;
     color: var(--color-text-faint);
-    align-self: flex-end;
     white-space: nowrap;
     flex-shrink: 0;
   }
