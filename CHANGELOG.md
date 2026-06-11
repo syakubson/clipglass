@@ -34,17 +34,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Overlay search keyboard shortcuts** — `⌘F` and `/` focus the search field (capture-phase listener, before WebView Find); `overlayEscapeAction` in `overlay-search.ts` for two-step Escape (clear query, then dismiss panel).
 - **Unicode case-insensitive clipboard search** — `text_content_search` DB column stores lowercase text; legacy rows backfill on startup; queries match Cyrillic and Latin regardless of case.
 - **Text selection tokens** (`--selection-bg`, `--selection-text`) — accent wash for search input and shared form controls.
+- **Motion system** (`motion.ts`, motion tokens in `tokens.css`) — shared panel/HUD durations and Apple-style easings; `prefers-reduced-motion` token overrides; helpers `panelOpenMs`, `panelCloseFallbackMs`, `scrollBehavior`, and `subscribeReducedMotion`.
 - **Unit tests** — **107 tests** in `copyosity_lib` for 0.4.0, with emphasis on clipboard monitor dedup/hash-poisoning, image format and animated GIF paste paths, DB migration and tag backfill, case-insensitive/Cyrillic search and `text_content_search` backfill, settings partial updates (Whisper, voice transcription, AI tagging toggles), `tagging_ready` / `is_ai_tagging_enabled`, Ollama model validation plus `/api/ps` load-unload matching, `open_accessibility_settings` IPC, `macos_app` bundle ID resolution, app-exclusion candidate resolution, and macOS paste helpers (`bundle_prefers_keyboard_paste`, `cmd_v_uses_session_tap`, AX editable-role priority).
 
 ### Changed
 
 - **Clipboard monitor** — reads the pasteboard only when content actually changes; identical payloads are not re-captured or re-emitted to the UI.
-- **Paste pipeline** — Enter in the main window activates an entry the same way as double-click (text and images); paste returns focus to the previous target app; voice transcription uses the same automated paste path; `try_ax_paste_for_pid` centralizes per-app paste strategy; native apps that ignore `CGEventPostToPid` (Messages) receive session-tap Cmd+V when frontmost; AX focus search ranks text fields above scroll areas.
+- **Paste pipeline** — Enter in the main window activates an entry the same way as double-click (text and images); panel plays a close animation before native hide; automated paste is deferred until hide completes (`PENDING_PASTE_AFTER_HIDE`) so focus returns to the target app first; voice transcription uses the same automated paste path; `try_ax_paste_for_pid` centralizes per-app paste strategy; native apps that ignore `CGEventPostToPid` (Messages) receive session-tap Cmd+V when frontmost; AX focus search ranks text fields above scroll areas.
 - **Overlay keyboard selection** — opening the panel or changing search, collection, or tag filters selects the first (newest) entry; `Cmd+Shift+V` then `Enter` pastes the latest item without an extra arrow key; mouse hover highlighting stays separate from keyboard selection.
 - **Overlay search field** — in Tab order (no `tabindex="-1"`); clear button; `:focus-within` ring aligned with Settings; `role="search"` and `aria-label`; `focus()`, `blur()`, and `isFocused()` exported for panel shortcuts.
 - **Overlay arrow keys** — `←/→` always navigate cards, including when the search field is focused (Spotlight-style; left/right do not move the text cursor).
 - **Overlay empty states** — contextual messages for search-only, tag-only, and combined filters with secondary hints and `role="status"`.
-- **Overlay card reveal** — enter/stagger animation runs only after the panel is visible, avoiding WebKit cards stuck at `opacity: 0` during panel fade-in.
+- **Overlay panel motion** — Raycast-style asymmetric open/close via motion tokens; slide with `translate3d` (no scale); native hide waits for frontend close animation (`window-hide-request` → `hide_main_window` after `transitionend` or fallback timeout).
+- **Overlay panel height** — main window 400px → 420px.
+- **Reduce Motion** — panel transitions, card hover lift, copied-feedback scale, voice HUD mic pulse and EQ wobble, status-dot pulse, button spinner, and Settings toggle slider respect `prefers-reduced-motion`.
+- **Clipboard card actions** — Copy / Retag / Pin / Delete visible when the card is keyboard-selected or `:focus-within`, not only on hover; `aria-label` replaces `title` tooltips on action buttons.
+- **Plan docs** — macOS Intel pre-release plan renumbered to `03-macos-intel-pre-release-plan.md`.
 - **Accessibility in Settings** — silent checks vs macOS trust dialog are separated; one prompt per Settings visit; live AX probe; **Recheck** confirms when access is still valid; guidance after rebuild or reinstall; `open_accessibility_settings` IPC from Settings.
 - **Settings window** — native title bar (draggable again) with a custom header drag region.
 - **Voice overlay** — pre-created NSPanel with non-activating behavior so showing the overlay no longer steals focus from the target app; audio level meter uses a logarithmic dB scale for quiet laptop mics.
@@ -95,7 +100,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Tag filter bar** — image format tags (`jpg`, `gif`, `png`) always appear in filter chips when matching entries exist; previously only the top 8 tags by count were shown, so low-count format tags (e.g. `jpg`) could be missing from the bar while still visible on cards; filtering also matches `image_format` for legacy rows.
 - **Clipboard self-capture** — clipboard monitor skips capture when Copyosity is frontmost, even when the source bundle ID is unavailable in the pasteboard read path.
 - **Tag-filter empty state** — filtering by tag without a search query now shows tag-specific copy instead of a misleading search message.
-- **Invisible cards on panel open** — `revealCycle` increments after the panel becomes visible so `card-enter` animations restart correctly in WebKit.
+- **Paste focus race on activate** — Enter and double-click no longer hide the panel from the frontend before paste; automated paste runs only after the close animation and native hide complete.
+- **Invisible cards on panel open** — removed per-card stagger enter animation that could leave cards at `opacity: 0` in WebKit; panel slide now carries open/close motion.
 
 ### Dependencies
 
