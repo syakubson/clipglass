@@ -133,7 +133,6 @@
   let imageFormat = $derived(entry.content_type === "image" ? entry.image_format : null);
   let charLabel = $derived(entry.char_count ? `${entry.char_count.toLocaleString()} characters` : "");
   let tags = $derived(entry.tags ?? []);
-  let textLineClamp = $derived(tags.length > 0 ? 8 : 9);
 </script>
 
 <div
@@ -194,7 +193,7 @@
   <div class="card-body">
     {#if entry.content_type === "text"}
       <div class="text-preview">
-        <div class="text-content" style:--line-clamp={textLineClamp}>{entry.text_content}</div>
+        <div class="text-content">{entry.text_content}</div>
       </div>
     {:else if entry.content_type === "image"}
       <div class="image-preview">
@@ -211,6 +210,13 @@
   </div>
 
   <div class="card-footer">
+    {#if tags.length > 0}
+      <div class="tags">
+        {#each tags.slice(0, 3) as tag}
+          <span class="tag-chip">{tag}</span>
+        {/each}
+      </div>
+    {/if}
     {#if entry.source_app || charLabel}
       <div class="footer-row">
         {#if entry.source_app}
@@ -219,13 +225,6 @@
         {#if charLabel}
           <span class="char-count">{charLabel}</span>
         {/if}
-      </div>
-    {/if}
-    {#if tags.length > 0}
-      <div class="tags">
-        {#each tags.slice(0, 3) as tag}
-          <span class="tag-chip">{tag}</span>
-        {/each}
       </div>
     {/if}
   </div>
@@ -245,7 +244,7 @@
     position: relative;
     width: 220px;
     min-width: 220px;
-    height: 280px;
+    height: 288px;
     background: var(--surface-card);
     border: 1px solid var(--border-strong);
     border-radius: 14px;
@@ -364,8 +363,8 @@
   }
 
   .card-body {
-    flex: 1 1 0;
-    min-height: 0;
+    flex: 0 0 168px;
+    height: 168px;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -396,8 +395,8 @@
     font-family: "SF Mono", "Menlo", "Monaco", monospace;
     display: -webkit-box;
     -webkit-box-orient: vertical;
-    -webkit-line-clamp: var(--line-clamp, 9);
-    line-clamp: var(--line-clamp, 9);
+    -webkit-line-clamp: 8;
+    line-clamp: 8;
     text-overflow: ellipsis;
   }
 
@@ -405,6 +404,7 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
+    height: 100%;
   }
 
   .image-preview img {
@@ -442,9 +442,12 @@
   .card-footer {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    justify-content: flex-end;
+    gap: 8px;
     flex-shrink: 0;
-    margin-top: 8px;
+    min-height: 16px;
+    margin-top: auto;
+    padding-top: 8px;
   }
 
   .footer-row {
@@ -468,19 +471,20 @@
   .tags {
     display: flex;
     gap: 6px;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    overflow: hidden;
   }
 
   .tag-chip {
     display: inline-flex;
     align-items: center;
-    padding: 3px 7px;
+    padding: 4px 8px;
     border-radius: 999px;
     background: var(--surface-accent-tag);
     border: 1px solid var(--border-accent-tag);
     color: var(--color-accent-text-tag);
     font-size: 10px;
-    line-height: 1;
+    line-height: 1.2;
     text-transform: lowercase;
   }
 
