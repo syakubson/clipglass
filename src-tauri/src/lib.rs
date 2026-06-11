@@ -12,7 +12,7 @@ mod ollama;
 mod whisper;
 
 use db::Database;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use tauri::{
     Emitter, Manager,
@@ -35,6 +35,8 @@ tauri_nspanel::tauri_panel!(
 );
 
 static LAST_SHOW_MS: AtomicU64 = AtomicU64::new(0);
+pub(crate) static PANEL_HIDE_SCHEDULED: AtomicBool = AtomicBool::new(false);
+pub(crate) static PENDING_PASTE_AFTER_HIDE: AtomicBool = AtomicBool::new(false);
 
 /// Main panel level while hidden — below status-bar menu popups.
 #[cfg(target_os = "macos")]
@@ -314,7 +316,7 @@ pub fn run() {
                 match (label.as_str(), &event) {
                     ("main", tauri::WindowEvent::CloseRequested { api, .. }) => {
                         api.prevent_close();
-                        hide_panel(app);
+                        animated_hide_panel(app);
                     }
                     ("main", tauri::WindowEvent::Focused(false)) => {
                         let last_show = LAST_SHOW_MS.load(Ordering::Relaxed);
@@ -323,7 +325,7 @@ pub fn run() {
                         }
                         let elapsed = now_ms() - last_show;
                         if elapsed > 500 && main_panel_visible(app) {
-                            hide_panel(app);
+                            animated_hide_panel(app);
                         }
                     }
                     ("settings", tauri::WindowEvent::Destroyed) => {}
@@ -339,13 +341,13 @@ fn toggle_window(app: &tauri::AppHandle) {
     {
         if let Ok(panel) = app.get_webview_panel("main") {
             if panel.is_visible() {
-                panel.hide();
-                panel.set_level(PANEL_LEVEL_IDLE);
+                animated_hide_panel(app);
             } else {
                 if let Some(window) = app.get_webview_window("main") {
                     position_window_bottom(&window);
                 }
                 clipboard_macos::remember_paste_target();
+                PANEL_HIDE_SCHEDULED.store(false, Ordering::Release);
                 LAST_SHOW_MS.store(now_ms(), Ordering::Relaxed);
                 panel.set_level(PANEL_LEVEL_ACTIVE);
                 panel.show_and_make_key();
@@ -358,7 +360,7 @@ fn toggle_window(app: &tauri::AppHandle) {
     // Fallback for non-macOS
     if let Some(window) = app.get_webview_window("main") {
         if window.is_visible().unwrap_or(false) {
-            let _ = window.hide();
+            animated_hide_panel(app);
         } else {
             LAST_SHOW_MS.store(now_ms(), Ordering::Relaxed);
             position_window_bottom(&window);
@@ -369,6 +371,14 @@ fn toggle_window(app: &tauri::AppHandle) {
     }
 }
 
+pub(crate) fn animated_hide_panel(app: &tauri::AppHandle) {
+    if PANEL_HIDE_SCHEDULED.swap(true, Ordering::AcqRel) {
+        return;
+    }
+
+    let _ = app.emit("window-hide-request", ());
+}
+
 fn hide_panel(app: &tauri::AppHandle) {
     #[cfg(target_os = "macos")]
     {
@@ -376,6 +386,7 @@ fn hide_panel(app: &tauri::AppHandle) {
             if panel.is_visible() {
                 panel.hide();
                 panel.set_level(PANEL_LEVEL_IDLE);
+                let _ = app.emit("window-hide", ());
             }
             return;
         }
@@ -384,6 +395,7 @@ fn hide_panel(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         if window.is_visible().unwrap_or(false) {
             let _ = window.hide();
+            let _ = app.emit("window-hide", ());
         }
     }
 }
@@ -600,7 +612,7 @@ pub(crate) fn position_window_bottom(window: &tauri::WebviewWindow) {
         let bottom_padding = (28.0 * scale) as i32;
         let min_width = (900.0 * scale) as u32;
         let preferred_width = (1180.0 * scale) as u32;
-        let win_height = (410.0 * scale) as u32;
+        let win_height = (420.0 * scale) as u32;
         let win_width = preferred_width.min(work_area.size.width).max(min_width);
 
         let x = work_area.position.x + ((work_area.size.width as i32 - win_width as i32) / 2);

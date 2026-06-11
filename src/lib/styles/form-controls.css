@@ -75,7 +75,7 @@
   border: none;
   margin: 0;
   padding: 0;
-  transition: opacity 0.2s ease;
+  transition: opacity var(--duration-standard) var(--ease-interactive);
 }
 
 .toggle-section-body.is-disabled {
@@ -116,7 +116,17 @@
   font-size: 13px;
   line-height: 1.25;
   outline: none;
-  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+  user-select: text;
+  -webkit-user-select: text;
+  transition:
+    border-color var(--duration-fast) var(--ease-interactive),
+    background var(--duration-fast) var(--ease-interactive),
+    box-shadow var(--duration-fast) var(--ease-interactive);
+}
+
+.form-input::selection {
+  background-color: var(--selection-bg);
+  color: var(--selection-text);
 }
 
 .form-select {
@@ -367,7 +377,7 @@
   text-align: right;
   white-space: nowrap;
   opacity: 0;
-  transition: opacity 0.2s ease;
+  transition: opacity var(--duration-standard) var(--ease-interactive);
 }
 
 .form-note.visible {
@@ -443,7 +453,7 @@
 }
 
 .status-dot.checking {
-  animation: status-pulse 1s infinite;
+  animation: status-pulse var(--duration-status-pulse) infinite;
 }
 
 @keyframes status-pulse {
@@ -454,6 +464,13 @@
 
   50% {
     opacity: 0.4;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-dot.checking {
+    animation: none;
+    opacity: 1;
   }
 }
 

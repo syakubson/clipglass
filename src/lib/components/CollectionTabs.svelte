@@ -112,7 +112,9 @@
     cursor: pointer;
     white-space: nowrap;
     font-family: inherit;
-    transition: all 0.15s;
+    transition:
+      color var(--duration-fast) var(--ease-interactive),
+      background var(--duration-fast) var(--ease-interactive);
   }
 
   .tab:hover:not(:disabled):not([aria-busy="true"]) {
@@ -141,7 +143,7 @@
     padding: 0 2px;
     line-height: 1;
     opacity: 0;
-    transition: opacity 0.15s;
+    transition: opacity var(--duration-fast) var(--ease-interactive);
   }
 
   .tab:hover .tab-delete {

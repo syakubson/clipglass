@@ -15,6 +15,7 @@ use image::GenericImageView;
 use std::borrow::Cow;
 
 use crate::clipboard_write::{self, ClipboardWriteMode};
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use tauri::{Emitter, Manager, State};
 
@@ -84,7 +85,18 @@ pub fn clear_history(db: State<'_, Arc<Database>>) -> Result<(), String> {
 
 #[tauri::command]
 pub fn hide_main_window(app: tauri::AppHandle) -> Result<(), String> {
+    // Frontend played close motion; hide native panel on the main thread.
+    crate::PANEL_HIDE_SCHEDULED.store(true, Ordering::Release);
     crate::hide_panel(&app);
+    crate::PANEL_HIDE_SCHEDULED.store(false, Ordering::Release);
+
+    if crate::PENDING_PASTE_AFTER_HIDE.swap(false, Ordering::AcqRel) {
+        #[cfg(target_os = "macos")]
+        crate::clipboard_macos::spawn_automated_paste(true);
+        #[cfg(not(target_os = "macos"))]
+        simulate_paste();
+    }
+
     Ok(())
 }
 
@@ -364,19 +376,12 @@ fn write_entry_for_paste(clipboard: &mut Clipboard, entry: &ClipboardEntry) -> R
     Ok(())
 }
 
-#[cfg(target_os = "macos")]
-fn finish_paste(_app: &tauri::AppHandle) {
-    crate::hide_panel(_app);
-
-    // Paste must run off the main thread: blocking here prevents the run loop from
-    // completing panel hide and returning focus to the target app (Cursor/Electron).
-    crate::clipboard_macos::spawn_automated_paste(true);
-}
-
-#[cfg(not(target_os = "macos"))]
 fn finish_paste(app: &tauri::AppHandle) {
-    crate::hide_panel(app);
-    simulate_paste();
+    crate::PENDING_PASTE_AFTER_HIDE.store(true, Ordering::Release);
+    if crate::PANEL_HIDE_SCHEDULED.swap(true, Ordering::AcqRel) {
+        return;
+    }
+    let _ = app.emit("window-hide-request", ());
 }
 
 fn image_bytes_from_entry(entry: &ClipboardEntry) -> Result<Vec<u8>, String> {

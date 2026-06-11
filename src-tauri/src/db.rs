@@ -77,6 +77,35 @@ pub struct Database {
     pub conn: Mutex<Connection>,
 }
 
+fn lowercase_search_text(text: &str) -> String {
+    text.to_lowercase()
+}
+
+fn backfill_text_content_search(conn: &Connection) -> Result<(), rusqlite::Error> {
+    let mut stmt = conn.prepare(
+        "SELECT id, text_content
+         FROM clipboard_entries
+         WHERE text_content_search IS NULL
+           AND text_content IS NOT NULL",
+    )?;
+    let rows = stmt
+        .query_map([], |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)))?
+        .collect::<Result<Vec<_>, _>>()?;
+
+    if rows.is_empty() {
+        return Ok(());
+    }
+
+    let tx = conn.unchecked_transaction()?;
+    for (id, text) in rows {
+        tx.execute(
+            "UPDATE clipboard_entries SET text_content_search = ?1 WHERE id = ?2",
+            params![lowercase_search_text(&text), id],
+        )?;
+    }
+    tx.commit()
+}
+
 fn resolve_image_format(entry: &mut ClipboardEntry) {
     if entry.content_type != "image" {
         return;
@@ -176,6 +205,12 @@ impl Database {
             "UPDATE clipboard_tags SET tag = 'jpg' WHERE tag = 'jpeg'",
             [],
         );
+
+        let _ = conn.execute(
+            "ALTER TABLE clipboard_entries ADD COLUMN text_content_search TEXT",
+            [],
+        );
+        backfill_text_content_search(&conn)?;
 
         crate::macos_app::migrate_legacy_excluded_app_names(&conn)?;
 
@@ -344,12 +379,18 @@ impl Database {
             return Ok((id, false));
         }
 
+        let text_content_search = entry
+            .text_content
+            .as_deref()
+            .map(lowercase_search_text);
+
         conn.execute(
-            "INSERT INTO clipboard_entries (content_type, text_content, image_data, image_thumb, source_app, source_app_icon, content_hash, char_count, created_at, is_pinned, collection_id, image_format)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+            "INSERT INTO clipboard_entries (content_type, text_content, text_content_search, image_data, image_thumb, source_app, source_app_icon, content_hash, char_count, created_at, is_pinned, collection_id, image_format)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
             params![
                 entry.content_type,
                 entry.text_content,
+                text_content_search,
                 entry.image_data,
                 entry.image_thumb,
                 entry.source_app,
@@ -387,8 +428,11 @@ impl Database {
         }
 
         if let Some(q) = search {
-            sql.push_str(" AND text_content LIKE ?");
-            param_values.push(Box::new(format!("%{}%", q)));
+            let q_lower = lowercase_search_text(q);
+            if !q_lower.is_empty() {
+                sql.push_str(" AND text_content_search LIKE ?");
+                param_values.push(Box::new(format!("%{}%", q_lower)));
+            }
         }
 
         sql.push_str(" ORDER BY created_at DESC LIMIT ? OFFSET ?");
@@ -784,7 +828,8 @@ mod tests {
                 created_at TEXT NOT NULL,
                 is_pinned INTEGER DEFAULT 0,
                 collection_id INTEGER REFERENCES collections(id) ON DELETE SET NULL,
-                image_format TEXT
+                image_format TEXT,
+                text_content_search TEXT
             );
             CREATE INDEX IF NOT EXISTS idx_entries_content_hash ON clipboard_entries(content_hash);
             CREATE TABLE IF NOT EXISTS settings (
@@ -1002,6 +1047,56 @@ mod tests {
 
         let results = db.get_entries(50, 0, None, false, Some("rust")).unwrap();
         assert_eq!(results.len(), 2);
+
+        let upper = db.get_entries(50, 0, None, false, Some("RUST")).unwrap();
+        assert_eq!(upper.len(), 2);
+    }
+
+    #[test]
+    fn get_entries_search_is_case_insensitive_for_cyrillic() {
+        let db = test_db();
+        db.insert_entry(&make_entry("Что учесть при реализации", "h_cyr")).unwrap();
+        db.insert_entry(&make_entry("другой текст", "h_other")).unwrap();
+
+        let results = db.get_entries(50, 0, None, false, Some("что уч")).unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(
+            results[0].text_content.as_deref(),
+            Some("Что учесть при реализации")
+        );
+    }
+
+    #[test]
+    fn text_content_search_backfills_legacy_rows() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE clipboard_entries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                content_type TEXT NOT NULL DEFAULT 'text',
+                text_content TEXT,
+                text_content_search TEXT,
+                content_hash TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );",
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO clipboard_entries (content_type, text_content, content_hash, created_at)
+             VALUES ('text', 'Что учесть', 'legacy', '2026-01-01T00:00:00Z')",
+            [],
+        )
+        .unwrap();
+
+        backfill_text_content_search(&conn).unwrap();
+
+        let search_value: String = conn
+            .query_row(
+                "SELECT text_content_search FROM clipboard_entries WHERE content_hash = 'legacy'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(search_value, "что учесть");
     }
 
     #[test]

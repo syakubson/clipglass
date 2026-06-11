@@ -1,31 +1,88 @@
 <script lang="ts">
-  let { value = "", onchange }: { value?: string; onchange?: (v: string) => void } = $props();
+  let {
+    value = "",
+    onchange,
+  }: {
+    value?: string;
+    onchange?: (v: string) => void;
+  } = $props();
 
   let inputEl: HTMLInputElement | undefined = $state();
+  let focused = $state(false);
 
   function handleInput(e: Event) {
     const target = e.target as HTMLInputElement;
     onchange?.(target.value);
   }
 
+  function handleClear() {
+    onchange?.("");
+    inputEl?.focus();
+  }
+
   export function focus() {
     inputEl?.focus();
+    inputEl?.select();
+  }
+
+  export function blur() {
+    inputEl?.blur();
+  }
+
+  export function isFocused() {
+    return focused;
   }
 </script>
 
-<div class="search-bar">
-  <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+<div class="search-bar" role="search">
+  <svg
+    class="search-icon"
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    aria-hidden="true"
+  >
     <circle cx="11" cy="11" r="8" />
     <line x1="21" y1="21" x2="16.65" y2="16.65" />
   </svg>
   <input
     bind:this={inputEl}
-    type="text"
+    type="search"
     placeholder="Search clipboard history..."
+    aria-label="Search clipboard history"
+    autocomplete="off"
+    spellcheck="false"
     {value}
     oninput={handleInput}
-    tabindex="-1"
+    onfocus={() => {
+      focused = true;
+    }}
+    onblur={() => {
+      focused = false;
+    }}
   />
+  <button
+    type="button"
+    class="clear-btn"
+    class:hidden={!value}
+    aria-label="Clear search"
+    aria-hidden={!value}
+    tabindex={value ? 0 : -1}
+    disabled={!value}
+    onclick={handleClear}
+  >
+    <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+      <path
+        d="M2.2 2.2 9.8 9.8M9.8 2.2 2.2 9.8"
+        stroke="currentColor"
+        stroke-width="1.5"
+        stroke-linecap="round"
+      />
+    </svg>
+  </button>
 </div>
 
 <style>
@@ -33,11 +90,23 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 6px 12px;
+    padding: 6px 10px 6px 12px;
     background: var(--surface-6);
-    border: 1px solid var(--border-soft);
+    border: 1px solid var(--border-medium);
     border-radius: 8px;
-    min-width: 200px;
+    width: 280px;
+    flex: 0 0 280px;
+    box-sizing: border-box;
+    transition:
+      border-color var(--duration-fast) var(--ease-interactive),
+      background var(--duration-fast) var(--ease-interactive),
+      box-shadow var(--duration-fast) var(--ease-interactive);
+  }
+
+  .search-bar:focus-within {
+    border-color: var(--border-accent-hover);
+    box-shadow: var(--ring-accent-input);
+    background: var(--surface-8);
   }
 
   .search-icon {
@@ -52,10 +121,55 @@
     color: var(--color-text-body);
     font-size: 13px;
     width: 100%;
+    min-width: 0;
     font-family: inherit;
+    user-select: text;
+    -webkit-user-select: text;
+  }
+
+  input::selection {
+    background-color: var(--selection-bg);
+    color: var(--selection-text);
   }
 
   input::placeholder {
-    color: var(--color-text-faint);
+    color: var(--color-text-placeholder);
+  }
+
+  input::-webkit-search-cancel-button {
+    display: none;
+  }
+
+  .clear-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: none;
+    border-radius: 50%;
+    background: var(--surface-10);
+    color: var(--color-text-tertiary);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition:
+      background var(--duration-fast) var(--ease-interactive),
+      color var(--duration-fast) var(--ease-interactive);
+  }
+
+  .clear-btn:hover {
+    background: var(--surface-12);
+    color: var(--color-text-secondary);
+  }
+
+  .clear-btn:focus-visible {
+    outline: none;
+    box-shadow: var(--ring-accent);
+  }
+
+  .clear-btn.hidden {
+    visibility: hidden;
+    pointer-events: none;
   }
 </style>

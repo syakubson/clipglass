@@ -5,7 +5,7 @@ All notable changes to Copyosity are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.4.0] - 2026-06-10
+## [0.4.0] - 2026-06-11
 
 ### Added
 
@@ -30,13 +30,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`form-btn-restrict`** — warning-styled button for privacy/restrict actions (panel exclude button; pairs with `form-link-restrict` in Settings).
 - **Excluded apps (Privacy)** — list-first layout with Choose Application via native picker, Add by name, contextual Add row using remembered paste-target app (shows **Active app** or **Recent app**), inline section notices, and overlay header **Exclude [App]** action.
 - **macOS paste pipeline doc** — `docs/architecture/macos-paste-pipeline.md` (mermaid flow, file map, Messages/session-tap decisions, `KEYBOARD_PASTE_BUNDLE_IDS`, `COPYOSITY_DEBUG_PASTE`); linked from README Development and `AGENTS.md`.
-- **Unit tests** — **105 tests** in `copyosity_lib` for 0.4.0, with emphasis on clipboard monitor dedup/hash-poisoning, image format and animated GIF paste paths, DB migration and tag backfill, settings partial updates (Whisper, voice transcription, AI tagging toggles), `tagging_ready` / `is_ai_tagging_enabled`, Ollama model validation plus `/api/ps` load-unload matching, `open_accessibility_settings` IPC, `macos_app` bundle ID resolution, app-exclusion candidate resolution, and macOS paste helpers (`bundle_prefers_keyboard_paste`, `cmd_v_uses_session_tap`, AX editable-role priority).
+- **HIG audit** — `docs/plans/02-hig-audit.md` with prioritized accessibility, native-feel, and discoverability roadmap across overlay, settings, voice HUD, and shared tokens.
+- **Overlay search keyboard shortcuts** — `⌘F` and `/` focus the search field (capture-phase listener, before WebView Find); `overlayEscapeAction` in `overlay-search.ts` for two-step Escape (clear query, then dismiss panel).
+- **Unicode case-insensitive clipboard search** — `text_content_search` DB column stores lowercase text; legacy rows backfill on startup; queries match Cyrillic and Latin regardless of case.
+- **Text selection tokens** (`--selection-bg`, `--selection-text`) — accent wash for search input and shared form controls.
+- **Unit tests** — **107 tests** in `copyosity_lib` for 0.4.0, with emphasis on clipboard monitor dedup/hash-poisoning, image format and animated GIF paste paths, DB migration and tag backfill, case-insensitive/Cyrillic search and `text_content_search` backfill, settings partial updates (Whisper, voice transcription, AI tagging toggles), `tagging_ready` / `is_ai_tagging_enabled`, Ollama model validation plus `/api/ps` load-unload matching, `open_accessibility_settings` IPC, `macos_app` bundle ID resolution, app-exclusion candidate resolution, and macOS paste helpers (`bundle_prefers_keyboard_paste`, `cmd_v_uses_session_tap`, AX editable-role priority).
 
 ### Changed
 
 - **Clipboard monitor** — reads the pasteboard only when content actually changes; identical payloads are not re-captured or re-emitted to the UI.
 - **Paste pipeline** — Enter in the main window activates an entry the same way as double-click (text and images); paste returns focus to the previous target app; voice transcription uses the same automated paste path; `try_ax_paste_for_pid` centralizes per-app paste strategy; native apps that ignore `CGEventPostToPid` (Messages) receive session-tap Cmd+V when frontmost; AX focus search ranks text fields above scroll areas.
 - **Overlay keyboard selection** — opening the panel or changing search, collection, or tag filters selects the first (newest) entry; `Cmd+Shift+V` then `Enter` pastes the latest item without an extra arrow key; mouse hover highlighting stays separate from keyboard selection.
+- **Overlay search field** — in Tab order (no `tabindex="-1"`); clear button; `:focus-within` ring aligned with Settings; `role="search"` and `aria-label`; `focus()`, `blur()`, and `isFocused()` exported for panel shortcuts.
+- **Overlay arrow keys** — `←/→` always navigate cards, including when the search field is focused (Spotlight-style; left/right do not move the text cursor).
+- **Overlay empty states** — contextual messages for search-only, tag-only, and combined filters with secondary hints and `role="status"`.
+- **Overlay card reveal** — enter/stagger animation runs only after the panel is visible, avoiding WebKit cards stuck at `opacity: 0` during panel fade-in.
 - **Accessibility in Settings** — silent checks vs macOS trust dialog are separated; one prompt per Settings visit; live AX probe; **Recheck** confirms when access is still valid; guidance after rebuild or reinstall; `open_accessibility_settings` IPC from Settings.
 - **Settings window** — native title bar (draggable again) with a custom header drag region.
 - **Voice overlay** — pre-created NSPanel with non-activating behavior so showing the overlay no longer steals focus from the target app; audio level meter uses a logarithmic dB scale for quiet laptop mics.
@@ -86,6 +94,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Settings status hints** — symmetric vertical padding within checklist rows; hint copy split across lines where it improves readability (model unloaded, tagging test).
 - **Tag filter bar** — image format tags (`jpg`, `gif`, `png`) always appear in filter chips when matching entries exist; previously only the top 8 tags by count were shown, so low-count format tags (e.g. `jpg`) could be missing from the bar while still visible on cards; filtering also matches `image_format` for legacy rows.
 - **Clipboard self-capture** — clipboard monitor skips capture when Copyosity is frontmost, even when the source bundle ID is unavailable in the pasteboard read path.
+- **Tag-filter empty state** — filtering by tag without a search query now shows tag-specific copy instead of a misleading search message.
+- **Invisible cards on panel open** — `revealCycle` increments after the panel becomes visible so `card-enter` animations restart correctly in WebKit.
 
 ### Dependencies
 

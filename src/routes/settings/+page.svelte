@@ -1164,7 +1164,9 @@
     border-radius: 999px;
     background: var(--surface-14);
     border: 1px solid var(--border-strong);
-    transition: background 0.2s ease, border-color 0.2s ease;
+    transition:
+      background var(--duration-standard) var(--ease-interactive),
+      border-color var(--duration-standard) var(--ease-interactive);
   }
 
   .toggle-slider::after {
@@ -1177,7 +1179,7 @@
     border-radius: 50%;
     background: var(--color-text-primary);
     box-shadow: var(--shadow-toggle-knob);
-    transition: transform 0.2s ease;
+    transition: transform var(--duration-standard) var(--ease-interactive);
   }
 
   .toggle input:checked + .toggle-slider {
@@ -1195,6 +1197,13 @@
 
   .toggle input:checked:focus-visible + .toggle-slider {
     box-shadow: var(--ring-success-control);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .toggle-slider,
+    .toggle-slider::after {
+      transition: none;
+    }
   }
 
   .settings-footer {

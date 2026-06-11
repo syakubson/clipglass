@@ -5,7 +5,6 @@
   let {
     entry,
     selected = false,
-    onpasted,
     ondeleted,
     onpinned,
     onretagged,
@@ -13,7 +12,6 @@
   }: {
     entry: ClipboardEntry;
     selected?: boolean;
-    onpasted?: () => void;
     ondeleted?: () => void;
     onpinned?: () => void;
     onretagged?: () => void;
@@ -98,7 +96,6 @@
     if (copied) return;
     if (entry.content_type === "text" || entry.content_type === "image") {
       await activateEntry(entry.id);
-      onpasted?.();
     }
   }
 
@@ -155,14 +152,14 @@
       <span class="time">{timeAgo(entry.created_at)}</span>
     </div>
     <div class="card-actions">
-      <button class="action-btn app-btn" onclick={handleCopy} title="Copy">
+      <button class="action-btn app-btn" onclick={handleCopy} aria-label="Copy">
         <svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
           <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
         </svg>
       </button>
       {#if entry.content_type === "text" && retagAvailable}
-        <button class="action-btn app-btn" onclick={handleRetag} title="Retag">
+        <button class="action-btn app-btn" onclick={handleRetag} aria-label="Retag">
           <svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
             <path d="M21 3v5h-5" />
@@ -175,13 +172,13 @@
         class="action-btn app-btn"
         class:pinned={entry.is_pinned}
         onclick={handlePin}
-        title={entry.is_pinned ? "Unpin" : "Pin"}
+        aria-label={entry.is_pinned ? "Unpin" : "Pin"}
       >
         <svg class="action-icon" viewBox="0 0 24 24" fill={entry.is_pinned ? "currentColor" : "none"} stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
         </svg>
       </button>
-      <button class="action-btn app-btn delete" onclick={handleDelete} title="Delete">
+      <button class="action-btn app-btn delete" onclick={handleDelete} aria-label="Delete">
         <svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <line x1="18" y1="6" x2="6" y2="18" />
           <line x1="6" y1="6" x2="18" y2="18" />
@@ -252,7 +249,11 @@
     cursor: pointer;
     display: flex;
     flex-direction: column;
-    transition: all 0.15s ease;
+    transition:
+      transform var(--duration-standard) var(--ease-interactive),
+      border-color var(--duration-standard) var(--ease-interactive),
+      background var(--duration-standard) var(--ease-interactive),
+      box-shadow var(--duration-standard) var(--ease-interactive);
     font-family: inherit;
     color: inherit;
     text-align: left;
@@ -265,6 +266,19 @@
     background: var(--surface-card-hover);
     transform: translateY(-2px);
     box-shadow: var(--shadow-card);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .card {
+      transition:
+        border-color var(--duration-standard) var(--ease-interactive),
+        background var(--duration-standard) var(--ease-interactive),
+        box-shadow var(--duration-standard) var(--ease-interactive);
+    }
+
+    .card:hover {
+      transform: none;
+    }
   }
 
   .card.selected {
@@ -321,10 +335,12 @@
     display: flex;
     gap: 2px;
     opacity: 0;
-    transition: opacity 0.15s;
+    transition: opacity var(--duration-fast) var(--ease-interactive);
   }
 
-  .card:hover .card-actions {
+  .card:hover .card-actions,
+  .card.selected .card-actions,
+  .card:focus-within .card-actions {
     opacity: 1;
   }
 
@@ -515,14 +531,14 @@
     font-size: 15px;
     font-weight: 700;
     letter-spacing: 0.02em;
-    animation: copied-pop 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    animation: copied-pop var(--duration-hud) var(--ease-out-expo);
     z-index: 5;
   }
 
   .copied-icon {
     width: 32px;
     height: 32px;
-    animation: check-draw 0.35s ease forwards;
+    animation: check-draw var(--duration-hud) var(--ease-interactive) forwards;
   }
 
   @keyframes copied-pop {
@@ -544,6 +560,28 @@
     to {
       stroke-dasharray: 40;
       stroke-dashoffset: 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .copied-overlay {
+      animation: copied-fade var(--duration-hud) var(--ease-interactive);
+    }
+
+    .copied-icon {
+      animation: none;
+      stroke-dasharray: 40;
+      stroke-dashoffset: 0;
+    }
+  }
+
+  @keyframes copied-fade {
+    from {
+      opacity: 0;
+    }
+
+    to {
+      opacity: 1;
     }
   }
 </style>

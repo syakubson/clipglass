@@ -178,6 +178,34 @@
   --ring-accent: 0 0 0 3px rgb(var(--rgb-accent-border) / 0.22);
   --ring-accent-input: 0 0 0 3px rgb(var(--rgb-accent-focus) / 0.15);
 
+  /* ── Text selection (accent wash, matches card/focus tones) ─ */
+  --selection-bg: rgb(var(--rgb-accent-focus) / 0.36);
+  --selection-text: var(--color-text-primary);
+
+  /* ── Motion (launcher / HUD) ───────────────────────── */
+  /* Raycast-style: ~150ms hover, ~250–300ms panel, faster dismiss than open. */
+  --ease-apple-panel: cubic-bezier(0.2, 0, 0, 1);
+  --ease-panel-dismiss: cubic-bezier(0.4, 0, 1, 1);
+  --ease-interactive: var(--ease-apple-panel);
+  --ease-out-expo: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out-soft: cubic-bezier(0.32, 0.72, 0, 1);
+  --duration-instant: 0ms;
+  --duration-fast: 0.15s;
+  --duration-standard: 0.2s;
+  --duration-hud: 0.25s;
+  --duration-panel-open: 0.3s;
+  --duration-panel-opacity-open: 0.24s;
+  --duration-panel-close: 0.18s;
+  --duration-panel-opacity-close: 0.12s;
+  --duration-micro: 0.05s;
+  --duration-spinner: 0.72s;
+  --duration-spinner-reduced: 1.44s;
+  --duration-status-pulse: 1s;
+  --duration-pulse-mic: 1.2s;
+  --duration-stagger-step: 15ms;
+  --panel-open-travel: 12px;
+  --panel-blur-visible: 34px;
+
   /* ── Gradients ─────────────────────────────────────── */
   --gradient-btn-primary: linear-gradient(
     180deg,
@@ -217,4 +245,20 @@
   --opacity-disabled: 0.48;
   --opacity-busy: 0.88;
   --opacity-section-disabled: 0.42;
+}
+
+/* Micro-interactions: instant color/border/opacity when Reduce Motion is on. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 0.01ms;
+    --duration-standard: 0.01ms;
+    --duration-micro: 0.01ms;
+    --duration-hud: 0.01ms;
+    --duration-stagger-step: 0ms;
+    --panel-open-travel: 0px;
+    --duration-panel-open: 0.01ms;
+    --duration-panel-opacity-open: 0.01ms;
+    --duration-panel-close: 0.01ms;
+    --duration-panel-opacity-close: 0.01ms;
+  }
 }

@@ -10,16 +10,16 @@ button.app-btn {
   position: relative;
   -webkit-tap-highlight-color: transparent;
   transition:
-    background 0.15s ease,
-    border-color 0.15s ease,
-    color 0.15s ease,
-    opacity 0.15s ease,
-    filter 0.15s ease,
-    box-shadow 0.15s ease;
+    background var(--duration-fast) var(--ease-interactive),
+    border-color var(--duration-fast) var(--ease-interactive),
+    color var(--duration-fast) var(--ease-interactive),
+    opacity var(--duration-fast) var(--ease-interactive),
+    filter var(--duration-fast) var(--ease-interactive),
+    box-shadow var(--duration-fast) var(--ease-interactive);
 }
 
 .app-btn-label {
-  transition: opacity 0.15s ease;
+  transition: opacity var(--duration-fast) var(--ease-interactive);
 }
 
 button.app-btn.is-busy .app-btn-label {
@@ -34,7 +34,7 @@ button.app-btn.is-busy .app-btn-label {
   justify-content: center;
   pointer-events: none;
   opacity: 0;
-  transition: opacity 0.15s ease;
+  transition: opacity var(--duration-fast) var(--ease-interactive);
 }
 
 button.app-btn.is-busy .app-btn-spinner {
@@ -47,7 +47,7 @@ button.app-btn.is-busy .app-btn-spinner {
   border: 2px solid var(--spinner-track);
   border-top-color: var(--spinner-head);
   border-radius: 50%;
-  animation: app-btn-spin 0.72s linear infinite;
+  animation: app-btn-spin var(--duration-spinner) linear infinite;
 }
 
 @keyframes app-btn-spin {
@@ -76,7 +76,13 @@ button.app-btn.is-locked {
 button.app-btn:active:not(.is-busy):not(.is-locked):not(:disabled) {
   filter: brightness(0.9);
   box-shadow: var(--shadow-inset-press);
-  transition-duration: 0.05s;
+  transition-duration: var(--duration-micro);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-btn-spinner-icon {
+    animation-duration: var(--duration-spinner-reduced);
+  }
 }
 
 button.app-btn:focus-visible {

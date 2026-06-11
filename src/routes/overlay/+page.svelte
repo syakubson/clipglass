@@ -1,19 +1,31 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { listen } from "@tauri-apps/api/event";
+  import { prefersReducedMotion, subscribeReducedMotion } from "$lib/motion";
 
   let bars = $state([12, 20, 8, 15, 10]);
+  let reducedMotion = $state(prefersReducedMotion());
+
+  function levelToBarHeight(level: number, index: number): number {
+    if (reducedMotion) {
+      return Math.max(20, Math.min(80, level));
+    }
+    const offset = Math.sin(Date.now() / 120 + index * 1.8) * 18;
+    return Math.max(6, Math.min(100, level + offset + Math.random() * 12));
+  }
 
   onMount(() => {
+    const unsubscribeMotion = subscribeReducedMotion((value) => {
+      reducedMotion = value;
+    });
+
     const unlisten = listen<number>("audio-level", (event) => {
       const level = event.payload;
-      bars = bars.map((_, i) => {
-        const offset = Math.sin(Date.now() / 120 + i * 1.8) * 18;
-        return Math.max(6, Math.min(100, level + offset + Math.random() * 12));
-      });
+      bars = bars.map((_, i) => levelToBarHeight(level, i));
     });
 
     return () => {
+      unsubscribeMotion();
       unlisten.then((fn) => fn());
     };
   });
@@ -31,7 +43,12 @@
     </div>
     <div class="eq" aria-hidden="true">
       {#each bars as h, i}
-        <div class="bar" style="height: {h}%; transition-delay: {i * 15}ms;"></div>
+        <div
+          class="bar"
+          class:bar-static={reducedMotion}
+          style="height: {h}%;"
+          style:transition-delay={reducedMotion ? undefined : `calc(${i} * var(--duration-stagger-step))`}
+        ></div>
       {/each}
     </div>
   </div>
@@ -80,7 +97,14 @@
     height: 24px;
     flex-shrink: 0;
     color: var(--color-recording);
-    animation: pulse-mic 1.2s ease-in-out infinite;
+    animation: pulse-mic var(--duration-pulse-mic) ease-in-out infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .mic-icon {
+      animation: none;
+      opacity: 1;
+    }
   }
 
   .mic-icon svg {
@@ -107,6 +131,14 @@
     min-height: 4px;
     background: var(--gradient-voice-bar);
     border-radius: 2px;
-    transition: height 80ms ease-out;
+    transition: height var(--duration-fast) var(--ease-interactive);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .bar,
+    .bar.bar-static {
+      transition: none;
+      transition-delay: 0ms;
+    }
   }
 </style>

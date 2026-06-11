@@ -23,6 +23,8 @@
   import ClipboardCard from "$lib/components/ClipboardCard.svelte";
   import SearchBar from "$lib/components/SearchBar.svelte";
   import CollectionTabs from "$lib/components/CollectionTabs.svelte";
+  import { overlayEscapeAction } from "$lib/overlay-search";
+  import { panelCloseFallbackMs, panelOpenMs, scrollBehavior } from "$lib/motion";
 
   let entries: ClipboardEntry[] = $state([]);
   let collections: Collection[] = $state([]);
@@ -32,13 +34,20 @@
   let activeTag = $state<string | null>(null);
   let selectedIndex = $state(-1);
   let gridEl: HTMLDivElement | undefined = $state();
+  let appEl: HTMLDivElement | undefined = $state();
   let visible = $state(false);
-  let revealCycle = $state(0);
+  let isRevealing = $state(false);
+  let hideTimer: ReturnType<typeof setTimeout> | undefined;
+  let revealTimer: ReturnType<typeof setTimeout> | undefined;
+  let pendingReload = false;
+  let revealSeq = 0;
+  let hideTransitionHandler: ((e: TransitionEvent) => void) | undefined;
   let retagAvailable = $state(false);
   let excludeCandidate: ExcludableAppCandidate | null = $state(null);
   let excludeNotice = $state("");
   let excludeNoticeTone = $state<"neutral" | "warn">("neutral");
   let excludeBusy = $state(false);
+  let searchBar: SearchBar | undefined = $state();
   const hiddenTopTags = new Set(["code", "otp", "token", "log"]);
   const imageFormatTags = ["gif", "jpg", "png"];
   const imageFormatTagSet = new Set(imageFormatTags);
@@ -83,50 +92,135 @@
     }
   }
 
-  async function loadEntries(selectFirst = false) {
+  async function loadEntries(selectFirst = false, scrollToFirst = true) {
     entries = await getEntries({
       collection_id: activeCollectionId,
       pinned_only: pinnedOnly,
       search: searchQuery || null,
     });
-    if (selectFirst) resetKeyboardSelection();
+    if (selectFirst) {
+      selectedIndex = filteredEntries.length > 0 ? 0 : -1;
+      if (scrollToFirst) scrollToSelected();
+    }
+  }
+
+  function nextPaint(): Promise<void> {
+    return new Promise((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    });
+  }
+
+  function clearHideTimer() {
+    if (hideTimer !== undefined) {
+      clearTimeout(hideTimer);
+      hideTimer = undefined;
+    }
+  }
+
+  function clearRevealTimer() {
+    if (revealTimer !== undefined) {
+      clearTimeout(revealTimer);
+      revealTimer = undefined;
+    }
+  }
+
+  function clearHideTransitionHandler() {
+    if (hideTransitionHandler && appEl) {
+      appEl.removeEventListener("transitionend", hideTransitionHandler);
+      hideTransitionHandler = undefined;
+    }
+  }
+
+  function requestNativeHide() {
+    clearHideTimer();
+    clearHideTransitionHandler();
+
+    let committed = false;
+    const commit = () => {
+      if (committed) return;
+      committed = true;
+      clearHideTimer();
+      clearHideTransitionHandler();
+      void hideMainWindow();
+    };
+
+    const onTransitionEnd = (e: TransitionEvent) => {
+      if (e.target !== appEl || e.propertyName !== "opacity") return;
+      commit();
+    };
+
+    hideTransitionHandler = onTransitionEnd;
+    appEl?.addEventListener("transitionend", onTransitionEnd);
+    hideTimer = setTimeout(() => {
+      hideTimer = undefined;
+      commit();
+    }, panelCloseFallbackMs());
   }
 
   async function loadCollections() {
     collections = await getCollections();
   }
 
-  function showWindow() {
-    window.getSelection()?.removeAllRanges();
-    searchQuery = "";
-    activeTag = null;
-    void syncRetagAvailability();
-    void loadExcludeCandidate();
-    void loadEntries(true);
-    revealCycle += 1;
-    // Reset scroll to start
-    if (gridEl) gridEl.scrollLeft = 0;
-    // Start hidden, then animate in next frame
+  function finishReveal() {
+    isRevealing = false;
+    revealTimer = undefined;
+    if (pendingReload) {
+      pendingReload = false;
+      void loadEntries(true, false);
+    }
+  }
+
+  function resetOverlayMotionState() {
+    revealSeq += 1;
+    clearRevealTimer();
+    isRevealing = false;
     visible = false;
-    requestAnimationFrame(() => {
+    clearSearch({ reload: false });
+    activeTag = null;
+    selectedIndex = -1;
+  }
+
+  function showWindow() {
+    const seq = ++revealSeq;
+    window.getSelection()?.removeAllRanges();
+    clearHideTimer();
+    clearHideTransitionHandler();
+    clearRevealTimer();
+    clearSearch({ reload: false });
+    activeTag = null;
+
+    isRevealing = true;
+    pendingReload = false;
+    if (gridEl) gridEl.scrollLeft = 0;
+
+    // Always reset to hidden first so CSS transition replays on every open.
+    visible = false;
+    void nextPaint().then(() => {
+      if (seq !== revealSeq) return;
       visible = true;
+      searchBar?.blur();
+      void loadEntries(true, false);
+      revealTimer = setTimeout(finishReveal, panelOpenMs());
+      void syncRetagAvailability();
+      void loadExcludeCandidate();
     });
   }
 
-  function animateOut() {
+  function startVisualHide() {
+    revealSeq += 1;
+    clearRevealTimer();
+    isRevealing = false;
+    pendingReload = false;
     visible = false;
-    searchQuery = "";
-    activeTag = null;
-    selectedIndex = -1;
-    hideMainWindow();
+  }
+
+  function animateOut() {
+    startVisualHide();
+    requestNativeHide();
   }
 
   function forceHideWindow() {
-    visible = false;
-    searchQuery = "";
-    activeTag = null;
-    selectedIndex = -1;
-    hideMainWindow();
+    animateOut();
   }
 
   onMount(() => {
@@ -140,6 +234,10 @@
     // Debounce entry reloads — clipboard-changed and entry-tagged can fire together
     let reloadTimer: ReturnType<typeof setTimeout>;
     function scheduleReload() {
+      if (isRevealing) {
+        pendingReload = true;
+        return;
+      }
       clearTimeout(reloadTimer);
       reloadTimer = setTimeout(() => loadEntries(), 100);
     }
@@ -151,46 +249,99 @@
       showWindow();
     });
 
+    const unlistenHideRequest = listen("window-hide-request", () => {
+      startVisualHide();
+      requestNativeHide();
+    });
+
+    const unlistenHide = listen("window-hide", () => {
+      clearHideTimer();
+      clearHideTransitionHandler();
+      resetOverlayMotionState();
+    });
+
     const unlistenOpenSettings = listen("open-settings", () => {
       openSettingsWindow();
     });
 
     const handleKeydown = (e: KeyboardEvent) => {
+      if (!visible) return;
+
+      const searchFocused = searchBar?.isFocused() ?? false;
+      const target = e.target;
+      const typingInField =
+        target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement;
+
       if (e.key === "Escape") {
         e.preventDefault();
         e.stopPropagation();
+        if (overlayEscapeAction(searchQuery.length > 0) === "clear-search") {
+          clearSearch({ immediate: true });
+          searchBar?.blur();
+          return;
+        }
         forceHideWindow();
         return;
       }
+
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "f") {
+        e.preventDefault();
+        e.stopPropagation();
+        searchBar?.focus();
+        return;
+      }
+
+      if (
+        e.key === "/" &&
+        !searchFocused &&
+        !typingInField &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !e.altKey
+      ) {
+        e.preventDefault();
+        searchBar?.focus();
+        return;
+      }
+
       if (e.key === "ArrowRight") {
         e.preventDefault();
         selectedIndex = Math.min(selectedIndex + 1, filteredEntries.length - 1);
         scrollToSelected();
+        return;
       }
+
       if (e.key === "ArrowLeft") {
         e.preventDefault();
         selectedIndex = Math.max(selectedIndex - 1, 0);
         scrollToSelected();
+        return;
       }
+
       if (e.key === "Enter" && selectedIndex >= 0 && selectedIndex < filteredEntries.length) {
         e.preventDefault();
         const entry = filteredEntries[selectedIndex];
         if (entry.content_type === "text" || entry.content_type === "image") {
-          void activateEntry(entry.id).then(() => animateOut());
+          void activateEntry(entry.id);
         }
       }
     };
 
-    window.addEventListener("keydown", handleKeydown);
+    window.addEventListener("keydown", handleKeydown, true);
 
     return () => {
+      clearHideTimer();
+      clearHideTransitionHandler();
+      clearRevealTimer();
       clearTimeout(reloadTimer);
       clearTimeout(debounceTimer);
       unlistenClipboard.then((fn) => fn());
       unlistenTagged.then((fn) => fn());
       unlistenShow.then((fn) => fn());
+      unlistenHideRequest.then((fn) => fn());
+      unlistenHide.then((fn) => fn());
       unlistenOpenSettings.then((fn) => fn());
-      window.removeEventListener("keydown", handleKeydown);
+      window.removeEventListener("keydown", handleKeydown, true);
     };
   });
 
@@ -198,13 +349,35 @@
     if (!gridEl) return;
     const cards = gridEl.querySelectorAll(".card");
     if (cards[selectedIndex]) {
-      cards[selectedIndex].scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+      cards[selectedIndex].scrollIntoView({
+        behavior: scrollBehavior(),
+        block: "nearest",
+        inline: "center",
+      });
     }
   }
 
-  function handleSearch(q: string) {
+  function setSearchQuery(
+    q: string,
+    options: { reload?: boolean; immediate?: boolean } = {},
+  ) {
+    const { reload = true, immediate = false } = options;
     searchQuery = q;
-    void loadEntries(true);
+    clearTimeout(debounceTimer);
+    if (!reload) return;
+    if (immediate || q === "") {
+      void loadEntries(true);
+      return;
+    }
+    debounceTimer = setTimeout(() => void loadEntries(true), 150);
+  }
+
+  function queueSearch(q: string) {
+    setSearchQuery(q);
+  }
+
+  function clearSearch(options: { reload?: boolean; immediate?: boolean } = {}) {
+    setSearchQuery("", options);
   }
 
   function handleCollectionSelect(id: number | null) {
@@ -218,14 +391,38 @@
     loadEntries();
   }
 
-  function handlePasted() {
-    animateOut();
-  }
-
   let debounceTimer: ReturnType<typeof setTimeout>;
   function debouncedSearch(q: string) {
-    clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(() => handleSearch(q), 150);
+    if (q === "") {
+      clearSearch({ immediate: true });
+      return;
+    }
+    queueSearch(q);
+  }
+
+  function emptyStateCopy(): { title: string; hint?: string } {
+    if (searchQuery && activeTag) {
+      return {
+        title: `No results for “${searchQuery}” in tag “${activeTag}”`,
+        hint: "Try a different search or tag",
+      };
+    }
+    if (searchQuery) {
+      return {
+        title: `No results for “${searchQuery}”`,
+        hint: "Try a different search term",
+      };
+    }
+    if (activeTag) {
+      return {
+        title: `No results for tag “${activeTag}”`,
+        hint: "Try another tag or clear the filter",
+      };
+    }
+    return {
+      title: "Clipboard history is empty",
+      hint: "Copy something to get started",
+    };
   }
 
   function sortTagsByCount(tagCounts: [string, number][]) {
@@ -276,9 +473,9 @@
   }
 </script>
 
-<div class="app" class:visible>
+<div class="app" class:visible bind:this={appEl}>
   <header class="header">
-    <SearchBar value={searchQuery} onchange={debouncedSearch} />
+    <SearchBar bind:this={searchBar} value={searchQuery} onchange={debouncedSearch} />
     <CollectionTabs
       {collections}
       activeId={activeCollectionId}
@@ -363,22 +560,20 @@
 
   <div class="grid-container" bind:this={gridEl}>
     {#if filteredEntries.length === 0}
-      <div class="empty-state">
-        {#if searchQuery || activeTag}
-          <p>No results for "{searchQuery}"</p>
-        {:else}
-          <p>Clipboard history is empty</p>
-          <p class="hint">Copy something to get started</p>
+      {@const empty = emptyStateCopy()}
+      <div class="empty-state" role="status" aria-live="polite">
+        <p class="empty-title">{empty.title}</p>
+        {#if empty.hint}
+          <p class="hint">{empty.hint}</p>
         {/if}
       </div>
     {:else}
-      {#each filteredEntries as entry, i (`${revealCycle}-${activeTag ?? 'all'}-${entry.id}`)}
-        <div class="card-wrapper" style="animation-delay: {Math.min(i * 30, 300)}ms">
+      {#each filteredEntries as entry, i (entry.id)}
+        <div class="card-wrapper">
           <ClipboardCard
             {entry}
             {retagAvailable}
             selected={i === selectedIndex}
-            onpasted={handlePasted}
             ondeleted={handleEntryAction}
             onpinned={handleEntryAction}
             onretagged={handleEntryAction}
@@ -406,16 +601,12 @@
     outline: none;
   }
 
-  :global(::selection) {
-    background: transparent;
-  }
-
   .app {
     width: 100vw;
     height: 100vh;
     background: var(--surface-app);
-    backdrop-filter: blur(34px) saturate(1.15);
-    -webkit-backdrop-filter: blur(34px) saturate(1.15);
+    backdrop-filter: blur(var(--panel-blur-visible)) saturate(1.15);
+    -webkit-backdrop-filter: blur(var(--panel-blur-visible)) saturate(1.15);
     border-radius: 18px;
     border: 1px solid var(--border-strong);
     box-shadow:
@@ -424,17 +615,31 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    transform: translateY(26px) scale(0.985);
+    backface-visibility: hidden;
+    transform: translate3d(0, var(--panel-open-travel), 0);
     opacity: 0;
+    will-change: transform, opacity;
+    /* Transition on hidden state runs when opening (visible added). */
     transition:
-      transform 0.24s cubic-bezier(0.22, 1, 0.36, 1),
-      opacity 0.22s ease,
-      box-shadow 0.24s ease;
+      transform var(--duration-panel-open) var(--ease-apple-panel),
+      opacity var(--duration-panel-opacity-open) var(--ease-apple-panel);
   }
 
   .app.visible {
-    transform: translateY(0) scale(1);
+    transform: translate3d(0, 0, 0);
     opacity: 1;
+    will-change: auto;
+    /* Transition on visible state runs when closing (visible removed). */
+    transition:
+      transform var(--duration-panel-close) var(--ease-panel-dismiss),
+      opacity var(--duration-panel-opacity-close) var(--ease-panel-dismiss);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .app,
+    .app.visible {
+      transition-duration: 0.01ms;
+    }
   }
 
   .header {
@@ -472,7 +677,10 @@
     white-space: nowrap;
     font: inherit;
     font-size: 11px;
-    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    transition:
+      background var(--duration-fast) var(--ease-interactive),
+      border-color var(--duration-fast) var(--ease-interactive),
+      color var(--duration-fast) var(--ease-interactive);
   }
 
   .tag-group-chip:hover:not(:disabled):not([aria-busy="true"]) {
@@ -557,12 +765,13 @@
     flex: 1;
     display: flex;
     gap: 12px;
-    padding: 14px 16px 16px;
+    padding: 14px 16px var(--space-section);
     overflow-x: auto;
     overflow-y: hidden;
     align-items: flex-start;
     scrollbar-width: thin;
     scrollbar-color: var(--scrollbar-thumb) transparent;
+    min-height: 0;
   }
 
   .grid-container::-webkit-scrollbar {
@@ -579,18 +788,7 @@
   }
 
   .card-wrapper {
-    animation: card-enter 0.35s cubic-bezier(0.16, 1, 0.3, 1) backwards;
-  }
-
-  @keyframes card-enter {
-    from {
-      opacity: 0;
-      transform: translateY(20px) scale(0.95);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0) scale(1);
-    }
+    flex-shrink: 0;
   }
 
   .empty-state {
@@ -600,15 +798,21 @@
     align-items: center;
     justify-content: center;
     height: 100%;
-    color: var(--color-text-subtle);
+    padding: 0 24px;
+    text-align: center;
+    color: var(--color-text-tertiary);
   }
 
-  .empty-state p {
-    margin: 4px 0;
+  .empty-title {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--color-text-secondary);
   }
 
   .hint {
+    margin: 8px 0 0;
     font-size: 13px;
-    color: var(--color-text-faint);
+    color: var(--color-text-label);
   }
 </style>
