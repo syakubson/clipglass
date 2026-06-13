@@ -8,7 +8,7 @@
 
 | Поверхность | Файлы |
 | ----------- | ----- |
-| Clipboard overlay | [`+page.svelte`](../../src/routes/+page.svelte), [`ClipboardCard.svelte`](../../src/lib/components/ClipboardCard.svelte), [`SearchBar.svelte`](../../src/lib/components/SearchBar.svelte), [`CollectionTabs.svelte`](../../src/lib/components/CollectionTabs.svelte) |
+| Clipboard overlay | [`+page.svelte`](../../src/routes/+page.svelte), [`ClipboardCard.svelte`](../../src/lib/components/ClipboardCard.svelte), [`TagFilterBar.svelte`](../../src/lib/components/TagFilterBar.svelte), [`SearchBar.svelte`](../../src/lib/components/SearchBar.svelte), [`CollectionTabs.svelte`](../../src/lib/components/CollectionTabs.svelte) |
 | Voice HUD | [`overlay/+page.svelte`](../../src/routes/overlay/+page.svelte) |
 | Settings | [`settings/+page.svelte`](../../src/routes/settings/+page.svelte), [`SectionIcon.svelte`](../../src/lib/components/SectionIcon.svelte) |
 | Shared | [`tokens.css`](../../src/lib/styles/tokens.css), [`form-controls.css`](../../src/lib/styles/form-controls.css), [`button-interaction.css`](../../src/lib/styles/button-interaction.css), [`motion.ts`](../../src/lib/motion.ts) |
@@ -44,7 +44,7 @@ flowchart TB
 
 - [x] `[Overlay]` Search input в Tab order; focus ring через `:focus-within` на `.search-bar` (п. 4)
 - [x] `[Overlay]` убрать global `outline: none`; `focus-visible` на карточки и non-button табы (п. 1)
-- [x] `[Overlay]` `card-actions` при `.selected` / `:focus-within`; `aria-label` на action buttons (п. 2)
+- [x] `[Overlay]` Paste button на карточке — primary action вместо дублирующего Copy; `Space` на card `role="button"`; `aria-busy` при activate (п. 2, 19 partial)
 - [ ] `[Overlay]` hit targets 28px+ — search clear button (20px) и card action buttons (24px) (п. 3)
 - [x] `[Shared]` Контраст `--color-text-subtle` / `--color-text-faint`; `prefers-contrast: more` (п. 5)
 - [x] `[Shared]` `form-input` / `form-select`: pointer vs keyboard focus rings через `input-modality` (п. 23)
@@ -58,6 +58,7 @@ flowchart TB
 - [ ] `[Overlay]` Keyboard hints — контекстный hint в `SearchBar` + footer strip в `+page.svelte` (п. 19)
 - [ ] `[Overlay]` Segmented control для History / Starred; tablist ARIA; упростить header (п. 8–9)
 - [x] `[Overlay]` SF Pro для plain text, SF Mono только для code-like preview (п. 11)
+- [ ] `[Overlay]` Развести визуально filter chip (toolbar) и metadata badge (footer карточки) (п. 41)
 - [ ] `[Settings]` Toggle / section patterns вынести в `form-controls.css` (п. 26)
 
 ### P3 — Polish
@@ -97,7 +98,7 @@ flowchart TB
 
 ---
 
-## Clipboard overlay (п. 1–19)
+## Clipboard overlay (п. 1–19, 41)
 
 ### ✅ 1. Глобальное отключение outline `[Overlay]`
 
@@ -106,6 +107,8 @@ flowchart TB
 ### ✅ 2. Действия карточки при keyboard selection `[Overlay]`
 
 `.card-actions` показываются при `.selected`, `:focus-within` и hover; action buttons используют `aria-label`.
+
+**Сделано в 0.4.0:** redundant Copy заменён на primary **Paste** (`activateEntry`, accent styling, `aria-busy` при activate); клик по карточке по-прежнему копирует; paste также через double-click, Enter, Space на card `role="button"`, и Paste toolbar button.
 
 ### 3. Hit targets ниже minimum `[Overlay]`
 
@@ -145,7 +148,7 @@ Search + tabs + collections + Exclude + gear в одной строке. Exclude
 
 ### ✅ 10. Tag filter bar `[Overlay]`
 
-Скрытый scrollbar; шрифт 11px. Рекомендация: 12–13px; scroll fade.
+Скрытый scrollbar; шрифт 12px; scroll fade. **Follow-up:** конфликт ролей с тегами на карточке — п. 41.
 
 ### ✅ 11. Моноширинный шрифт для всего preview `[Overlay]`
 
@@ -181,7 +184,77 @@ Clear button, `:focus-within` ring, `role="search"`, `aria-label`.
 
 ### 19. Discoverability paste model и keyboard shortcuts `[Overlay]`
 
-Footer shortcut strip + контекстный hint в search при focus (`← → browse results`).
+**Сделано (partial):** Paste button на карточке — явный mouse affordance для вставки без double-click.
+
+**Осталось:** footer shortcut strip в `+page.svelte` и контекстный hint в `SearchBar` при focus. Рекомендуемый copy:
+
+| Зона | Hint |
+| ---- | ---- |
+| Footer strip | `Click copy` · `↵ paste` · `Double-click paste` · `← → browse` · `Esc dismiss` |
+| Search focus | `← → browse results` · `↵ paste selected` |
+
+Paste button в toolbar не дублировать в footer дословно — достаточно «↵ paste» / «Double-click paste», т.к. кнопка видна при hover/selection.
+
+### 41. Filter chip vs metadata badge — конфликт ролей `[Overlay]` `[Shared]`
+
+**Проблема.** Верхняя полоса (`TagFilterBar`) и footer карточки (`ClipboardCard`) используют одинаковую pill-морфологию и общее имя класса `.tag-chip`, хотя роли разные:
+
+| Зона | Элемент | Роль | Поведение |
+| ---- | ------- | ---- | --------- |
+| Row B, toolbar | `<button class="tag-chip">` | **Filter chip** — контрол списка | Клик / `aria-pressed` переключает `activeTag`, меняет набор карточек; у semantic/format chips есть счётчик |
+| Footer карточки | `<span class="tag-chip">` | **Metadata badge** — описание записи | Только информирует (AI-теги текста); не в tab order, без hover |
+
+Семантика HTML корректна (`button` vs `span`), но визуальный язык почти общий: `border-radius: 999px`, accent-tint фон на карточке, lowercase, похожий масштаб. Для semantic-тегов различие сводится к счётчику и ~2px padding — на экране `api 2` вверху и `api` внизу читаются как один и тот же паттерн.
+
+**Почему это против HIG.** [Buttons](https://developer.apple.com/design/human-interface-guidelines/buttons) и affordances: интерактивное должно явно отличаться от статичной метки. Пользователь ожидает, что pill в toolbar фильтрует, а pill на объекте — его свойство; при одинаковом виде возникает ложный affordance (клик по тегу на карточке) и путаница «это тот же контрол?». Нативные паттерны (Finder: фильтр по тегу в sidebar vs цветная метка на файле; Mail: smart mailbox vs поле письма) разводят **control** и **label**.
+
+**Текущая реализация.**
+
+- [`TagFilterBar.svelte`](../../src/lib/components/TagFilterBar.svelte): `padding 6×11`, `font-size 12px`, border, hover/active, `.tag-count`.
+- [`ClipboardCard.svelte`](../../src/lib/components/ClipboardCard.svelte): `padding 4×8`, `font-size 10px`, `--surface-accent-tag` / `--border-accent-tag` — всё ещё «кнопочный» chip.
+
+Связанный product scope: при `aiTaggingEnabled === false` footer-теги скрыты ([03-overlay-content-and-tag-filters.md](03-overlay-content-and-tag-filters.md)); исправление касается режима AI ON.
+
+**Решение (визуальное, без смены product logic).**
+
+Развести **два компонентных стиля** и **два набора токенов** — filter остаётся chip-кнопкой, карточка получает тихую metadata-строку.
+
+```mermaid
+flowchart LR
+  subgraph toolbar [TagFilterBar — controls]
+    FC[".filter-chip button"]
+    FC --> hover["hover + aria-pressed"]
+    FC --> count["tag-count badge"]
+  end
+  subgraph card [ClipboardCard — metadata]
+    ET[".entry-tag span"]
+    ET --> muted["text-only / no border"]
+    ET --> noclip["not in tab order"]
+  end
+```
+
+| Аспект | Filter chip (toolbar) | Metadata badge (card footer) |
+| ------ | --------------------- | ---------------------------- |
+| Класс | `.filter-chip` (переименовать из `.tag-chip` в `TagFilterBar`) | `.entry-tag` (переименовать в `ClipboardCard`) |
+| Форма | Pill + `1px` border, явный фон | **Без pill-обводки** — inline labels или одна строка через `·` |
+| Фон | `--surface-3` / `--surface-5`; active: `--surface-accent` | `transparent` или едва заметный `--surface-2` без accent |
+| Текст | `--color-text-secondary`; active: `--color-accent-chip` | `--color-text-subtle` (не accent) |
+| Размер | 12px, `padding 6×11` | 10–11px, `padding 0` или `2×0` |
+| Счётчик | `.tag-count` — остаётся только у filter | Нет |
+| Курсор | `pointer` + hover из `app-btn` | `default` — не намекать на клик |
+| Клик по тегу на карточке | — | **Не делаем** в этом пункте (иначе снова chip + нужен `aria-pressed`); фильтрация только из toolbar |
+
+**Конкретные правки (implementation checklist).**
+
+1. **`tokens.css`** — добавить `--color-entry-tag` (= `--color-text-subtle` или чуть приглушённее); пометить `--surface-accent-tag` / `--border-accent-tag` как deprecated для card footer (можно оставить для других badge, если появятся).
+2. **`TagFilterBar.svelte`** — `.tag-chip` → `.filter-chip`; стили не менять существенно (уже читается как control).
+3. **`ClipboardCard.svelte`** — заменить блок `.tags` на metadata-строку:
+   - вариант A (рекомендуемый): `{#each tags}` → `<span class="entry-tag">` с `·` между элементами через CSS `+ .entry-tag::before { content: "·"; }`;
+   - вариант B: одна строка `tags.join(" · ")` в `.entry-tags` без отдельных pill.
+4. **Не дублировать** имя `tag-chip` между файлами — разные BEM-блоки снижают риск регрессии при правке одного слоя.
+5. **Manual QA:** AI ON, карточка с `api` + filter `api 2` — визуально разные слои; hover только на toolbar; VoiceOver: card tags не объявляются как кнопки.
+
+**Критерий готовности.** Filter chip и metadata badge различимы без чтения счётчика; на карточке нет border/hover/accent-chip, характерных для toolbar; п. 10 и п. 41 закрыты вместе одним PR.
 
 ---
 
@@ -295,7 +368,7 @@ flowchart LR
 | Приоритет | Задачи | Файлы |
 | --------- | ------ | ----- |
 | **P1** | Focus visible, card actions, contrast, form focus-visible, voice a11y baseline | overlay components, `form-controls.css`, `overlay/+page.svelte` |
-| **P2** | Keyboard hints, segmented tabs, font by type, toggle in form-controls | overlay components, `settings/+page.svelte` |
+| **P2** | Keyboard hints, segmented tabs, font by type, filter vs metadata badges (п. 41), toggle in form-controls | `TagFilterBar.svelte`, `ClipboardCard.svelte`, `tokens.css`, `settings/+page.svelte` |
 | **P3** | Delete/clear undo, tooltips, image meta, transparency, light mode | multiple |
 | **P4** | SF Symbols, VoiceOver, scroll affordances | multiple |
 
@@ -306,6 +379,7 @@ flowchart LR
 - [Materials](https://developer.apple.com/design/human-interface-guidelines/materials)
 - [Accessibility](https://developer.apple.com/design/human-interface-guidelines/accessibility)
 - [Buttons](https://developer.apple.com/design/human-interface-guidelines/buttons)
+- [Labels](https://developer.apple.com/design/human-interface-guidelines/labels)
 - [Search fields](https://developer.apple.com/design/human-interface-guidelines/search-fields)
 - [Segmented controls](https://developer.apple.com/design/human-interface-guidelines/segmented-controls)
 - [Typography](https://developer.apple.com/design/human-interface-guidelines/typography)

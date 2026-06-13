@@ -26,7 +26,7 @@ Built with Tauri 2, Svelte 5, Rust, and SQLite.
 
 - **Single click** — copy to clipboard
 - **Double click** — paste directly into the active cursor position
-- **Copy button** (⎘) on each card
+- **Paste button** on each card — paste into the active app without double-clicking
 - **"Copied" animation** — visual confirmation before the window collapses
 - **Keyboard navigation** — arrow keys to browse, Enter to paste, Escape to dismiss
 
@@ -87,7 +87,7 @@ For automatic clipboard tagging:
 | Double click on card | Paste into active cursor       |
 | `Escape`             | Hide window                    |
 | Arrow keys + Enter   | Navigate and paste             |
-| Click ⎘ button       | Copy without closing           |
+| Click paste button   | Paste into active cursor       |
 | Click ★ button       | Star / unstar                  |
 | Click gear icon      | Open Settings                  |
 

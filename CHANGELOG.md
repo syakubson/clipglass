@@ -5,7 +5,7 @@ All notable changes to Copyosity are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.4.0] - 2026-06-13
+## [0.4.0] - Unreleased
 
 ### Added
 
@@ -67,7 +67,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **HIG audit (overlay)** — tag bar scroll affordances, preview typography, image meta labels, focus rings, contrast/transparency, form focus modality, and card tooltip removal marked complete or partial in `docs/plans/02-hig-audit.md`.
 - **Reduce Motion** — panel transitions, card hover lift, copied-feedback scale, voice HUD mic pulse and EQ wobble, status-dot pulse, button spinner, and Settings toggle slider respect `prefers-reduced-motion`.
 - **Reduce Transparency** — overlay panel, voice HUD, and copied overlay disable `backdrop-filter` when `prefers-reduced-transparency` is on; opaque surface tokens in `tokens.css`.
-- **Clipboard card actions** — Copy / Retag / Pin / Delete visible when the card is keyboard-selected or `:focus-within`, not only on hover; `aria-label` replaces `title` tooltips on action buttons; single-click copy announces «Copied to clipboard» via a screen-reader live region.
+- **Clipboard card actions** — Paste / Retag / Pin / Delete visible when the card is keyboard-selected or `:focus-within`, not only on hover; primary **Paste** button (`activateEntry`, accent styling, `aria-busy` while activating) replaces the redundant Copy control; `aria-label` on action buttons; single-click copy announces «Copied to clipboard» via a screen-reader live region; card `role="button"` activates paste on Enter and Space.
+- **README** — Smart Actions and usage table document the Paste button instead of the old Copy control.
 - **Accessibility in Settings** — silent checks vs macOS trust dialog are separated; one prompt per Settings visit; live AX probe; **Recheck** confirms when access is still valid; guidance after rebuild or reinstall; `open_accessibility_settings` IPC from Settings.
 - **Settings window** — native title bar (draggable again) with a custom header drag region.
 - **Voice overlay** — pre-created NSPanel with non-activating behavior so showing the overlay no longer steals focus from the target app; audio level meter uses a logarithmic dB scale for quiet laptop mics.
@@ -106,7 +107,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Tray menu on first launch** — the hidden main panel no longer competes with the status-bar menu popup on the first click.
 - **Image history backfill** — re-copying the same image updates legacy rows missing full-size `image_data`, `image_format`, or image dimensions/size; existing `jpeg` format labels and tags are normalized to `jpg`; startup `backfill_missing_image_meta` fills width/height/byte size for older rows.
 - **Settings partial updates** — changing one field no longer wipes Whisper/voice/microphone settings.
-- **Clipboard card action icons** — copy, retag, pin, and delete use uniform 16×16 SVG icons instead of mismatched Unicode glyphs; pinned star is filled and highlighted.
+- **Clipboard card action icons** — paste, retag, pin, and delete use uniform 16×16 SVG icons instead of mismatched Unicode glyphs; pinned star is filled and highlighted; Paste uses a distinct insert-into-target glyph with accent-primary styling.
 - **Clipboard card text preview** — long text no longer bleeds into the inner border or bottom padding; preview uses a fixed-height slot with grid clipping and a CSS ellipsis (`line-clamp`: 8 lines).
 - **Clipboard card footer** — tags sit on a separate row above the source app / character-count line so tag chips no longer wrap into the count label.
 - **Settings Save layout jump** — saving no longer resizes the button or shifts the “Saved” label when loading state appears.

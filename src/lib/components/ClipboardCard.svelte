@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import type { ClipboardEntry } from "$lib/types";
   import { copyEntry, activateEntry, deleteEntry, pinEntry, retagEntry } from "$lib/api";
+  import { prepareBusyUi } from "$lib/run-with-busy-ui";
   import { cardDisplayTags } from "$lib/overlay-filters";
   import { formatBytes, formatImageDimensions } from "$lib/image-meta";
 
@@ -71,6 +72,7 @@
   }
 
   let copied = $state(false);
+  let pasting = $state(false);
   let copyAnnouncement = $state("");
   let clickTimer: ReturnType<typeof setTimeout> | undefined;
   let copiedResetTimer: ReturnType<typeof setTimeout> | undefined;
@@ -133,19 +135,34 @@
     }
   }
 
-  async function handleDoubleClick() {
-    if (copied) return;
-    if (entry.content_type === "text" || entry.content_type === "image") {
+  async function activateIntoTargetApp(options: { respectCopiedOverlay?: boolean } = {}) {
+    const { respectCopiedOverlay = false } = options;
+    if (pasting) return;
+    if (respectCopiedOverlay && copied) return;
+    if (entry.content_type !== "text" && entry.content_type !== "image") return;
+
+    pasting = true;
+    try {
+      await prepareBusyUi();
       await activateEntry(entry.id);
+    } finally {
+      if (mounted) pasting = false;
     }
   }
 
-  async function handleCopy(e: MouseEvent) {
+  async function handleDoubleClick() {
+    await activateIntoTargetApp({ respectCopiedOverlay: true });
+  }
+
+  async function handlePaste(e: MouseEvent) {
     e.stopPropagation();
-    if (copied) return;
-    await copyEntry(entry.id);
-    if (!mounted) return;
-    showCopiedFeedback();
+    await activateIntoTargetApp();
+  }
+
+  function handleCardKeydown(e: KeyboardEvent) {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    e.preventDefault();
+    void handleDoubleClick();
   }
 
   async function handleDelete(e: MouseEvent) {
@@ -200,7 +217,7 @@
   class:pinned={entry.is_pinned}
   class:copied
   onclick={handleClick}
-  onkeydown={(e) => e.key === "Enter" && handleDoubleClick()}
+  onkeydown={handleCardKeydown}
   role="button"
   tabindex="0"
 >
@@ -214,12 +231,24 @@
       <span class="time">{timeAgo(entry.created_at)}</span>
     </div>
     <div class="card-actions">
-      <button class="action-btn app-btn" onclick={handleCopy} aria-label="Copy">
-        <svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-        </svg>
-      </button>
+      {#if entry.content_type === "text" || entry.content_type === "image"}
+        <button
+          class="action-btn app-btn paste"
+          class:is-busy={pasting}
+          onclick={handlePaste}
+          aria-label="Paste into active app"
+          aria-busy={pasting ? "true" : undefined}
+        >
+          <span class="app-btn-spinner" aria-hidden="true">
+            <span class="app-btn-spinner-icon"></span>
+          </span>
+          <svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="11" width="18" height="10" rx="2" />
+            <path d="M12 3v10" />
+            <polyline points="8 9 12 13 16 9" />
+          </svg>
+        </button>
+      {/if}
       {#if entry.content_type === "text" && retagAvailable}
         <button class="action-btn app-btn" onclick={handleRetag} aria-label="Retag">
           <svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -446,6 +475,22 @@
   .action-btn:hover:not(:disabled):not([aria-busy="true"]) {
     color: var(--color-text-bright);
     background: var(--surface-10);
+  }
+
+  .action-btn.paste {
+    background: var(--surface-accent-muted);
+    border: 1px solid var(--border-accent-soft);
+    color: var(--color-accent-text-soft);
+  }
+
+  .action-btn.paste:hover:not(:disabled):not([aria-busy="true"]) {
+    background: var(--surface-accent-hover);
+    border-color: var(--border-accent-medium);
+    color: var(--color-accent-text);
+  }
+
+  .action-btn.is-busy .action-icon {
+    opacity: 0;
   }
 
   .action-btn.pinned {
