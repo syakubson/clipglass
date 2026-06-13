@@ -557,7 +557,7 @@
         <SectionIcon name="ai-tagging" />
         AI Tagging
       </div>
-      <label class="toggle" title="Enable AI tagging">
+      <label class="toggle">
         <input
           type="checkbox"
           role="switch"
@@ -738,8 +738,9 @@
               class:is-busy={taggingLoading}
               class:is-locked={!modelDirty && ollamaBusyActive && !taggingLoading}
               aria-busy={taggingLoading ? "true" : undefined}
+              aria-label="Test tagging"
+              aria-describedby={modelDirty ? "tagging-test-save-hint" : undefined}
               onclick={handleTestTagging}
-              title={modelDirty ? "Save settings first" : ""}
             >
               <span class="app-btn-label">Test</span>
               {@render busySpinner()}
@@ -747,7 +748,7 @@
           {/if}
         </div>
         {#if modelDirty}
-          <div class="status-hint warn">
+          <div id="tagging-test-save-hint" class="status-hint warn">
             Model changed — save settings first, then test.
           </div>
         {:else if taggingLoading}
@@ -911,7 +912,6 @@
                 class="form-link-accent excluded-list-action app-btn"
                 type="button"
                 aria-label={removeLabel}
-                title={removeLabel}
                 aria-busy={excludeActionBusy}
                 disabled={excludeActionBusy}
                 onclick={() =>
@@ -928,7 +928,6 @@
                 class="form-link-restrict excluded-list-action app-btn"
                 type="button"
                 aria-label={addLabel}
-                title={addLabel}
                 aria-busy={excludeActionBusy}
                 disabled={excludeActionBusy}
                 onclick={handleAddCandidateApp}
@@ -947,7 +946,6 @@
               class="form-link-accent excluded-list-action app-btn"
               type="button"
               aria-label={allowInClipboardHistoryAriaLabel(app.displayName)}
-              title={allowInClipboardHistoryAriaLabel(app.displayName)}
               aria-busy={excludeActionBusy}
               disabled={excludeActionBusy}
               onclick={() => handleRemoveExcludedApp(app.id, app.displayName)}
@@ -1009,7 +1007,7 @@
         <SectionIcon name="voice" />
         Voice Transcription
       </div>
-      <label class="toggle" title="Enable voice transcription">
+      <label class="toggle">
         <input
           type="checkbox"
           role="switch"
@@ -1112,6 +1110,7 @@
     background: var(--surface-page);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
     color: var(--color-text-body);
+    /* Chrome non-selectable; inputs + hints override in form-controls.css */
     user-select: none;
     -webkit-user-select: none;
   }
@@ -1133,7 +1132,7 @@
   }
 
   .settings-title {
-    font-size: 20px;
+    font-size: var(--font-size-2xl);
     font-weight: 700;
     color: var(--color-text-primary);
     letter-spacing: -0.02em;
@@ -1141,71 +1140,8 @@
 
   .settings-subtitle {
     margin-top: 4px;
-    font-size: 13px;
+    font-size: var(--font-size-md);
     color: var(--color-text-tertiary);
-  }
-
-  .toggle {
-    position: relative;
-    display: inline-flex;
-    flex-shrink: 0;
-    cursor: pointer;
-  }
-
-  .toggle input {
-    position: absolute;
-    opacity: 0;
-    width: 0;
-    height: 0;
-  }
-
-  .toggle-slider {
-    display: block;
-    width: 36px;
-    height: 20px;
-    border-radius: 999px;
-    background: var(--surface-14);
-    border: 1px solid var(--border-strong);
-    transition:
-      background var(--duration-standard) var(--ease-interactive),
-      border-color var(--duration-standard) var(--ease-interactive);
-  }
-
-  .toggle-slider::after {
-    content: "";
-    position: absolute;
-    top: 2px;
-    left: 2px;
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    background: var(--color-text-primary);
-    box-shadow: var(--shadow-toggle-knob);
-    transition: transform var(--duration-standard) var(--ease-interactive);
-  }
-
-  .toggle input:checked + .toggle-slider {
-    background: var(--color-success-control);
-    border-color: var(--border-success-control);
-  }
-
-  .toggle input:checked + .toggle-slider::after {
-    transform: translateX(16px);
-  }
-
-  .toggle input:focus-visible + .toggle-slider {
-    box-shadow: var(--ring-accent);
-  }
-
-  .toggle input:checked:focus-visible + .toggle-slider {
-    box-shadow: var(--ring-success-control);
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .toggle-slider,
-    .toggle-slider::after {
-      transition: none;
-    }
   }
 
   .settings-footer {
@@ -1252,14 +1188,14 @@
   }
 
   .excluded-apps-row-label {
-    font-size: 12px;
+    font-size: var(--font-size-sm);
     color: var(--color-text-primary);
     min-width: 0;
     word-break: break-word;
   }
 
   .excluded-apps-row-meta {
-    font-size: 10px;
+    font-size: var(--font-size-2xs);
     color: var(--color-text-tertiary);
     line-height: 1.3;
   }
@@ -1271,7 +1207,7 @@
     background: transparent;
     color: var(--color-accent-link);
     font: inherit;
-    font-size: 12px;
+    font-size: var(--font-size-sm);
     text-align: left;
     cursor: pointer;
   }

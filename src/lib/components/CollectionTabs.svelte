@@ -83,6 +83,7 @@
         class="form-input"
         bind:value={newName}
         placeholder="Name..."
+        aria-label="Collection name"
         autofocus
         onblur={() => { if (!newName) showAdd = false; }}
       />
@@ -149,11 +150,11 @@
     align-items: center;
     gap: 6px;
     padding: 4px 12px;
-    border-radius: 6px;
+    border-radius: var(--radius-control-sm);
     background: none;
     border: none;
     color: var(--color-text-tab);
-    font-size: 12px;
+    font-size: var(--font-size-sm);
     font-weight: 500;
     cursor: pointer;
     white-space: nowrap;
@@ -190,7 +191,7 @@
     border: none;
     color: var(--color-text-subtle);
     cursor: pointer;
-    font-size: 14px;
+    font-size: var(--font-size-base);
     padding: 0 2px;
     line-height: 1;
     opacity: 0;
@@ -202,7 +203,7 @@
   }
 
   .add-tab {
-    font-size: 16px;
+    font-size: var(--font-size-xl);
     color: var(--color-text-subtle);
   }
 
@@ -210,8 +211,8 @@
     width: 120px;
     min-height: 28px;
     padding: 4px 10px;
-    font-size: 12px;
-    border-radius: 6px;
+    font-size: var(--font-size-sm);
+    border-radius: var(--radius-control-sm);
     color: var(--color-text-body);
   }
 </style>

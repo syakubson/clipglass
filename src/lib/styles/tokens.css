@@ -4,11 +4,42 @@
  */
 
 :root {
-  /* ── Spacing ───────────────────────────────────────── */
-  --space-section: 12px;
-  --space-field: 6px;
-  --space-row: 4px;
-  --space-hint: 4px;
+  /* ── Typography (rem — scales with system / Dynamic Type) ─ */
+  --font-size-2xs: 0.625rem;
+  --font-size-2xs-sm: 0.65625rem;
+  --font-size-xs: 0.6875rem;
+  --font-size-sm: 0.75rem;
+  --font-size-md: 0.8125rem;
+  --font-size-base: 0.875rem;
+  --font-size-lg: 0.9375rem;
+  --font-size-xl: 1rem;
+  --font-size-2xl: 1.25rem;
+
+  --line-height-tight: 1.2;
+  --line-height-body: 1.25;
+  --line-height-relaxed: 1.55;
+
+  /* ── Spacing (rem — scales with root font size) ───── */
+  --space-section: 0.75rem;
+  --space-field: 0.375rem;
+  --space-row: 0.25rem;
+  --space-hint: 0.25rem;
+  --space-control-y: 0.375rem;
+  --space-control-x: 0.625rem;
+
+  /* ── Card chrome (rem — scales with Dynamic Type) ─── */
+  --card-width: 13.75rem;
+  --card-height: 18rem;
+
+  /* ── Corner radius (macOS HIG — concentric nested surfaces) ─ */
+  --radius-card-padding: 12px; /* .card padding — must match ClipboardCard `.card` padding */
+  --radius-inset: 6px; /* nested wells inside cards */
+  --radius-surface: calc(var(--radius-inset) + var(--radius-card-padding)); /* 18px */
+  --radius-panel: calc(var(--radius-surface) + 2px); /* outer overlay shell; 20px */
+  --radius-control: 8px; /* search, header buttons, segment track */
+  --radius-control-sm: 6px; /* tabs, segment items, icon buttons, entry badges */
+  --radius-pill: 999px; /* filter chips, type capsule */
+  --radius-scrollbar: 3px;
 
   /* ── RGB channels (for alpha compositing) ──────────── */
   --rgb-white: 255 255 255;
@@ -50,6 +81,7 @@
   --color-text-muted: #888888;
   --color-text-subtle: #8a9199;
   --color-text-faint: #757d8a;
+  --color-entry-tag: var(--color-text-label);
   --color-text-disabled: #6b7280;
   --color-text-code: #c8cee0;
   --color-text-tab: #999999;
@@ -89,6 +121,7 @@
   --surface-6: rgb(var(--rgb-white) / 0.06);
   --surface-7: rgb(var(--rgb-white) / 0.07);
   --surface-8: rgb(var(--rgb-white) / 0.08);
+  --surface-entry-tag: rgb(var(--rgb-white) / 0.065);
   --surface-10: rgb(var(--rgb-white) / 0.1);
   --surface-12: rgb(var(--rgb-white) / 0.12);
   --surface-14: rgb(var(--rgb-white) / 0.14);
@@ -99,6 +132,7 @@
   --border-subtle: rgb(var(--rgb-white) / 0.04);
   --border-default: rgb(var(--rgb-white) / 0.05);
   --border-muted: rgb(var(--rgb-white) / 0.06);
+  --border-entry-tag: rgb(var(--rgb-white) / 0.09);
   --border-soft: rgb(var(--rgb-white) / 0.08);
   --border-medium: rgb(var(--rgb-white) / 0.11);
   --border-strong: rgb(var(--rgb-white) / 0.12);
@@ -111,9 +145,7 @@
   --surface-accent: rgb(var(--rgb-accent-focus) / 0.18);
   --surface-accent-hover: rgb(var(--rgb-accent) / 0.24);
   --surface-accent-strong: rgb(var(--rgb-accent) / 0.28);
-  --surface-accent-tag: rgb(var(--rgb-accent-focus) / 0.14);
   --border-accent: rgb(var(--rgb-accent-border) / 0.22);
-  --border-accent-tag: rgb(var(--rgb-accent-border) / 0.18);
   --border-accent-soft: rgb(var(--rgb-accent-border) / 0.28);
   --border-accent-medium: rgb(var(--rgb-accent-border) / 0.3);
   --border-accent-strong: rgb(var(--rgb-accent-border) / 0.32);
@@ -162,6 +194,11 @@
     rgb(var(--rgb-card-hover-top) / 0.96),
     rgb(var(--rgb-card-hover-bottom) / 0.92)
   );
+  --surface-card-selected: linear-gradient(
+    180deg,
+    rgb(var(--rgb-accent-focus) / 0.035),
+    rgb(var(--rgb-accent) / 0.02)
+  );
   --surface-overlay: rgb(var(--rgb-overlay) / 0.88);
   --surface-overlay-opaque: rgb(var(--rgb-overlay));
   --surface-voice: rgb(var(--rgb-voice-bg) / 0.88);
@@ -176,6 +213,9 @@
   /* ── Shadows ───────────────────────────────────────── */
   --shadow-elevated: 0 18px 50px rgb(var(--rgb-black) / 0.28);
   --shadow-card: 0 10px 28px rgb(var(--rgb-black) / 0.28);
+  --shadow-card-selected:
+    0 0 0 2px var(--shadow-accent-selected),
+    0 12px 32px rgb(var(--rgb-black) / 0.34);
   --shadow-image: 0 8px 20px rgb(var(--rgb-black) / 0.22);
   --shadow-inset-press: inset 0 1px 2px rgb(var(--rgb-black) / 0.2);
   --shadow-inset-highlight: inset 0 1px 0 rgb(var(--rgb-white) / 0.08);
@@ -264,11 +304,26 @@
   --opacity-section-disabled: 0.42;
 }
 
+html {
+  font-size: 100%;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+@supports (font: -apple-system-body) {
+  body {
+    font: -apple-system-body;
+  }
+}
+
 /* Micro-interactions: instant color/border/opacity when Reduce Motion is on. */
 @media (prefers-contrast: more) {
   :root {
     --color-text-subtle: #a3abb8;
     --color-text-faint: #949dad;
+    --color-entry-tag: var(--color-text-label-strong);
+    --surface-entry-tag: rgb(var(--rgb-white) / 0.1);
+    --border-entry-tag: rgb(var(--rgb-white) / 0.14);
     --border-control-hover: rgb(var(--rgb-white) / 0.24);
     --border-control-focus: rgb(var(--rgb-accent-border) / 0.5);
     --ring-control-focus: 0 0 0 1px rgb(var(--rgb-accent-border) / 0.4);

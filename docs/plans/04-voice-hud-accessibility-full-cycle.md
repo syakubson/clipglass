@@ -1,6 +1,6 @@
 # Voice HUD — полный цикл accessibility
 
-Полный screen-reader lifecycle для Voice HUD: start → processing → terminal (success / empty / error / not configured). Baseline HUD (статичный live region) — в [02-hig-audit.md](02-hig-audit.md) п. 31; **этот план — источник истины** для полного цикла.
+Полный screen-reader lifecycle для Voice HUD: start → processing → terminal (success / empty / error / not configured). Baseline HUD (статичный live region) — в [02-hig-audit.md](02-hig-audit.md) п. 32; **этот план — источник истины** для полного цикла.
 
 **Принято:** HUD **остаётся видимым** во время транскрипции (не скрывать сразу при отпускании shortcut).
 
@@ -45,7 +45,7 @@ Web live regions работают в webview Copyosity. Когда все окн
 - [ ] `**VoiceA11yAnnouncer.svelte**` — глобальный sr-only announcer
 - [ ] `**+layout.svelte**` — mount announcer (main + settings + overlay routes)
 - [ ] **Permissions** — описание в `voice-overlay-commands.toml`
-- [x] **HIG audit** — п. 31 baseline в [02-hig-audit.md](02-hig-audit.md); полный цикл — этот план
+- [x] **HIG audit** — п. 32 baseline в [02-hig-audit.md](02-hig-audit.md); полный цикл — этот план
 - [ ] **CHANGELOG** — Unreleased: voice a11y lifecycle
 - [ ] **Верификация** — `npm run check`, `cargo check`, ручный VoiceOver pass
 
@@ -224,7 +224,7 @@ State: `phase`, `statusMessage`, `busy`.
 
 ## HIG audit
 
-Обновить [02-hig-audit.md](02-hig-audit.md) п. 31:
+Обновить [02-hig-audit.md](02-hig-audit.md) п. 32:
 
 - Полный lifecycle recording → processing → terminal
 - HUD visible during processing

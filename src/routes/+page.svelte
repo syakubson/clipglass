@@ -75,6 +75,7 @@
   let settingsLoadError = $state<string | null>(null);
   let lastLayoutHeight = $state<number | null>(null);
   let dataFetchGen = 0;
+  let activating = $state(false);
 
   const SETTINGS_SYNC_USER_NOTICE =
     "Couldn't load app settings. Tags and filters may not work properly. Restart Copyosity.";
@@ -154,6 +155,16 @@
       collection_id: activeCollectionId,
       pinned_only: pinnedOnly,
     };
+  }
+
+  async function activateSelectedEntry(entryId: number) {
+    if (activating) return;
+    activating = true;
+    try {
+      await activateEntry(entryId);
+    } finally {
+      activating = false;
+    }
   }
 
   function applyEntrySelection(selectFirst: boolean, scrollToFirst: boolean) {
@@ -423,26 +434,30 @@
         return;
       }
 
-      if (e.key === "ArrowRight") {
+      if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+        // ←/→ always browse cards (including while search is focused); block in other text inputs.
+        if (typingInField && !searchFocused) return;
         e.preventDefault();
-        selectedIndex = Math.min(selectedIndex + 1, filteredEntries.length - 1);
+        if (e.key === "ArrowRight") {
+          selectedIndex = Math.min(selectedIndex + 1, filteredEntries.length - 1);
+        } else {
+          selectedIndex = Math.max(selectedIndex - 1, 0);
+        }
         scrollToSelected();
         return;
       }
 
-      if (e.key === "ArrowLeft") {
+      if (e.key === "Enter") {
+        if (selectedIndex < 0 || selectedIndex >= filteredEntries.length) return;
+        // Paste from search when a result is selected; block Enter in other text fields.
+        if (typingInField && !searchFocused) return;
         e.preventDefault();
-        selectedIndex = Math.max(selectedIndex - 1, 0);
-        scrollToSelected();
-        return;
-      }
-
-      if (e.key === "Enter" && selectedIndex >= 0 && selectedIndex < filteredEntries.length) {
-        e.preventDefault();
+        e.stopPropagation();
         const entry = filteredEntries[selectedIndex];
         if (entry.content_type === "text" || entry.content_type === "image") {
-          void activateEntry(entry.id);
+          void activateSelectedEntry(entry.id);
         }
+        return;
       }
     };
 
@@ -464,16 +479,79 @@
     };
   });
 
+  function handleCardSelect(index: number) {
+    selectedIndex = index;
+  }
+
+  function getGridScrollInsets(container: HTMLElement) {
+    const style = getComputedStyle(container);
+    return {
+      left: parseFloat(style.paddingLeft) || 0,
+      right: parseFloat(style.paddingRight) || 0,
+    };
+  }
+
+  function snapCardIntoPaddedViewport(
+    card: HTMLElement,
+    container: HTMLElement,
+    behavior: ScrollBehavior,
+  ) {
+    const { left: padLeft, right: padRight } = getGridScrollInsets(container);
+    const containerRect = container.getBoundingClientRect();
+    const cardRect = card.getBoundingClientRect();
+    const slack = 1;
+    const visibleLeft = containerRect.left + padLeft;
+    const visibleRight = containerRect.right - padRight;
+
+    let delta = 0;
+    if (cardRect.right > visibleRight + slack) {
+      delta = cardRect.right - visibleRight;
+    } else if (cardRect.left < visibleLeft - slack) {
+      delta = cardRect.left - visibleLeft;
+    }
+    if (delta === 0) return;
+
+    container.scrollTo({ left: container.scrollLeft + delta, behavior });
+  }
+
+  function snapCardToGridEnd(
+    card: HTMLElement,
+    container: HTMLElement,
+    behavior: ScrollBehavior,
+  ) {
+    const { right: padRight } = getGridScrollInsets(container);
+    const containerRect = container.getBoundingClientRect();
+    const cardRect = card.getBoundingClientRect();
+    const visibleRight = containerRect.right - padRight;
+    const delta = cardRect.right - visibleRight;
+    if (Math.abs(delta) <= 1) return;
+    container.scrollTo({ left: container.scrollLeft + delta, behavior });
+  }
+
   function scrollToSelected() {
     if (!gridEl) return;
     const cards = gridEl.querySelectorAll(".card");
-    if (cards[selectedIndex]) {
-      cards[selectedIndex].scrollIntoView({
-        behavior: scrollBehavior(),
-        block: "nearest",
-        inline: "center",
-      });
+    const card = cards[selectedIndex];
+    if (!(card instanceof HTMLElement)) return;
+    const keepSearchFocus = searchBar?.isFocused() ?? false;
+    if (!keepSearchFocus) {
+      card.focus({ preventScroll: true });
     }
+
+    const behavior = scrollBehavior();
+    const lastIndex = cards.length - 1;
+
+    if (selectedIndex === 0) {
+      gridEl.scrollTo({ left: 0, behavior });
+      return;
+    }
+
+    if (selectedIndex === lastIndex) {
+      snapCardToGridEnd(card, gridEl, behavior);
+      return;
+    }
+
+    snapCardIntoPaddedViewport(card, gridEl, behavior);
   }
 
   function setSearchQuery(
@@ -651,7 +729,6 @@
           class="form-btn-restrict exclude-app-btn app-btn"
           type="button"
           aria-label={excludeLabel}
-          title={excludeLabel}
           aria-busy={excludeBusy}
           disabled={excludeBusy}
           onclick={() => void handleExcludeFromPanel()}
@@ -733,6 +810,7 @@
             {retagAvailable}
             {aiTaggingEnabled}
             selected={i === selectedIndex}
+            onselect={() => handleCardSelect(i)}
             ondeleted={handleEntryAction}
             onpinned={handleEntryAction}
             onretagged={handleEntryAction}
@@ -765,7 +843,7 @@
     background: var(--surface-app);
     backdrop-filter: blur(var(--panel-blur-visible)) saturate(1.15);
     -webkit-backdrop-filter: blur(var(--panel-blur-visible)) saturate(1.15);
-    border-radius: 18px;
+    border-radius: var(--radius-panel);
     border: 1px solid var(--border-strong);
     box-shadow:
       var(--shadow-elevated),
@@ -855,9 +933,9 @@
     height: 36px;
     max-width: min(220px, 42vw);
     padding: 0 12px;
-    border-radius: 10px;
+    border-radius: var(--radius-control);
     font: inherit;
-    font-size: 11px;
+    font-size: var(--font-size-xs);
     font-weight: 600;
     cursor: pointer;
   }
@@ -882,7 +960,7 @@
     justify-content: center;
     background: var(--surface-6);
     border: 1px solid var(--border-soft);
-    border-radius: 10px;
+    border-radius: var(--radius-control);
     color: var(--color-text-body);
     cursor: pointer;
   }
@@ -903,6 +981,7 @@
     display: flex;
     gap: 12px;
     padding: 14px 16px var(--space-section);
+    scroll-padding-inline: 16px;
     overflow-x: auto;
     overflow-y: hidden;
     align-items: flex-start;
@@ -921,7 +1000,7 @@
 
   .grid-container::-webkit-scrollbar-thumb {
     background: var(--scrollbar-thumb);
-    border-radius: 3px;
+    border-radius: var(--radius-scrollbar);
   }
 
   .card-wrapper {
@@ -942,14 +1021,14 @@
 
   .empty-title {
     margin: 0;
-    font-size: 15px;
+    font-size: var(--font-size-lg);
     font-weight: 500;
     color: var(--color-text-secondary);
   }
 
   .hint {
     margin: 8px 0 0;
-    font-size: 13px;
+    font-size: var(--font-size-md);
     color: var(--color-text-label);
   }
 </style>

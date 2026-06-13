@@ -12,6 +12,7 @@
     ondeleted,
     onpinned,
     onretagged,
+    onselect,
     retagAvailable = false,
     aiTaggingEnabled = false,
   }: {
@@ -20,6 +21,7 @@
     ondeleted?: () => void;
     onpinned?: () => void;
     onretagged?: () => void;
+    onselect?: () => void;
     retagAvailable?: boolean;
     aiTaggingEnabled?: boolean;
   } = $props();
@@ -76,7 +78,10 @@
   let copyAnnouncement = $state("");
   let clickTimer: ReturnType<typeof setTimeout> | undefined;
   let copiedResetTimer: ReturnType<typeof setTimeout> | undefined;
+  let copyAnnouncementTimer: ReturnType<typeof setTimeout> | undefined;
   let mounted = false;
+
+  const COPY_FEEDBACK_MS = 800;
 
   onMount(() => {
     mounted = true;
@@ -90,15 +95,54 @@
         clearTimeout(copiedResetTimer);
         copiedResetTimer = undefined;
       }
+      if (copyAnnouncementTimer !== undefined) {
+        clearTimeout(copyAnnouncementTimer);
+        copyAnnouncementTimer = undefined;
+      }
     };
   });
 
-  function announceCopy() {
+  function clearCopyAnnouncementSoon() {
+    if (copyAnnouncementTimer !== undefined) clearTimeout(copyAnnouncementTimer);
+    copyAnnouncementTimer = setTimeout(() => {
+      copyAnnouncementTimer = undefined;
+      if (!mounted) return;
+      copyAnnouncement = "";
+    }, COPY_FEEDBACK_MS);
+  }
+
+  function clearCopyAnnouncement() {
     copyAnnouncement = "";
+    if (copyAnnouncementTimer !== undefined) {
+      clearTimeout(copyAnnouncementTimer);
+      copyAnnouncementTimer = undefined;
+    }
+  }
+
+  function announceCopy() {
+    clearCopyAnnouncement();
     requestAnimationFrame(() => {
       if (!mounted) return;
       copyAnnouncement = "Copied to clipboard";
+      clearCopyAnnouncementSoon();
     });
+  }
+
+  function announceCopyFailure() {
+    clearCopyAnnouncement();
+    requestAnimationFrame(() => {
+      if (!mounted) return;
+      copyAnnouncement = "Copy failed";
+      clearCopyAnnouncementSoon();
+    });
+  }
+
+  function clearCopiedFeedback() {
+    copied = false;
+    if (copiedResetTimer !== undefined) {
+      clearTimeout(copiedResetTimer);
+      copiedResetTimer = undefined;
+    }
   }
 
   function showCopiedFeedback() {
@@ -110,10 +154,12 @@
       copiedResetTimer = undefined;
       if (!mounted) return;
       copied = false;
-    }, 800);
+    }, COPY_FEEDBACK_MS);
   }
 
   function handleClick() {
+    clearCopyAnnouncement();
+    onselect?.();
     if (clickTimer) {
       clearTimeout(clickTimer);
       clickTimer = undefined;
@@ -129,9 +175,15 @@
   async function handleSingleClick() {
     if (copied) return;
     if (entry.content_type === "text" || entry.content_type === "image") {
-      await copyEntry(entry.id);
-      if (!mounted) return;
-      showCopiedFeedback();
+      try {
+        await copyEntry(entry.id);
+        if (!mounted) return;
+        showCopiedFeedback();
+      } catch {
+        if (!mounted) return;
+        clearCopiedFeedback();
+        announceCopyFailure();
+      }
     }
   }
 
@@ -156,6 +208,7 @@
 
   async function handlePaste(e: MouseEvent) {
     e.stopPropagation();
+    onselect?.();
     await activateIntoTargetApp();
   }
 
@@ -167,18 +220,21 @@
 
   async function handleDelete(e: MouseEvent) {
     e.stopPropagation();
+    onselect?.();
     await deleteEntry(entry.id);
     ondeleted?.();
   }
 
   async function handlePin(e: MouseEvent) {
     e.stopPropagation();
+    onselect?.();
     await pinEntry(entry.id, !entry.is_pinned);
     onpinned?.();
   }
 
   async function handleRetag(e: MouseEvent) {
     e.stopPropagation();
+    onselect?.();
     await retagEntry(entry.id);
     onretagged?.();
   }
@@ -219,7 +275,7 @@
   onclick={handleClick}
   onkeydown={handleCardKeydown}
   role="button"
-  tabindex="0"
+  tabindex={selected ? 0 : -1}
 >
   <span class="sr-only" role="status" aria-live="polite">{copyAnnouncement}</span>
   <div class="card-header">
@@ -309,9 +365,9 @@
 
   <div class="card-footer">
     {#if tags.length > 0}
-      <div class="tags">
-        {#each tags.slice(0, 3) as tag}
-          <span class="tag-chip">{tag}</span>
+      <div class="entry-tags">
+        {#each tags.slice(0, 3) as tag (tag)}
+          <span class="entry-tag">{tag}</span>
         {/each}
       </div>
     {/if}
@@ -340,13 +396,13 @@
 <style>
   .card {
     position: relative;
-    width: 220px;
-    min-width: 220px;
-    height: 288px;
+    width: var(--card-width);
+    min-width: var(--card-width);
+    height: var(--card-height);
     background: var(--surface-card);
     border: 1px solid var(--border-strong);
-    border-radius: 14px;
-    padding: 12px;
+    border-radius: var(--radius-surface);
+    padding: var(--radius-card-padding);
     cursor: pointer;
     display: flex;
     flex-direction: column;
@@ -360,13 +416,17 @@
     text-align: left;
     overflow: hidden;
     flex-shrink: 0;
+    /* Reserve selection ring space so selected/unselected cards keep the same footprint. */
+    box-shadow: 0 0 0 2px transparent;
   }
 
-  .card:hover {
+  .card:hover:not(.selected) {
     border-color: var(--border-accent-selected);
     background: var(--surface-card-hover);
     transform: translateY(-2px);
-    box-shadow: var(--shadow-card);
+    box-shadow:
+      0 0 0 2px transparent,
+      var(--shadow-card);
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -377,20 +437,47 @@
         box-shadow var(--duration-standard) var(--ease-interactive);
     }
 
-    .card:hover {
+    .card:hover:not(.selected) {
+      transform: none;
+    }
+
+    .card.selected:hover:not(.copied) {
       transform: none;
     }
   }
 
-  .card:focus-visible {
+  .card:focus-visible:not(.selected) {
     outline: none;
     border-color: var(--border-accent-ring);
     box-shadow: 0 0 0 2px var(--shadow-accent-selected);
   }
 
   .card.selected {
+    background: var(--surface-card);
     border-color: var(--border-accent-ring);
-    box-shadow: 0 0 0 2px var(--shadow-accent-selected);
+    box-shadow: var(--shadow-card-selected);
+  }
+
+  .card.selected::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: var(--surface-card-selected);
+    pointer-events: none;
+  }
+
+  .card.selected:hover:not(.copied) {
+    background: var(--surface-card);
+    border-color: var(--border-accent-ring);
+    box-shadow: var(--shadow-card-selected);
+    transform: translateY(-1px);
+  }
+
+  .card.selected:focus-visible {
+    outline: none;
+    border-color: var(--border-accent-ring);
+    box-shadow: var(--shadow-card-selected);
   }
 
   .card.pinned {
@@ -417,24 +504,24 @@
     gap: 5px;
     width: fit-content;
     padding: 3px 8px;
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     background: var(--surface-7);
     font-weight: 600;
-    font-size: 12px;
+    font-size: var(--font-size-sm);
     letter-spacing: 0.02em;
     color: var(--color-text-body);
   }
 
   .format-suffix {
     font-weight: 700;
-    font-size: 10px;
+    font-size: var(--font-size-2xs);
     letter-spacing: 0.08em;
     color: var(--color-accent-text-soft);
     text-transform: uppercase;
   }
 
   .time {
-    font-size: 11px;
+    font-size: var(--font-size-xs);
     color: var(--color-text-muted);
   }
 
@@ -462,7 +549,7 @@
     color: var(--color-text-muted);
     cursor: pointer;
     padding: 0;
-    border-radius: 4px;
+    border-radius: var(--radius-control-sm);
     flex-shrink: 0;
   }
 
@@ -518,7 +605,7 @@
     padding: 10px 12px;
     background: var(--surface-4);
     border: 1px solid var(--border-default);
-    border-radius: 10px;
+    border-radius: var(--radius-inset);
     overflow: hidden;
   }
 
@@ -534,7 +621,7 @@
     min-height: 0;
     margin: 0;
     overflow: hidden;
-    font-size: 12px;
+    font-size: var(--font-size-sm);
     line-height: 1.55;
     color: var(--color-text-primary);
     white-space: pre-line;
@@ -556,7 +643,7 @@
   .image-preview img {
     width: 100%;
     height: 86px;
-    border-radius: 10px;
+    border-radius: var(--radius-inset);
     object-fit: cover;
     display: block;
     border: 1px solid var(--border-soft);
@@ -567,19 +654,19 @@
     width: 100%;
     height: 86px;
     background: var(--surface-5);
-    border-radius: 10px;
+    border-radius: var(--radius-inset);
     display: flex;
     align-items: center;
     justify-content: center;
     color: var(--color-text-subtle);
-    font-size: 13px;
+    font-size: var(--font-size-md);
   }
 
   .image-meta {
     padding: 7px 10px;
     background: var(--surface-3);
-    border-radius: 10px;
-    font-size: 12px;
+    border-radius: var(--radius-inset);
+    font-size: var(--font-size-sm);
     line-height: 1.5;
     font-variant-numeric: tabular-nums;
   }
@@ -618,35 +705,43 @@
   .source-app {
     flex: 1;
     min-width: 0;
-    font-size: 11px;
+    font-size: var(--font-size-xs);
     color: var(--color-text-subtle);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .tags {
+  .entry-tags {
     display: flex;
-    gap: 6px;
     flex-wrap: nowrap;
+    gap: 4px;
     overflow: hidden;
+    min-width: 0;
   }
 
-  .tag-chip {
+  .entry-tag {
     display: inline-flex;
     align-items: center;
-    padding: 4px 8px;
-    border-radius: 999px;
-    background: var(--surface-accent-tag);
-    border: 1px solid var(--border-accent-tag);
-    color: var(--color-accent-text-tag);
-    font-size: 10px;
-    line-height: 1.2;
+    flex-shrink: 0;
+    max-width: 100%;
+    padding: 2px 7px;
+    border-radius: var(--radius-control-sm);
+    border: 1px solid var(--border-entry-tag);
+    background: var(--surface-entry-tag);
+    color: var(--color-entry-tag);
+    font-size: var(--font-size-2xs);
+    line-height: 1.3;
+    font-weight: 500;
+    letter-spacing: 0.01em;
     text-transform: lowercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .char-count {
-    font-size: 11px;
+    font-size: var(--font-size-xs);
     color: var(--color-text-faint);
     white-space: nowrap;
     flex-shrink: 0;
@@ -679,9 +774,9 @@
     gap: 8px;
     background: var(--surface-overlay);
     backdrop-filter: blur(6px);
-    border-radius: 14px;
+    border-radius: var(--radius-surface);
     color: var(--color-success);
-    font-size: 15px;
+    font-size: var(--font-size-lg);
     font-weight: 700;
     letter-spacing: 0.02em;
     animation: copied-pop var(--duration-hud) var(--ease-out-expo);

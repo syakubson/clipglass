@@ -70,7 +70,7 @@
   >
     <button
       type="button"
-      class="tag-chip tag-chip-reset app-btn"
+      class="filter-chip filter-chip-reset app-btn"
       class:active={!activeTag}
       aria-pressed={!activeTag}
       onclick={() => onreset?.()}
@@ -81,7 +81,7 @@
     {#each formatChips as [tag, count] (tag)}
       <button
         type="button"
-        class="tag-chip tag-chip-format app-btn"
+        class="filter-chip filter-chip-format app-btn"
         class:active={activeTag === tag}
         aria-pressed={activeTag === tag}
         onclick={() => onselect?.(tag)}
@@ -103,7 +103,7 @@
     {#each semanticChips as [tag, count] (tag)}
       <button
         type="button"
-        class="tag-chip tag-chip-semantic app-btn"
+        class="filter-chip filter-chip-semantic app-btn"
         class:active={activeTag === tag}
         aria-pressed={activeTag === tag}
         onclick={() => onselect?.(tag)}
@@ -134,17 +134,17 @@
     display: none;
   }
 
-  .tag-chip {
+  .filter-chip {
     display: inline-flex;
     align-items: center;
     gap: 6px;
     padding: 6px 11px;
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     border: 1px solid var(--border-soft);
     cursor: pointer;
     white-space: nowrap;
     font: inherit;
-    font-size: 12px;
+    font-size: var(--font-size-sm);
     line-height: 1.2;
     flex-shrink: 0;
     transition:
@@ -153,39 +153,39 @@
       color var(--duration-fast) var(--ease-interactive);
   }
 
-  .tag-chip-reset {
+  .filter-chip-reset {
     background: var(--surface-3);
     color: var(--color-text-secondary);
   }
 
-  .tag-chip-reset:hover:not(:disabled):not([aria-busy="true"]) {
+  .filter-chip-reset:hover:not(:disabled):not([aria-busy="true"]) {
     background: var(--surface-7);
     border-color: var(--border-strong);
   }
 
-  .tag-chip.active {
+  .filter-chip.active {
     background: var(--surface-accent);
     border-color: var(--border-accent-soft);
     color: var(--color-accent-chip);
   }
 
-  .tag-chip.active:hover:not(:disabled):not([aria-busy="true"]) {
+  .filter-chip.active:hover:not(:disabled):not([aria-busy="true"]) {
     background: var(--surface-accent-hover);
     border-color: var(--border-accent-medium);
     color: var(--color-accent-chip);
   }
 
-  .tag-chip.active .tag-count,
-  .tag-chip.active:hover .tag-count {
+  .filter-chip.active .tag-count,
+  .filter-chip.active:hover .tag-count {
     background: rgb(var(--rgb-accent) / 0.28);
     color: var(--color-accent-chip);
   }
 
-  .tag-chip.active:hover .tag-count {
+  .filter-chip.active:hover .tag-count {
     background: rgb(var(--rgb-accent) / 0.36);
   }
 
-  .tag-chip-format {
+  .filter-chip-format {
     background: var(--surface-5);
     border-color: var(--border-default);
     color: var(--color-text-muted);
@@ -193,23 +193,23 @@
     text-transform: lowercase;
   }
 
-  .tag-chip-format:hover:not(:disabled):not([aria-busy="true"]) {
+  .filter-chip-format:hover:not(:disabled):not([aria-busy="true"]) {
     background: var(--surface-7);
     border-color: var(--border-strong);
     color: var(--color-text-body);
   }
 
-  .tag-chip-format.active .format-icon {
+  .filter-chip-format.active .format-icon {
     opacity: 1;
   }
 
-  .tag-chip-semantic {
+  .filter-chip-semantic {
     background: var(--surface-3);
     color: var(--color-text-secondary);
     text-transform: lowercase;
   }
 
-  .tag-chip-semantic:hover:not(:disabled):not([aria-busy="true"]) {
+  .filter-chip-semantic:hover:not(:disabled):not([aria-busy="true"]) {
     background: var(--surface-7);
     border-color: var(--border-strong);
   }
@@ -226,9 +226,9 @@
     min-width: 18px;
     justify-content: center;
     padding: 2px 5px;
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     background: var(--surface-8);
-    font-size: 10px;
+    font-size: var(--font-size-2xs);
     line-height: 1;
     font-family: inherit;
   }

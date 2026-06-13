@@ -91,7 +91,7 @@
     align-items: center;
     gap: 8px;
     padding: 6px 10px 6px 12px;
-    border-radius: 8px;
+    border-radius: var(--radius-control);
     width: 280px;
     flex: 0 0 280px;
   }
@@ -106,7 +106,7 @@
     border: none;
     outline: none;
     color: var(--color-text-body);
-    font-size: 13px;
+    font-size: var(--font-size-md);
     width: 100%;
     min-width: 0;
     font-family: inherit;

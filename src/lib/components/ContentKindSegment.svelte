@@ -40,7 +40,7 @@
     align-items: stretch;
     gap: 2px;
     padding: 2px;
-    border-radius: 8px;
+    border-radius: var(--radius-control);
     background: var(--surface-3);
     border: 1px solid var(--border-soft);
   }
@@ -50,11 +50,11 @@
     height: 28px;
     padding: 0 12px;
     border: none;
-    border-radius: 6px;
+    border-radius: var(--radius-control-sm);
     background: transparent;
     color: var(--color-text-secondary);
     font: inherit;
-    font-size: 13px;
+    font-size: var(--font-size-md);
     font-weight: 500;
     cursor: pointer;
     white-space: nowrap;
