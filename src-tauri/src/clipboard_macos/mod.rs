@@ -22,9 +22,9 @@ use std::sync::atomic::{AtomicBool, AtomicI32, AtomicI64, AtomicU64, Ordering};
 use std::sync::Mutex;
 
 #[cfg(target_os = "macos")]
-use objc2_app_kit::{NSPasteboard, NSWorkspace};
+use objc2_app_kit::{NSPasteboard, NSURLNSPasteboardSupport, NSWorkspace};
 #[cfg(target_os = "macos")]
-use objc2_foundation::{ns_string, NSArray, NSData, NSString};
+use objc2_foundation::{ns_string, NSArray, NSData, NSURL, NSString};
 #[cfg(target_os = "macos")]
 use std::path::PathBuf;
 
@@ -108,10 +108,67 @@ pub fn pasteboard_gif_bytes() -> Option<Vec<u8>> {
     None
 }
 
-/// Absolute file paths from Finder-style copy (`NSFilenamesPboardType`).
+/// Absolute file paths from Finder-style copy (`public.file-url` / legacy `NSFilenamesPboardType`).
 #[cfg(target_os = "macos")]
 pub fn pasteboard_file_paths() -> Vec<PathBuf> {
     let pasteboard = NSPasteboard::generalPasteboard();
+    let from_urls = paths_from_file_url_pasteboard(&pasteboard);
+    if !from_urls.is_empty() {
+        return from_urls;
+    }
+    paths_from_legacy_filenames_pasteboard(&pasteboard)
+}
+
+#[cfg(target_os = "macos")]
+fn path_from_ns_url(url: &NSURL) -> Option<PathBuf> {
+    url.path().map(|p| PathBuf::from(p.to_string()))
+}
+
+#[cfg(target_os = "macos")]
+fn path_from_file_url_string(s: &NSString) -> Option<PathBuf> {
+    NSURL::URLWithString(s).and_then(|url| path_from_ns_url(&url))
+}
+
+#[cfg(target_os = "macos")]
+fn dedupe_paths(paths: Vec<PathBuf>) -> Vec<PathBuf> {
+    let mut out = Vec::with_capacity(paths.len());
+    for path in paths {
+        if !out.contains(&path) {
+            out.push(path);
+        }
+    }
+    out
+}
+
+#[cfg(target_os = "macos")]
+fn paths_from_file_url_pasteboard(pasteboard: &NSPasteboard) -> Vec<PathBuf> {
+    let mut paths = Vec::new();
+    let file_url = ns_string!("public.file-url");
+
+    if let Some(items) = pasteboard.pasteboardItems() {
+        for item in items.iter() {
+            let Some(url_string) = item.stringForType(file_url) else {
+                continue;
+            };
+            if let Some(path) = path_from_file_url_string(&url_string) {
+                paths.push(path);
+            }
+        }
+    }
+
+    if paths.is_empty() {
+        if let Some(url) = NSURL::URLFromPasteboard(pasteboard) {
+            if let Some(path) = path_from_ns_url(&url) {
+                paths.push(path);
+            }
+        }
+    }
+
+    dedupe_paths(paths)
+}
+
+#[cfg(target_os = "macos")]
+fn paths_from_legacy_filenames_pasteboard(pasteboard: &NSPasteboard) -> Vec<PathBuf> {
     let ty = ns_string!("NSFilenamesPboardType");
     let Some(plist) = pasteboard.propertyListForType(ty) else {
         return Vec::new();
@@ -269,6 +326,16 @@ mod tests {
     #[test]
     fn paste_into_target_is_send_for_background_spawn() {
         let _job: Box<dyn Send + 'static> = Box::new(paste_into_target);
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn dedupe_paths_preserves_first_occurrence() {
+        use std::path::PathBuf;
+        let a = PathBuf::from("/tmp/a.jpg");
+        let b = PathBuf::from("/tmp/b.jpg");
+        let out = dedupe_paths(vec![a.clone(), b.clone(), a.clone()]);
+        assert_eq!(out, vec![a, b]);
     }
 
     #[test]
