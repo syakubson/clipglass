@@ -57,21 +57,36 @@ export const chooseApplicationActionLabel = "Choose Application…";
 /** Settings — app name could not be resolved (HIG-style inline warning). */
 export function appNotFoundNotice(appName: string): string {
   const name = formatAppNameForLabel(appName);
-  return `No app named “${name}” was found. Use ${chooseApplicationActionLabel} above, or enter the installed app name.`;
+  return `No app named “${name}” was found. Use ${chooseApplicationActionLabel}, or enter the installed app name.`;
+}
+
+/** Settings — generic add-by-name failure with the entered app name. */
+export function couldNotAddExcludedAppNotice(appName: string): string {
+  const name = formatAppNameForLabel(appName);
+  return `Could not add ${name}. Try again.`;
+}
+
+/** Settings — add via native picker failed without a resolved app name. */
+export function couldNotAddSelectedAppNotice(): string {
+  return "Could not add the selected app. Try again.";
 }
 
 export function invokeErrorMessage(err: unknown): string {
   if (typeof err === "string") return err;
   if (err instanceof Error) return err.message;
-  if (err && typeof err === "object" && "message" in err) {
-    const message = (err as { message: unknown }).message;
-    if (typeof message === "string") return message;
+  if (err && typeof err === "object") {
+    if ("message" in err && typeof (err as { message: unknown }).message === "string") {
+      return (err as { message: string }).message;
+    }
+    if ("error" in err && typeof (err as { error: unknown }).error === "string") {
+      return (err as { error: string }).error;
+    }
   }
   return "";
 }
 
 export function isAppNotFoundError(err: unknown): boolean {
-  return invokeErrorMessage(err).startsWith("app_not_found:");
+  return invokeErrorMessage(err).includes("app_not_found:");
 }
 
 /** Settings candidate row when list and candidate are out of sync. */

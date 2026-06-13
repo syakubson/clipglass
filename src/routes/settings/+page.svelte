@@ -48,6 +48,8 @@
     excludeListAddLabel,
     excludeListRemoveLabel,
     alreadyExcludedFromHistoryNotice,
+    couldNotAddExcludedAppNotice,
+    couldNotAddSelectedAppNotice,
     excludedFromHistoryNotice,
   } from "$lib/exclusion-label";
 
@@ -139,6 +141,10 @@
     if (!candidate?.alreadyExcluded) return undefined;
     return excludedApps.find((app) => app.bundleId === candidate.bundleId);
   });
+
+  const excludedAppsPanelHasRows = $derived(
+    !!excludableCandidate || listedExcludedApps.length > 0,
+  );
 
   function setExcludedAppsNotice(message: string, tone: "neutral" | "warn" = "neutral") {
     excludedAppsNotice = message;
@@ -395,7 +401,7 @@
         setExcludedAppsNotice(appNotFoundNotice(value), "warn");
         return;
       }
-      setExcludedAppsNotice("Could not add this app. Try again.", "warn");
+      setExcludedAppsNotice(couldNotAddExcludedAppNotice(value), "warn");
     }
   }
 
@@ -415,10 +421,10 @@
       }
       await refreshExcludedAppsSection();
     } catch (err) {
-      setExcludedAppsNotice(
-        invokeErrorMessage(err) || "Could not add this app. Try again.",
-        "warn",
-      );
+      const fallback = excludableCandidate
+        ? couldNotAddExcludedAppNotice(excludableCandidate.displayName)
+        : couldNotAddSelectedAppNotice();
+      setExcludedAppsNotice(invokeErrorMessage(err) || fallback, "warn");
     } finally {
       excludeActionBusy = false;
     }
@@ -439,7 +445,7 @@
       if (message.startsWith("main_thread_required:")) {
         setExcludedAppsNotice("Could not open the app picker. Try again.", "warn");
       } else {
-        setExcludedAppsNotice(message || "Could not add this app. Try again.", "warn");
+        setExcludedAppsNotice(message || couldNotAddSelectedAppNotice(), "warn");
       }
     } finally {
       excludeActionBusy = false;
@@ -897,9 +903,10 @@
         Clipboard from excluded apps will not be stored or tagged.
       </div>
 
+      <div class="excluded-apps-stack">
       <div class="excluded-apps-panel" role="group" aria-label="Excluded applications">
         {#if excludableCandidate}
-          <div class="excluded-apps-row">
+          <div class="excluded-apps-row excluded-apps-row--candidate">
             <div class="excluded-apps-row-main">
               <span class="excluded-apps-row-label">{excludableCandidate.displayName}</span>
               <span class="excluded-apps-row-meta"
@@ -941,7 +948,9 @@
 
         {#each listedExcludedApps as app (app.id)}
           <div class="excluded-apps-row excluded-apps-row--listed">
-            <span class="excluded-apps-row-label">{app.displayName}</span>
+            <div class="excluded-apps-row-main excluded-apps-row-main--single">
+              <span class="excluded-apps-row-label">{app.displayName}</span>
+            </div>
             <button
               class="form-link-accent excluded-list-action app-btn"
               type="button"
@@ -956,16 +965,37 @@
           </div>
         {/each}
 
-        <button
-          class="excluded-apps-row excluded-apps-row--action app-btn"
-          type="button"
-          aria-busy={excludeActionBusy}
-          disabled={excludeActionBusy}
-          onclick={handleChooseApp}
-        >
-          {chooseApplicationActionLabel}
-        </button>
+        {#if !excludedAppsPanelHasRows}
+          <div class="excluded-apps-empty" role="status">No apps excluded yet.</div>
+        {/if}
       </div>
+
+      <button
+        class="form-btn form-btn-secondary excluded-choose-app-btn app-btn"
+        type="button"
+        class:is-busy={excludeActionBusy}
+        class:is-locked={excludeActionBusy}
+        aria-busy={excludeActionBusy ? "true" : undefined}
+        disabled={excludeActionBusy}
+        onclick={handleChooseApp}
+      >
+        <svg
+          class="form-btn-icon"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <rect x="3" y="3" width="12" height="12" rx="2.5" />
+          <path d="M17 8v8" />
+          <path d="M13 12h8" />
+        </svg>
+        <span class="app-btn-label">{chooseApplicationActionLabel}</span>
+        {@render busySpinner()}
+      </button>
 
       <div class="form-inline excluded-by-name">
         <input
@@ -985,6 +1015,7 @@
         >
           Add
         </button>
+      </div>
       </div>
 
       {#if excludedAppsNotice}
@@ -1148,76 +1179,6 @@
   }
 
   .settings-footer .form-actions {
-    margin-top: 0;
-  }
-
-  .excluded-apps-field .form-hint {
-    margin-top: -2px;
-  }
-
-  .excluded-apps-panel {
-    display: flex;
-    flex-direction: column;
-    max-height: 220px;
-    overflow-y: auto;
-    background: var(--surface-3);
-    border: 1px solid var(--border-default);
-    border-radius: 8px;
-  }
-
-  .excluded-apps-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    min-height: 36px;
-    padding: 0 12px;
-    border-bottom: 1px solid var(--border-subtle);
-  }
-
-  .excluded-apps-row:last-child {
-    border-bottom: none;
-  }
-
-  .excluded-apps-row-main {
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-    min-width: 0;
-  }
-
-  .excluded-apps-row-label {
-    font-size: var(--font-size-sm);
-    color: var(--color-text-primary);
-    min-width: 0;
-    word-break: normal;
-    overflow-wrap: break-word;
-  }
-
-  .excluded-apps-row-meta {
-    font-size: var(--font-size-2xs);
-    color: var(--color-text-tertiary);
-    line-height: 1.3;
-  }
-
-  .excluded-apps-row--action {
-    width: 100%;
-    justify-content: flex-start;
-    border: none;
-    background: transparent;
-    color: var(--color-accent-link);
-    font: inherit;
-    font-size: var(--font-size-sm);
-    text-align: left;
-    cursor: pointer;
-  }
-
-  .excluded-apps-row--action:hover:not(:disabled, [aria-busy="true"]) {
-    background: var(--surface-5);
-    color: var(--color-accent-link-hover);
-  }
-
-  .excluded-by-name {
     margin-top: 0;
   }
 

@@ -1,7 +1,7 @@
 use crate::app_exclusion::{self, ExcludableAppSource};
 use crate::db::{AppSettings, ClipboardEntry, Collection, Database, ExcludedApp, ModelCatalog};
 use crate::macos_app;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 use crate::ollama;
 use arboard::{Clipboard, ImageData};
@@ -241,18 +241,12 @@ fn exclude_app_result(
     })
 }
 
-#[derive(Deserialize)]
-pub(crate) struct AddExcludedAppArgs {
-    #[serde(rename = "appNameOrBundleId", alias = "bundleId")]
-    app_name_or_bundle_id: String,
-}
-
 #[tauri::command]
 pub fn add_excluded_app(
     db: State<'_, Arc<Database>>,
-    args: AddExcludedAppArgs,
+    app_name_or_bundle_id: String,
 ) -> Result<ExcludeAppResult, String> {
-    let input = args.app_name_or_bundle_id;
+    let input = app_name_or_bundle_id;
     let identity = macos_app::resolve_app_identity_from_input(&input)
         .ok_or_else(|| format!("app_not_found:{}", input.trim()))?;
     exclude_app_result(db.inner(), &identity)

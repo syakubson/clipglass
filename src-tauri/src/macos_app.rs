@@ -572,6 +572,16 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "macos")]
+    fn resolve_installed_app_by_common_name_case_insensitive() {
+        for name in ["Safari", "safari"] {
+            let identity =
+                resolve_app_identity_from_input(name).expect("Safari is bundled on macOS");
+            assert_eq!(identity.bundle_id, "com.apple.Safari");
+        }
+    }
+
+    #[test]
     fn recognizes_unique_constraint_violation() {
         let unique = rusqlite::Error::SqliteFailure(
             rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_CONSTRAINT_UNIQUE),
