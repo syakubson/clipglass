@@ -103,13 +103,24 @@
   align-items: center;
 }
 
+/* Shared chrome: settings fields, overlay search host, compact inline inputs. */
+.form-input,
+.form-select,
+.text-control-host {
+  border: 1px solid var(--border-control);
+  background: var(--surface-control);
+  transition:
+    border-color var(--duration-fast) var(--ease-interactive),
+    background var(--duration-fast) var(--ease-interactive),
+    background-color var(--duration-fast) var(--ease-interactive),
+    box-shadow var(--duration-fast) var(--ease-interactive);
+}
+
 .form-input,
 .form-select {
   width: 100%;
   min-height: 32px;
   padding: 6px 10px;
-  background: var(--surface-6);
-  border: 1px solid var(--border-medium);
   border-radius: 8px;
   color: var(--color-text-primary);
   font-family: inherit;
@@ -118,10 +129,10 @@
   outline: none;
   user-select: text;
   -webkit-user-select: text;
-  transition:
-    border-color var(--duration-fast) var(--ease-interactive),
-    background var(--duration-fast) var(--ease-interactive),
-    box-shadow var(--duration-fast) var(--ease-interactive);
+}
+
+.text-control-host {
+  box-sizing: border-box;
 }
 
 .form-input::selection {
@@ -147,9 +158,16 @@
   cursor: pointer;
 }
 
-.form-select:hover {
-  background-color: var(--surface-8);
-  border-color: var(--border-emphasis);
+/* Rest → hover → pointer focus → keyboard focus (see tokens.css). */
+.form-input:hover:not(:focus),
+.form-select:hover:not(:focus),
+.text-control-host:hover:not(:focus-within) {
+  border-color: var(--border-control-hover);
+  background: var(--surface-control-hover);
+}
+
+.form-select:hover:not(:focus) {
+  background-color: var(--surface-control-hover);
 }
 
 .form-select option {
@@ -157,11 +175,30 @@
   background: var(--surface-select-option);
 }
 
+/* Pointer focus: accent border + tight ring; no 3px keyboard halo. */
 .form-input:focus,
+.form-select:focus,
+.text-control-host:focus-within {
+  outline: none;
+  border-color: var(--border-control-focus);
+  box-shadow: var(--ring-control-focus);
+  background: var(--surface-control-focus);
+}
+
 .form-select:focus {
-  border-color: var(--border-accent-hover);
+  background-color: var(--surface-control-focus);
+}
+
+[data-input-modality="keyboard"] .form-input:focus,
+[data-input-modality="keyboard"] .form-select:focus,
+[data-input-modality="keyboard"] .text-control-host:focus-within {
+  border-color: var(--border-control-focus-keyboard);
   box-shadow: var(--ring-accent-input);
-  background: var(--surface-8);
+  background: var(--surface-control-focus);
+}
+
+[data-input-modality="keyboard"] .form-select:focus {
+  background-color: var(--surface-control-focus);
 }
 
 .form-input::placeholder {

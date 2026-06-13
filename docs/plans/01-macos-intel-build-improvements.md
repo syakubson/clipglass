@@ -1,6 +1,33 @@
 # macOS Intel build and related improvements
 
-Кратко: зачем меняли код и инфраструктуру в этом наборе правок.
+Кратко: зачем меняли код и инфраструктуру в этом наборе правок.  
+Follow-up и доработки перед релизом — в [05-macos-intel-pre-release.md](05-macos-intel-pre-release.md).
+
+## Чеклист
+
+- [x] **`build-macos.sh`** — pipeline: frontend → Tauri bundle → DMG в `dist/macos/`
+- [x] **`macos-target.sh`** — архитектура через `MACOS_ARCH=auto | x86_64 | aarch64`
+- [x] **Makefile** — `build-macos`, `build-macos-intel`, `build-macos-arm` и зеркальные `release-macos-*`
+- [x] **Именованные артефакты** — `Copyosity_0.3.0_x86_64.dmg` и т.п. в `dist/macos/`
+- [x] **`tauri.unsigned.json`** — ad-hoc для локальных сборок; release с Developer ID через `RELEASE_CONFIG=1`
+- [x] **`release-macos.sh`** — тот же build pipeline, что и локальная сборка
+- [x] **Makefile `APP_DIR`** — без hardcoded пути к проекту
+- [x] **`env -u npm_config_devdir`** — стабильный `npm install` / Tauri build (в т.ч. Cursor)
+- [x] **`with-tauri.sh` / `env-rust.sh`** — `cargo` и `tauri` в PATH
+- [x] **`.vscode/settings.json`** — тот же workaround для integrated terminal
+- [x] **`.gitignore`** — `/dist` для артефактов сборки
+- [x] **README** — команды Intel/ARM и путь `dist/macos/`
+- [x] **Frontend toolchain** — обновление SvelteKit / Svelte / Vite, override `cookie`
+- [x] **Мониторинг буфера** — `changeCount`; порядок файлы → raster → текст; concealed; ignore Copyosity / excluded apps
+- [x] **Декодеры изображений** — jpeg, webp, gif, bmp, tiff через `image` crate для путей с диска
+- [x] **`CaptureContext` / `try_capture_from_clipboard`** — единая точка разбора pasteboard
+- [x] **`clipboard_macos.rs`** — pasteboard API, synthetic Cmd+V, remember/restore paste target
+- [x] **`clipboard_write.rs`** — `exclude_from_history`, пометка «своя» запись
+- [x] **copy vs activate** — разделение «только в буфер» и «вставить в другое приложение»; Enter = `activateEntry`
+- [x] **Accessibility** — `check_accessibility` + UI в Settings; Settings window на передний план (`objc2-app-kit`)
+- [x] **Миграция objc → objc2** — `cocoa` заменён там, где уже используется
+- [x] **Frontend** — Enter в ленте = вставка; Permissions в Settings; copy/paste модель карточки без изменений
+- [x] **Voice shortcut** — общая macOS pasteboard-логика вынесена в `clipboard_macos`
 
 ---
 

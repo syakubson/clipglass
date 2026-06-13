@@ -21,14 +21,12 @@
   }
 </script>
 
-<div class="content-kind-segment" role="tablist" aria-label="Content type">
+<div class="content-kind-segment" role="group" aria-label="Content type">
   {#each segments as segment (segment.id)}
     <button
       type="button"
       class="segment-btn app-btn"
-      role="tab"
-      aria-selected={value === segment.id}
-      tabindex={value === segment.id ? 0 : -1}
+      aria-pressed={value === segment.id}
       onclick={() => select(segment.id)}
     >
       {segment.label}
@@ -71,11 +69,17 @@
     background: var(--surface-5);
   }
 
-  .segment-btn[aria-selected="true"] {
+  .segment-btn[aria-pressed="true"] {
     background: var(--surface-7);
     color: var(--color-text-primary);
     box-shadow: var(--shadow-inset-highlight);
     border: 1px solid var(--border-default);
+  }
+
+  .segment-btn[aria-pressed="true"]:hover:not(:disabled):not([aria-busy="true"]) {
+    background: var(--surface-8);
+    color: var(--color-text-primary);
+    border-color: var(--border-medium);
   }
 
   .segment-btn:focus-visible {

@@ -47,6 +47,8 @@
   import { panelCloseFallbackMs, panelOpenMs, scrollBehavior } from "$lib/motion";
 
   let entries: ClipboardEntry[] = $state([]);
+  /** Collection pool without search — keeps filter rows and overlay height stable. */
+  let catalogEntries: ClipboardEntry[] = $state([]);
   let collections: Collection[] = $state([]);
   let searchQuery = $state("");
   let activeCollectionId: number | null = $state(null);
@@ -72,6 +74,7 @@
   let searchBar: SearchBar | undefined = $state();
   let settingsLoadError = $state<string | null>(null);
   let lastLayoutHeight = $state<number | null>(null);
+  let dataFetchGen = 0;
 
   const SETTINGS_SYNC_USER_NOTICE =
     "Couldn't load app settings. Tags and filters may not work properly. Restart Copyosity.";
@@ -146,15 +149,55 @@
     }
   }
 
-  async function loadEntries(selectFirst = false, scrollToFirst = true) {
-    entries = await getEntries({
+  function entryQuery() {
+    return {
       collection_id: activeCollectionId,
       pinned_only: pinnedOnly,
-      search: searchQuery || null,
-    });
+    };
+  }
+
+  function applyEntrySelection(selectFirst: boolean, scrollToFirst: boolean) {
     if (selectFirst) {
       selectedIndex = filteredEntries.length > 0 ? 0 : -1;
       if (scrollToFirst) scrollToSelected();
+    }
+  }
+
+  async function loadCatalog(gen: number) {
+    const data = await getEntries({ ...entryQuery(), search: null });
+    if (gen !== dataFetchGen) return false;
+    catalogEntries = data;
+    if (!searchQuery) entries = data;
+    return true;
+  }
+
+  async function loadSearchEntries(
+    selectFirst = false,
+    scrollToFirst = true,
+    gen = dataFetchGen,
+  ) {
+    if (gen !== dataFetchGen) return;
+
+    if (!searchQuery) {
+      entries = catalogEntries;
+      applyEntrySelection(selectFirst, scrollToFirst);
+      return;
+    }
+
+    const data = await getEntries({ ...entryQuery(), search: searchQuery });
+    if (gen !== dataFetchGen) return;
+    entries = data;
+    applyEntrySelection(selectFirst, scrollToFirst);
+  }
+
+  /** Refresh catalog; when search is active, also refresh filtered entries. */
+  async function loadEntries(selectFirst = false, scrollToFirst = true) {
+    const gen = ++dataFetchGen;
+    if (!(await loadCatalog(gen))) return;
+    if (searchQuery) {
+      await loadSearchEntries(selectFirst, scrollToFirst, gen);
+    } else {
+      applyEntrySelection(selectFirst, scrollToFirst);
     }
   }
 
@@ -442,10 +485,14 @@
     clearTimeout(debounceTimer);
     if (!reload) return;
     if (immediate || q === "") {
-      void loadEntries(true);
+      const gen = ++dataFetchGen;
+      void loadSearchEntries(true, true, gen);
       return;
     }
-    debounceTimer = setTimeout(() => void loadEntries(true), 150);
+    debounceTimer = setTimeout(() => {
+      const gen = ++dataFetchGen;
+      void loadSearchEntries(true, true, gen);
+    }, 150);
   }
 
   function queueSearch(q: string) {
@@ -519,6 +566,7 @@
   let tagBarModel = $derived(
     buildTagBarModel({
       entries,
+      layoutEntries: catalogEntries,
       contentKind,
       aiTaggingEnabled,
       activeTag,
@@ -709,7 +757,6 @@
 
   :global(*) {
     box-sizing: border-box;
-    outline: none;
   }
 
   .app {
@@ -750,6 +797,13 @@
     .app,
     .app.visible {
       transition-duration: 0.01ms;
+    }
+  }
+
+  @media (prefers-reduced-transparency: reduce) {
+    .app {
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
     }
   }
 

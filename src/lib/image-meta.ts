@@ -5,15 +5,24 @@ export function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+export function formatImageDimensions(
+  width: number | null | undefined,
+  height: number | null | undefined,
+): string | null {
+  if (width != null && height != null && width > 0 && height > 0) {
+    return `${width.toLocaleString()} × ${height.toLocaleString()}`;
+  }
+  return null;
+}
+
 export function formatImageMeta(
   width: number | null | undefined,
   height: number | null | undefined,
   byteSize: number | null | undefined,
 ): string {
   const parts: string[] = [];
-  if (width != null && height != null && width > 0 && height > 0) {
-    parts.push(`${width.toLocaleString()} × ${height.toLocaleString()}`);
-  }
+  const dimensions = formatImageDimensions(width, height);
+  if (dimensions) parts.push(dimensions);
   if (byteSize != null && byteSize > 0) {
     parts.push(formatBytes(byteSize));
   }

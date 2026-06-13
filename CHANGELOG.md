@@ -5,7 +5,7 @@ All notable changes to Copyosity are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.4.0] - 2026-06-12
+## [0.4.0] - 2026-06-13
 
 ### Added
 
@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Voice transcription toggle** — Settings switch (off by default) to enable or disable hold-to-record transcription and its global shortcut without clearing Whisper configuration.
 - **Shared button interaction** (`app-btn`, `button-interaction.css`) — macOS-like press, focus, disabled, and busy states for buttons across Settings, the main window, clipboard cards, and collection tabs; overlay spinner on busy buttons without layout shift; `prepareBusyUi()` yields before blocking IPC so spinners paint reliably.
 - **Shared form controls** (`form-controls.css`) — compact macOS-style inputs, selects, section layout, and form buttons reused in Settings.
+- **Input modality tracking** (`input-modality.ts`) — `data-input-modality` on `<html>` distinguishes pointer vs keyboard focus so form controls show a tight ring on click and the 3px keyboard halo only after Tab or other navigation keys (WebKit/Tauri `:focus-visible` quirk).
 - **Settings section icons** (`SectionIcon.svelte`) — semantic line icons to the left of each Settings block title: Permissions (shield), AI Tagging (tag), Setup (checklist), Ollama Model (package), This Mac (chip), Storage (database), Privacy (lock), Voice Transcription (microphone).
 - **AI tagging toggle** — Settings switch (off by default) to enable or disable automatic Ollama tagging; when off, the clipboard monitor skips tag requests and startup backfill does not run.
 - **`is_tagging_ready` IPC** — main window queries whether retag is available (tagging on + Ollama CLI, server, and model installed; unloaded model still counts).
@@ -37,18 +38,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Excluded apps (Privacy)** — list-first layout with Choose Application via native picker, Add by name, contextual Add row using remembered paste-target app (shows **Active app** or **Recent app**), inline section notices, and overlay header **Exclude [App]** action.
 - **macOS paste pipeline doc** — `docs/architecture/macos-paste-pipeline.md` (mermaid flow, file map, Messages/session-tap decisions, `KEYBOARD_PASTE_BUNDLE_IDS`, `COPYOSITY_DEBUG_PASTE`); linked from README Development and `AGENTS.md`.
 - **HIG audit** — `docs/plans/02-hig-audit.md` with prioritized accessibility, native-feel, and discoverability roadmap across overlay, settings, voice HUD, and shared tokens.
+- **Voice HUD accessibility plan** — `docs/plans/04-voice-hud-accessibility-full-cycle.md` (full screen-reader lifecycle: recording → processing → terminal states; baseline live region shipped in 0.4.0).
 - **Overlay search keyboard shortcuts** — `⌘F` and `/` focus the search field (capture-phase listener, before WebView Find); `overlayEscapeAction` in `overlay-search.ts` for two-step Escape (clear query, then dismiss panel).
 - **Unicode case-insensitive clipboard search** — `text_content_search` DB column stores lowercase text; legacy rows backfill on startup; queries match Cyrillic and Latin regardless of case.
 - **Text selection tokens** (`--selection-bg`, `--selection-text`) — accent wash for search input and shared form controls.
 - **Motion system** (`motion.ts`, motion tokens in `tokens.css`) — shared panel/HUD durations and Apple-style easings; `prefers-reduced-motion` token overrides; helpers `panelOpenMs`, `panelCloseFallbackMs`, `scrollBehavior`, and `subscribeReducedMotion`.
-- **Unit tests** — **108 tests** in `copyosity_lib` for 0.4.0, with emphasis on clipboard monitor dedup/hash-poisoning, image format and animated GIF paste paths, image meta backfill, DB migration and tag backfill, case-insensitive/Cyrillic search and `text_content_search` backfill, settings partial updates (Whisper, voice transcription, AI tagging toggles), `tagging_ready` / `is_ai_tagging_enabled`, Ollama model validation plus `/api/ps` load-unload matching, `open_accessibility_settings` IPC, `macos_app` bundle ID resolution, app-exclusion candidate resolution, and macOS paste helpers (`bundle_prefers_keyboard_paste`, `cmd_v_uses_session_tap`, AX editable-role priority).
+- **Unit tests** — **116 tests** in `copyosity_lib` for 0.4.0, with emphasis on clipboard monitor dedup/hash-poisoning, history-clear snapshot vs re-copy, and Finder file-path capture, image format and animated GIF paste paths, image meta backfill, DB migration and tag backfill, case-insensitive/Cyrillic search and `text_content_search` backfill, settings partial updates (Whisper, voice transcription, AI tagging toggles), `tagging_ready` / `is_ai_tagging_enabled`, Ollama model validation plus `/api/ps` load-unload matching, `open_accessibility_settings` IPC, `macos_app` bundle ID resolution, app-exclusion candidate resolution, and macOS paste helpers (`bundle_prefers_keyboard_paste`, `cmd_v_uses_session_tap`, AX editable-role priority).
 
 ### Changed
 
-- **Clipboard monitor** — reads the pasteboard only when content actually changes; identical payloads are not re-captured or re-emitted to the UI.
-- **Paste pipeline** — Enter in the main window activates an entry the same way as double-click (text and images); panel plays a close animation before native hide; automated paste is deferred until hide completes (`PENDING_PASTE_AFTER_HIDE`) so focus returns to the target app first; voice transcription uses the same automated paste path; `try_ax_paste_for_pid` centralizes per-app paste strategy; native apps that ignore `CGEventPostToPid` (Messages) receive session-tap Cmd+V when frontmost; AX focus search ranks text fields above scroll areas.
+- **Clipboard monitor** — reads the pasteboard only when content actually changes; identical payloads are not re-captured or re-emitted to the UI; `notify_history_cleared` on `clear_history` or deleting the last unpinned entry snapshots the current pasteboard hash (no instant re-insert of stale clipboard content) while still allowing re-capture after a new copy; dedup uses the stored entry hash, not probe-only; Finder file paths prefer native `NSFilenamesPboardType` with arboard fallback.
+- **Paste pipeline** — Enter in the main window activates an entry the same way as double-click (text and images); panel plays a close animation before native hide; automated paste is deferred until hide completes (`PENDING_PASTE_AFTER_HIDE`) so focus returns to the target app first; voice transcription uses the same automated paste path; `try_ax_paste_for_pid` centralizes per-app paste strategy; native apps that ignore `CGEventPostToPid` (Messages) receive session-tap Cmd+V when frontmost; AX focus search ranks text fields above scroll areas; `finalize_panel_hide` shared by `hide_main_window` and opening Settings while the overlay is visible.
 - **Overlay keyboard selection** — opening the panel or changing search, collection, or tag filters selects the first (newest) entry; `Cmd+Shift+V` then `Enter` pastes the latest item without an extra arrow key; mouse hover highlighting stays separate from keyboard selection.
-- **Overlay search field** — in Tab order (no `tabindex="-1"`); clear button; `:focus-within` ring aligned with Settings; `role="search"` and `aria-label`; `focus()`, `blur()`, and `isFocused()` exported for panel shortcuts.
+- **Overlay search field** — in Tab order (no `tabindex="-1"`); clear button; `:focus-within` ring aligned with Settings; `role="search"` and `aria-label`; `focus()`, `blur()`, and `isFocused()` exported for panel shortcuts; search fetches use a generation token so overlapping reloads cannot show stale results.
+- **Overlay search catalog** — `catalogEntries` keeps the filter bar and panel height stable while search narrows the card list (`layoutEntries` in `buildTagBarModel`).
 - **Overlay arrow keys** — `←/→` always navigate cards, including when the search field is focused (Spotlight-style; left/right do not move the text cursor).
 - **Overlay empty states** — contextual messages for search, tag, content-kind, and format filters (including combined filters) with secondary hints and `role="status"`.
 - **Overlay panel motion** — Raycast-style asymmetric open/close via motion tokens; slide with `translate3d` (no scale); native hide waits for frontend close animation (`window-hide-request` → `hide_main_window` after `transitionend` or fallback timeout).
@@ -56,9 +59,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Overlay tag filter bar** — two-row HIG layout replaces the single-row top-8 tag list; progressive disclosure (content-kind segments only when AI tagging is on and history mixes text and images; tag bar stays visible on empty filter results); 12px chips; format vs semantic styling; unified accent active state; vertical divider between chip groups; content-kind-aware chip sets.
 - **Overlay card preview typography** — SF Pro for plain text previews; SF Mono only for code-like entries (`textKind`).
 - **Image history cards** — footer format tags removed; redundant «Image preview» label replaced with dimensions and file size; native `title` tooltip removed from cards.
-- **HIG audit (overlay)** — tag bar scroll affordances, preview typography, image meta labels, and card tooltip removal marked complete in `docs/plans/02-hig-audit.md`.
+- **HIG accessibility pass** — removed global `outline: none`; `:focus-visible` rings on clipboard cards and collection tabs; brighter `--color-text-subtle` / `--color-text-faint` plus `prefers-contrast: more`; `prefers-reduced-transparency` opaque surface fallbacks and disabled panel blur; text-control focus tokens (rest → hover → pointer focus → keyboard focus).
+- **Content kind segment** — `role="group"` with `aria-pressed` toggle buttons (Tab visits every segment; `←/→` stay reserved for card navigation).
+- **Collection tabs** — custom collections use native `<button>` elements (Space and Enter); delete control is a sibling button with `aria-label`, not nested inside the tab.
+- **Voice HUD baseline a11y** — `role="status"` + `aria-live="polite"` with sr-only «Recording voice»; decorative meter content stays `aria-hidden` (full SR lifecycle deferred to plan 04).
+- **Settings custom Ollama model** — associated `<label>` when the Custom preset is selected.
+- **HIG audit (overlay)** — tag bar scroll affordances, preview typography, image meta labels, focus rings, contrast/transparency, form focus modality, and card tooltip removal marked complete or partial in `docs/plans/02-hig-audit.md`.
 - **Reduce Motion** — panel transitions, card hover lift, copied-feedback scale, voice HUD mic pulse and EQ wobble, status-dot pulse, button spinner, and Settings toggle slider respect `prefers-reduced-motion`.
-- **Clipboard card actions** — Copy / Retag / Pin / Delete visible when the card is keyboard-selected or `:focus-within`, not only on hover; `aria-label` replaces `title` tooltips on action buttons.
+- **Reduce Transparency** — overlay panel, voice HUD, and copied overlay disable `backdrop-filter` when `prefers-reduced-transparency` is on; opaque surface tokens in `tokens.css`.
+- **Clipboard card actions** — Copy / Retag / Pin / Delete visible when the card is keyboard-selected or `:focus-within`, not only on hover; `aria-label` replaces `title` tooltips on action buttons; single-click copy announces «Copied to clipboard» via a screen-reader live region.
 - **Accessibility in Settings** — silent checks vs macOS trust dialog are separated; one prompt per Settings visit; live AX probe; **Recheck** confirms when access is still valid; guidance after rebuild or reinstall; `open_accessibility_settings` IPC from Settings.
 - **Settings window** — native title bar (draggable again) with a custom header drag region.
 - **Voice overlay** — pre-created NSPanel with non-activating behavior so showing the overlay no longer steals focus from the target app; audio level meter uses a logarithmic dB scale for quiet laptop mics.
@@ -110,11 +119,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Clipboard self-capture** — clipboard monitor skips capture when Copyosity is frontmost, even when the source bundle ID is unavailable in the pasteboard read path.
 - **Tag-filter empty state** — filtering by tag or format without a search query shows filter-specific copy instead of a misleading search message.
 - **Paste focus race on activate** — Enter and double-click no longer hide the panel from the frontend before paste; automated paste runs only after the close animation and native hide complete.
+- **Opening Settings with overlay visible** — always-on-top panel is hidden via `finalize_panel_hide` so Settings receives hover, pointer cursor, and focus rings; deferred paste-after-hide still runs when activating an entry.
+- **Finder image capture** — PNG/JPG/JPEG/GIF copied in Finder are stored as image cards (not filename-only text); failed file encode no longer falls through to `get_text()`; probe vs stored-hash mismatch no longer blocks the first copy or requires copying another item first.
+- **History clear / delete last card** — clearing history or deleting the last unpinned entry no longer loops re-inserting whatever remains on the system clipboard; re-copying the same file after clear/delete adds it back correctly.
+- **Clipboard card timers** — click debounce and copied-feedback timeouts clear on unmount.
 - **Invisible cards on panel open** — removed per-card stagger enter animation that could leave cards at `opacity: 0` in WebKit; panel slide now carries open/close motion.
 
 ### Dependencies
 
-- **Frontend** — `@sveltejs/kit` 2.63, `svelte` 5.56.2, `svelte-check` 4.6.
+- **Frontend** — `@sveltejs/kit` 2.63, `svelte` 5.56.2, `svelte-check` 4.6; dev dependency `@types/node` for `tsconfig` `node` types.
 - **Tauri** — synced npm (`@tauri-apps/api` 2.11, `@tauri-apps/cli` 2.11) and Rust (`tauri` 2.11); `tauri-plugin-opener` 2.5.4, `global-shortcut` 2.3.2, `sql` 2.4.0.
 - **macOS** — `objc2`, `objc2-app-kit`, `objc2-foundation` (`NSData` for GIF pasteboard writes).
 

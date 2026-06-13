@@ -3,8 +3,17 @@ use image::{DynamicImage, GenericImageView, ImageBuffer, ImageFormat, Rgba};
 use sha2::{Digest, Sha256};
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager};
+
+/// Bumped when history is cleared so the monitor can recapture clipboard content
+/// whose hash is still in `last_content_hash` but no longer in the database.
+static HISTORY_CLEAR_EPOCH: AtomicU64 = AtomicU64::new(0);
+
+pub fn notify_history_cleared() {
+    HISTORY_CLEAR_EPOCH.fetch_add(1, Ordering::Release);
+}
 
 use crate::db::{ClipboardEntry, Database};
 use crate::image_format;
@@ -69,6 +78,35 @@ fn is_image_path(path: &Path) -> bool {
         .and_then(|e| e.to_str())
         .map(|e| IMAGE_EXTENSIONS.contains(&e.to_ascii_lowercase().as_str()))
         .unwrap_or(false)
+}
+
+/// Single-line clipboard text that is only an image filename (Finder fallback label).
+fn is_probable_image_filename(text: &str) -> bool {
+    let trimmed = text.trim();
+    if trimmed.is_empty() || trimmed.contains('\n') || trimmed.contains('\r') {
+        return false;
+    }
+    is_image_path(Path::new(trimmed))
+}
+
+fn image_file_paths_from_clipboard(clipboard: &mut Clipboard) -> Vec<PathBuf> {
+    #[cfg(target_os = "macos")]
+    {
+        let native: Vec<PathBuf> = crate::clipboard_macos::pasteboard_file_paths()
+            .into_iter()
+            .filter(|p| is_image_path(p))
+            .collect();
+        if !native.is_empty() {
+            return native;
+        }
+    }
+
+    clipboard
+        .get()
+        .file_list()
+        .ok()
+        .map(|paths| paths.into_iter().filter(|p| is_image_path(p)).collect())
+        .unwrap_or_default()
 }
 
 fn encode_image_from_rgba(bytes: &[u8], width: usize, height: usize) -> Option<EncodedImage> {
@@ -163,12 +201,10 @@ pub fn probe_clipboard_hash(clipboard: &mut Clipboard) -> Option<String> {
         return Some(hash_bytes(&gif_bytes));
     }
 
-    if let Ok(paths) = clipboard.get().file_list() {
-        let image_paths: Vec<PathBuf> = paths.into_iter().filter(|p| is_image_path(p)).collect();
-        for path in image_paths {
-            if let Some(hash) = hash_file_image(&path) {
-                return Some(hash);
-            }
+    let image_paths = image_file_paths_from_clipboard(clipboard);
+    for path in &image_paths {
+        if let Some(hash) = hash_file_image(path) {
+            return Some(hash);
         }
     }
 
@@ -214,9 +250,9 @@ impl CaptureContext {
         source_bundle_id: Option<String>,
         source_app: Option<String>,
         format_hint: Option<&str>,
-    ) -> bool {
+    ) -> Option<String> {
         if should_skip_source(&self.db, &source_bundle_id) {
-            return false;
+            return None;
         }
 
         let content_hash = entry_content_hash(&base_hash);
@@ -233,7 +269,7 @@ impl CaptureContext {
             image_thumb: Some(encoded.thumb_b64),
             source_app,
             source_app_icon: None,
-            content_hash,
+            content_hash: content_hash.clone(),
             char_count: None,
             created_at: chrono::Utc::now().to_rfc3339(),
             is_pinned: false,
@@ -254,9 +290,9 @@ impl CaptureContext {
                     saved.image_data = None;
                     let _ = self.app.emit("clipboard-changed", &saved);
                 }
-                true
+                Some(content_hash)
             }
-            Err(_) => false,
+            Err(_) => None,
         }
     }
 
@@ -266,9 +302,9 @@ impl CaptureContext {
         base_hash: String,
         source_bundle_id: Option<String>,
         source_app: Option<String>,
-    ) -> bool {
+    ) -> Option<String> {
         if should_skip_source(&self.db, &source_bundle_id) {
-            return false;
+            return None;
         }
 
         let content_hash = entry_content_hash(&base_hash);
@@ -281,7 +317,7 @@ impl CaptureContext {
             image_thumb: None,
             source_app,
             source_app_icon: None,
-            content_hash,
+            content_hash: content_hash.clone(),
             char_count: Some(text.len() as i64),
             created_at: chrono::Utc::now().to_rfc3339(),
             is_pinned: false,
@@ -315,14 +351,14 @@ impl CaptureContext {
                         }
                     });
                 }
-                true
+                Some(content_hash)
             }
-            Err(_) => false,
+            Err(_) => None,
         }
     }
 }
 
-fn try_capture_from_clipboard(clipboard: &mut Clipboard, ctx: &CaptureContext) -> bool {
+fn try_capture_from_clipboard(clipboard: &mut Clipboard, ctx: &CaptureContext) -> Option<String> {
     let source = crate::macos_app::frontmost_app_identity();
     let source_bundle_id = source.as_ref().map(|app| app.bundle_id.clone());
     let source_app = source.map(|app| app.display_name);
@@ -343,30 +379,29 @@ fn try_capture_from_clipboard(clipboard: &mut Clipboard, ctx: &CaptureContext) -
 
     // 2. Copied files (Finder, Desktop) — read real pixels from disk.
     //    Must run before get_image(): macOS also puts a generic file-icon TIFF on the pasteboard.
-    if let Ok(paths) = clipboard.get().file_list() {
-        let image_paths: Vec<PathBuf> = paths.into_iter().filter(|p| is_image_path(p)).collect();
-        if !image_paths.is_empty() {
-            let mut captured = false;
-            for path in image_paths {
-                let Some(base_hash) = hash_file_image(&path) else {
-                    continue;
-                };
-                let Some(encoded) = encode_image_file(&path) else {
-                    continue;
-                };
-                let format = image_format::detect_from_path(&path);
-                captured |= ctx.try_image(
-                    encoded,
-                    base_hash,
-                    source_bundle_id.clone(),
-                    source_app.clone(),
-                    Some(format),
-                );
-            }
-            if captured {
-                return true;
+    let image_paths = image_file_paths_from_clipboard(clipboard);
+    if !image_paths.is_empty() {
+        let mut stored_hash = None;
+        for path in image_paths {
+            let Some(base_hash) = hash_file_image(&path) else {
+                continue;
+            };
+            let Some(encoded) = encode_image_file(&path) else {
+                continue;
+            };
+            let format = image_format::detect_from_path(&path);
+            if let Some(hash) = ctx.try_image(
+                encoded,
+                base_hash,
+                source_bundle_id.clone(),
+                source_app.clone(),
+                Some(format),
+            ) {
+                stored_hash = Some(hash);
             }
         }
+        // Never fall through to text when the pasteboard advertises image files.
+        return stored_hash;
     }
 
     // 3. Raster image (screenshot to clipboard, Copy Image, etc.)
@@ -387,22 +422,26 @@ fn try_capture_from_clipboard(clipboard: &mut Clipboard, ctx: &CaptureContext) -
         }
     }
 
-    // 4. Plain text
+    // 4. Plain text — skip Finder filename stubs when image paths were unavailable.
     if let Ok(text) = clipboard.get_text() {
         if text.is_empty() {
-            return false;
+            return None;
+        }
+        if is_probable_image_filename(&text) {
+            return None;
         }
         let base_hash = hash_bytes(text.as_bytes());
         return ctx.try_text(text, base_hash, source_bundle_id, source_app);
     }
 
-    false
+    None
 }
 
 /// Capture-retry state for the clipboard monitor loop.
 struct CaptureRetryState {
     last_content_hash: String,
     capture_pending: bool,
+    history_epoch: u64,
 }
 
 impl CaptureRetryState {
@@ -410,15 +449,33 @@ impl CaptureRetryState {
         Self {
             last_content_hash: String::new(),
             capture_pending: false,
+            history_epoch: HISTORY_CLEAR_EPOCH.load(Ordering::Acquire),
         }
+    }
+
+    /// After history clear or deleting the last unpinned entry: snapshot the current
+    /// pasteboard hash so stale clipboard content is not re-inserted until the user
+    /// copies again (pasteboard changeCount bump).
+    fn sync_history_clear(&mut self, current_probe: Option<&String>) {
+        let epoch = HISTORY_CLEAR_EPOCH.load(Ordering::Acquire);
+        if epoch == self.history_epoch {
+            return;
+        }
+        self.history_epoch = epoch;
+        self.last_content_hash = current_probe.cloned().unwrap_or_default();
+        self.capture_pending = false;
     }
 
     /// One capture attempt after pasteboard change (when `capture_pending` is true).
     /// On failure (e.g. GIF encode error), keeps `capture_pending` so the next tick retries
     /// without advancing `last_content_hash` (hash poisoning fix).
-    fn attempt_capture<F>(&mut self, probe_hash: Option<String>, try_capture: F)
-    where
-        F: FnOnce() -> bool,
+    fn attempt_capture<F>(
+        &mut self,
+        probe_hash: Option<String>,
+        hash_in_db: bool,
+        try_capture: F,
+    ) where
+        F: FnOnce() -> Option<String>,
     {
         if !self.capture_pending {
             return;
@@ -428,13 +485,13 @@ impl CaptureRetryState {
             self.capture_pending = false;
             return;
         };
-        if probe_hash == self.last_content_hash {
+        if probe_hash == self.last_content_hash && hash_in_db {
             self.capture_pending = false;
             return;
         }
 
-        if try_capture() {
-            self.last_content_hash = probe_hash;
+        if let Some(captured_hash) = try_capture() {
+            self.last_content_hash = captured_hash;
             self.capture_pending = false;
         }
     }
@@ -451,6 +508,9 @@ pub fn start_clipboard_monitor(app: AppHandle) {
 
         loop {
             std::thread::sleep(std::time::Duration::from_millis(300));
+
+            let probe_hash = probe_clipboard_hash(&mut clipboard);
+            state.sync_history_clear(probe_hash.as_ref());
 
             #[cfg(target_os = "macos")]
             {
@@ -472,14 +532,20 @@ pub fn start_clipboard_monitor(app: AppHandle) {
                 state.capture_pending = true;
             }
 
+            let hash_in_db = match (&probe_hash, state.capture_pending) {
+                (Some(h), true) if h == &state.last_content_hash => db
+                    .has_entry_with_content_hash(h)
+                    .unwrap_or(false),
+                _ => false,
+            };
+
             let ctx = CaptureContext {
                 app: app.clone(),
                 db: db.clone(),
             };
-            state.attempt_capture(
-                probe_clipboard_hash(&mut clipboard),
-                || try_capture_from_clipboard(&mut clipboard, &ctx),
-            );
+            state.attempt_capture(probe_hash, hash_in_db, || {
+                try_capture_from_clipboard(&mut clipboard, &ctx)
+            });
         }
     });
 }
@@ -587,8 +653,8 @@ mod tests {
         state.capture_pending = true;
         let probe = "gif-encode-failed-hash";
 
-        // Simulates try_capture_from_clipboard returning false (e.g. failed GIF encode).
-        state.attempt_capture(Some(probe.to_string()), || false);
+        // Simulates try_capture_from_clipboard returning None (e.g. failed GIF encode).
+        state.attempt_capture(Some(probe.to_string()), false, || None);
 
         assert!(
             state.capture_pending,
@@ -601,15 +667,98 @@ mod tests {
     }
 
     #[test]
+    fn history_clear_snapshots_clipboard_without_auto_capture() {
+        let mut state = CaptureRetryState::new();
+        let probe = "finder-jpg-hash";
+
+        state.capture_pending = true;
+        state.attempt_capture(Some(probe.to_string()), false, || Some(probe.to_string()));
+        assert_eq!(state.last_content_hash, probe);
+
+        notify_history_cleared();
+        state.sync_history_clear(Some(&probe.to_string()));
+        assert!(!state.capture_pending, "must not auto-recapture stale clipboard");
+        assert_eq!(state.last_content_hash, probe);
+
+        let mut captured = false;
+        state.attempt_capture(Some(probe.to_string()), false, || {
+            captured = true;
+            Some(probe.to_string())
+        });
+        assert!(!captured, "no pasteboard change yet");
+    }
+
+    #[test]
+    fn history_clear_allows_recapture_after_new_copy() {
+        let mut state = CaptureRetryState::new();
+        let probe = "finder-gif-hash";
+
+        state.capture_pending = true;
+        state.attempt_capture(Some(probe.to_string()), false, || Some(probe.to_string()));
+        assert_eq!(state.last_content_hash, probe);
+
+        notify_history_cleared();
+        state.sync_history_clear(Some(&probe.to_string()));
+
+        // User copies the same file again (pasteboard changeCount bumped).
+        state.capture_pending = true;
+        let mut captured = false;
+        state.attempt_capture(Some(probe.to_string()), false, || {
+            captured = true;
+            Some(probe.to_string())
+        });
+        assert!(captured);
+        assert_eq!(state.last_content_hash, probe);
+    }
+
+    #[test]
     fn successful_capture_clears_pending_and_updates_hash() {
         let mut state = CaptureRetryState::new();
         state.capture_pending = true;
         let probe = "captured-content-hash";
 
-        state.attempt_capture(Some(probe.to_string()), || true);
+        state.attempt_capture(Some(probe.to_string()), false, || Some(probe.to_string()));
 
         assert!(!state.capture_pending);
         assert_eq!(state.last_content_hash, probe);
+    }
+
+    #[test]
+    fn unchanged_clipboard_skipped_when_hash_already_in_db() {
+        let mut state = CaptureRetryState::new();
+        let probe = "existing-entry-hash";
+        state.last_content_hash = probe.to_string();
+        state.capture_pending = true;
+
+        let mut captured = false;
+        state.attempt_capture(Some(probe.to_string()), true, || {
+            captured = true;
+            Some(probe.to_string())
+        });
+
+        assert!(!captured);
+        assert!(!state.capture_pending);
+    }
+
+    #[test]
+    fn is_probable_image_filename_detects_basename_only() {
+        assert!(is_probable_image_filename("3.jpg"));
+        assert!(is_probable_image_filename("images 2.jpeg"));
+        assert!(!is_probable_image_filename("readme.txt"));
+        assert!(!is_probable_image_filename("line one\nline two"));
+    }
+
+    #[test]
+    fn successful_capture_uses_captured_hash_not_probe() {
+        let mut state = CaptureRetryState::new();
+        state.capture_pending = true;
+        let probe = "file-probe-hash";
+        let captured = "stored-content-hash";
+
+        state.attempt_capture(Some(probe.to_string()), false, || Some(captured.to_string()));
+
+        assert_eq!(state.last_content_hash, captured);
+        assert_ne!(state.last_content_hash, probe);
     }
 
     #[test]
@@ -619,16 +768,16 @@ mod tests {
         let probe = "retry-gif-hash";
         let mut attempts = 0;
 
-        state.attempt_capture(Some(probe.to_string()), || {
+        state.attempt_capture(Some(probe.to_string()), false, || {
             attempts += 1;
-            false
+            None
         });
         assert!(state.capture_pending);
         assert_eq!(attempts, 1);
 
-        state.attempt_capture(Some(probe.to_string()), || {
+        state.attempt_capture(Some(probe.to_string()), false, || {
             attempts += 1;
-            true
+            Some(probe.to_string())
         });
         assert!(!state.capture_pending);
         assert_eq!(state.last_content_hash, probe);

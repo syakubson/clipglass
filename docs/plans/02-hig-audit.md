@@ -43,13 +43,14 @@ flowchart TB
 ### P1 — Accessibility
 
 - [x] `[Overlay]` Search input в Tab order; focus ring через `:focus-within` на `.search-bar` (п. 4)
-- [ ] `[Overlay]` убрать global `outline: none`; `focus-visible` на карточки и non-button табы (п. 1)
+- [x] `[Overlay]` убрать global `outline: none`; `focus-visible` на карточки и non-button табы (п. 1)
 - [x] `[Overlay]` `card-actions` при `.selected` / `:focus-within`; `aria-label` на action buttons (п. 2)
 - [ ] `[Overlay]` hit targets 28px+ — search clear button (20px) и card action buttons (24px) (п. 3)
-- [ ] `[Shared]` Контраст `--color-text-subtle` / `--color-text-faint`; `prefers-contrast: more` (п. 5)
-- [ ] `[Shared]` `form-input` / `form-select`: `:focus-visible` вместо `:focus` (п. 23)
-- [ ] `[Settings]` Custom model input без связанного `<label>` при preset `__custom__` (п. 25)
-- [ ] `[Voice]` HUD полностью `aria-hidden` — нет live region для состояния записи (п. 31)
+- [x] `[Shared]` Контраст `--color-text-subtle` / `--color-text-faint`; `prefers-contrast: more` (п. 5)
+- [x] `[Shared]` `form-input` / `form-select`: pointer vs keyboard focus rings через `input-modality` (п. 23)
+- [x] `[Settings]` Custom model input без связанного `<label>` при preset `__custom__` (п. 25)
+- [x] `[Voice]` Baseline live region на HUD при записи (п. 31 — partial)
+- [ ] `[Voice]` Полный SR lifecycle (recording → processing → result) → [04-voice-hud-accessibility-full-cycle.md](04-voice-hud-accessibility-full-cycle.md)
 
 ### P2 — Native feel
 
@@ -66,7 +67,7 @@ flowchart TB
 - [ ] `[Overlay]` Delete undo / confirm (п. 12)
 - [ ] `[Settings]` Clear history без confirm / undo (п. 22)
 - [x] `[Shared]` `prefers-reduced-motion` — полное покрытие (п. 20)
-- [ ] `[Shared]` `prefers-reduced-transparency` — blur fallback (п. 6, 21)
+- [x] `[Shared]` `prefers-reduced-transparency` — blur fallback (п. 6, 21)
 - [x] `[Overlay]` Image meta labels (dimensions вместо «Image preview») (п. 17)
 - [ ] `[Shared]` Убрать дублирование `title` + `aria-label` на toggles и list actions (п. 24)
 
@@ -98,11 +99,9 @@ flowchart TB
 
 ## Clipboard overlay (п. 1–19)
 
-### 1. Глобальное отключение outline `[Overlay]`
+### ✅ 1. Глобальное отключение outline `[Overlay]`
 
-В `+page.svelte` на всех элементах `outline: none`. Карточки и div-табы коллекций не получают `:focus-visible`.
-
-**Рекомендация:** убрать глобальный reset; `focus-visible` ring на карточках, табах, search.
+Убран global `outline: none` в `+page.svelte`; `focus-visible` ring на карточках (`ClipboardCard`) и div-табах коллекций (`CollectionTabs`).
 
 ### ✅ 2. Действия карточки при keyboard selection `[Overlay]`
 
@@ -118,11 +117,11 @@ Search clear 20×20 px; card action buttons 24×24 px. HIG: 28×28 pt minimum.
 
 **Follow-up:** стрелки в search не двигают курсор — нужны keyboard hints (п. 19).
 
-### 5. Контраст вторичного текста `[Shared]` `[Overlay]`
+### ✅ 5. Контраст вторичного текста `[Shared]` `[Overlay]`
 
-`--color-text-subtle` / `--color-text-faint` на полупрозрачном фоне.
+`--color-text-subtle` / `--color-text-faint` осветлены; `@media (prefers-contrast: more)` в `tokens.css`.
 
-### 6. Material / Vibrancy `[Overlay]` `[Voice]` `[Shared]`
+### ✅ 6. Material / Vibrancy `[Overlay]` `[Voice]` `[Shared]`
 
 | Слой | Файл | Blur |
 | ---- | ---- | ---- |
@@ -130,7 +129,7 @@ Search clear 20×20 px; card action buttons 24×24 px. HIG: 28×28 pt minimum.
 | Voice HUD | `overlay/+page.svelte` | 12px |
 | Copied overlay | `ClipboardCard.svelte` | 6px |
 
-Settings (`--surface-page` 96% opaque) менее критичен. См. п. 21, 32.
+`prefers-reduced-transparency`: opaque token fallback, blur off. Settings (`--surface-page` 96% opaque) менее критичен.
 
 ### 7. Только Dark `[Shared]`
 
@@ -204,18 +203,9 @@ Footer shortcut strip + контекстный hint в search при focus (`←
 | Card hover | `ClipboardCard.svelte` | без `translateY` |
 | Copied feedback | `ClipboardCard.svelte` | fade вместо scale |
 
-### 21. `prefers-reduced-transparency` `[Shared]`
+### ✅ 21. `prefers-reduced-transparency` `[Shared]`
 
-```css
-@media (prefers-reduced-transparency: reduce) {
-  .app {
-    backdrop-filter: none;
-    background: var(--surface-app-opaque);
-  }
-}
-```
-
-**Файлы:** `+page.svelte`, `overlay/+page.svelte`, `ClipboardCard.svelte`, `tokens.css`.
+Opaque surface tokens в `tokens.css`; `backdrop-filter: none` в `+page.svelte`, `overlay/+page.svelte`, `ClipboardCard.svelte`.
 
 ---
 
@@ -227,11 +217,9 @@ Footer shortcut strip + контекстный hint в search при focus (`←
 
 **Рекомендация:** confirm dialog или «Cleared — Undo».
 
-### 23. Form controls: `:focus` vs `:focus-visible` `[Shared]`
+### ✅ 23. Form controls: pointer vs keyboard focus `[Shared]`
 
-`form-controls.css`: ring на `:focus`, не `:focus-visible` — ring появляется и при mouse click.
-
-**Рекомендация:** `:focus-visible` для inputs/selects; убрать outline на `:focus:not(:focus-visible)`.
+WebKit в Tauri часто показывает `:focus-visible` при клике мышью. Решение: `input-modality.ts` выставляет `data-input-modality` на `<html>`; `form-controls.css` даёт tight ring на `:focus`, а 3px keyboard halo — только при `[data-input-modality="keyboard"]`.
 
 ### 24. Дублирование `title` и `aria-label` `[Settings]` `[Overlay]`
 
@@ -239,9 +227,9 @@ Toggles, exclude list actions, overlay exclude button — `title` дублиру
 
 **Рекомендация:** оставить `aria-label`; убрать `title`.
 
-### 25. Custom model input `[Settings]`
+### ✅ 25. Custom model input `[Settings]`
 
-При `selectedModelPreset === "__custom__"` input без `<label>` / `aria-label` — только placeholder.
+При `__custom__` — `<label for="custom-ollama-model">` + связанный input.
 
 ### 26. Toggle styles локальны `[Settings]` `[Shared]`
 
@@ -267,15 +255,15 @@ Status steps соответствуют product policy в `CLAUDE.md`. Spinner /
 
 Reduce Motion: mic без pulse; bars — uniform height по level, без wobble/stagger/height transition (`motion.ts` + CSS).
 
-### 31. Accessibility при записи `[Voice]`
+### ~31. Accessibility при записи `[Voice]` (baseline)
 
-Весь HUD `aria-hidden="true"`. Screen reader не получает сигнал о записи.
+**Сделано (baseline):** `role="status"` + `aria-live="polite"` на overlay root; декоративный контент в `aria-hidden` wrapper; sr-only «Recording voice».
 
-**Рекомендация:** `role="status"` + `aria-live="polite"` на overlay root.
+**Остаётся:** полный screen-reader lifecycle (повторные сессии, processing, terminal states) — [04-voice-hud-accessibility-full-cycle.md](04-voice-hud-accessibility-full-cycle.md) (источник истины для voice a11y).
 
-### 32. Blur без transparency fallback `[Voice]`
+### ✅ 32. Blur без transparency fallback `[Voice]`
 
-`backdrop-filter: blur(12px)` — см. п. 6, 21.
+`prefers-reduced-transparency` — см. п. 6, 21.
 
 ---
 
@@ -306,7 +294,7 @@ flowchart LR
 
 | Приоритет | Задачи | Файлы |
 | --------- | ------ | ----- |
-| **P1** | Focus visible, card actions, contrast, form focus-visible, voice a11y | overlay components, `form-controls.css`, `overlay/+page.svelte` |
+| **P1** | Focus visible, card actions, contrast, form focus-visible, voice a11y baseline | overlay components, `form-controls.css`, `overlay/+page.svelte` |
 | **P2** | Keyboard hints, segmented tabs, font by type, toggle in form-controls | overlay components, `settings/+page.svelte` |
 | **P3** | Delete/clear undo, tooltips, image meta, transparency, light mode | multiple |
 | **P4** | SF Symbols, VoiceOver, scroll affordances | multiple |

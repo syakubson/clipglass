@@ -163,10 +163,26 @@
     border-color: var(--border-strong);
   }
 
-  .tag-chip-reset.active {
+  .tag-chip.active {
     background: var(--surface-accent);
     border-color: var(--border-accent-soft);
     color: var(--color-accent-chip);
+  }
+
+  .tag-chip.active:hover:not(:disabled):not([aria-busy="true"]) {
+    background: var(--surface-accent-hover);
+    border-color: var(--border-accent-medium);
+    color: var(--color-accent-chip);
+  }
+
+  .tag-chip.active .tag-count,
+  .tag-chip.active:hover .tag-count {
+    background: rgb(var(--rgb-accent) / 0.28);
+    color: var(--color-accent-chip);
+  }
+
+  .tag-chip.active:hover .tag-count {
+    background: rgb(var(--rgb-accent) / 0.36);
   }
 
   .tag-chip-format {
@@ -183,19 +199,8 @@
     color: var(--color-text-body);
   }
 
-  .tag-chip-format.active {
-    background: var(--surface-accent);
-    border-color: var(--border-accent-soft);
-    color: var(--color-accent-chip);
-  }
-
   .tag-chip-format.active .format-icon {
     opacity: 1;
-  }
-
-  .tag-chip-format.active .tag-count {
-    background: rgb(var(--rgb-accent) / 0.28);
-    color: var(--color-accent-chip);
   }
 
   .tag-chip-semantic {
@@ -207,17 +212,6 @@
   .tag-chip-semantic:hover:not(:disabled):not([aria-busy="true"]) {
     background: var(--surface-7);
     border-color: var(--border-strong);
-  }
-
-  .tag-chip-semantic.active {
-    background: var(--surface-accent);
-    border-color: var(--border-accent-soft);
-    color: var(--color-accent-chip);
-  }
-
-  .tag-chip-semantic.active .tag-count {
-    background: rgb(var(--rgb-accent) / 0.28);
-    color: var(--color-accent-chip);
   }
 
   .format-icon {

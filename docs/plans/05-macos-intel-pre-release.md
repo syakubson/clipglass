@@ -20,7 +20,7 @@
 
 ## Чеклист
 
-- [x] **Дедуп истории** — `content_hash` = только base hash; на macOS `last_content_hash` при смене `changeCount`; `mark_own` / `exclude` без изменений
+- [x] **Дедуп истории** — `content_hash` = только base hash; на macOS `last_content_hash` при смене `changeCount`; сброс hash при опустошении unpinned-истории; `mark_own` / `exclude` без изменений
 - [x] **Unit-тесты БД** — починить `update_settings`; тесты частичного update (Whisper/voice/mic не затираются)
 - [x] **Accessibility** — без prompt в `finish_paste`; `check_accessibility(prompt)` — prompt только с кнопки Request
 - [x] **clipboard_write unified** — Copy/Paste; voice, copy, activate, paste через один модуль
@@ -44,8 +44,9 @@
 1. `content_hash` = только **base_hash** (текст / raster / файл).
 2. При новом `changeCount` — probe hash контента; если совпадает с `last_content_hash` → не писать в БД.
 3. Сохранить `mark_own_clipboard_write`, `should_ignore_capture`, `is_concealed`.
+4. Сброс `last_content_hash` при опустошении unpinned-истории: `clear_history` и удаление последней unpinned записи (`notify_history_cleared`) — иначе повторное копирование того же файла после очистки не попадает в историю.
 
-**Тесты:** повторный `content_hash` → `insert_entry` возвращает `is_new == false`; при необходимости pure fn `content_probe_hash` для monitor.
+**Тесты:** повторный `content_hash` → `insert_entry` возвращает `is_new == false`; `history_clear_allows_recapture_of_same_hash`; `delete_last_unpinned_entry_reports_empty_history`.
 
 ---
 
@@ -105,7 +106,7 @@ Enter в [`+page.svelte`](../../src/routes/+page.svelte) — `activateEntry`; `p
 
 ## 6. Монитор: 300 ms + changeCount
 
-В [`clipboard_monitor.rs`](../../src-tauri/src/clipboard_monitor.rs): `sleep(300ms)`; `changeCount` = «буфер изменился»; дедуп через `last_content_hash`.
+В [`clipboard_monitor.rs`](../../src-tauri/src/clipboard_monitor.rs): `sleep(300ms)`; `changeCount` = «буфер изменился»; дедуп через `last_content_hash`; `notify_history_cleared` при `clear_history` и когда удалена последняя unpinned запись.
 
 ---
 

@@ -1,8 +1,9 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import type { ClipboardEntry } from "$lib/types";
   import { copyEntry, activateEntry, deleteEntry, pinEntry, retagEntry } from "$lib/api";
   import { cardDisplayTags } from "$lib/overlay-filters";
-  import { formatImageMeta } from "$lib/image-meta";
+  import { formatBytes, formatImageDimensions } from "$lib/image-meta";
 
   let {
     entry,
@@ -70,7 +71,45 @@
   }
 
   let copied = $state(false);
+  let copyAnnouncement = $state("");
   let clickTimer: ReturnType<typeof setTimeout> | undefined;
+  let copiedResetTimer: ReturnType<typeof setTimeout> | undefined;
+  let mounted = false;
+
+  onMount(() => {
+    mounted = true;
+    return () => {
+      mounted = false;
+      if (clickTimer !== undefined) {
+        clearTimeout(clickTimer);
+        clickTimer = undefined;
+      }
+      if (copiedResetTimer !== undefined) {
+        clearTimeout(copiedResetTimer);
+        copiedResetTimer = undefined;
+      }
+    };
+  });
+
+  function announceCopy() {
+    copyAnnouncement = "";
+    requestAnimationFrame(() => {
+      if (!mounted) return;
+      copyAnnouncement = "Copied to clipboard";
+    });
+  }
+
+  function showCopiedFeedback() {
+    if (!mounted) return;
+    copied = true;
+    announceCopy();
+    if (copiedResetTimer !== undefined) clearTimeout(copiedResetTimer);
+    copiedResetTimer = setTimeout(() => {
+      copiedResetTimer = undefined;
+      if (!mounted) return;
+      copied = false;
+    }, 800);
+  }
 
   function handleClick() {
     if (clickTimer) {
@@ -89,10 +128,8 @@
     if (copied) return;
     if (entry.content_type === "text" || entry.content_type === "image") {
       await copyEntry(entry.id);
-      copied = true;
-      setTimeout(() => {
-        copied = false;
-      }, 800);
+      if (!mounted) return;
+      showCopiedFeedback();
     }
   }
 
@@ -107,8 +144,8 @@
     e.stopPropagation();
     if (copied) return;
     await copyEntry(entry.id);
-    copied = true;
-    setTimeout(() => { copied = false; }, 800);
+    if (!mounted) return;
+    showCopiedFeedback();
   }
 
   async function handleDelete(e: MouseEvent) {
@@ -145,8 +182,13 @@
   let usesMonoPreview = $derived(MONO_TEXT_KINDS.has(textKind));
   let typeLabel = $derived(entry.content_type === "text" ? textKind : entry.content_type === "image" ? "Image" : "File");
   let imageFormat = $derived(entry.content_type === "image" ? entry.image_format : null);
-  let imageMetaLabel = $derived(
-    formatImageMeta(entry.image_width, entry.image_height, entry.image_byte_size),
+  let imageDimensions = $derived(
+    formatImageDimensions(entry.image_width, entry.image_height),
+  );
+  let imageByteSize = $derived(
+    entry.image_byte_size != null && entry.image_byte_size > 0
+      ? formatBytes(entry.image_byte_size)
+      : null,
   );
   let charLabel = $derived(entry.char_count ? `${entry.char_count.toLocaleString()} characters` : "");
   let tags = $derived(cardDisplayTags(entry, aiTaggingEnabled));
@@ -162,6 +204,7 @@
   role="button"
   tabindex="0"
 >
+  <span class="sr-only" role="status" aria-live="polite">{copyAnnouncement}</span>
   <div class="card-header">
     <div class="card-type">
       <span class="type-label">
@@ -218,9 +261,19 @@
         {:else}
           <div class="image-placeholder">Image</div>
         {/if}
-        <div class="image-meta">
-          {imageMetaLabel}
-        </div>
+        {#if imageDimensions || imageByteSize}
+          <div class="image-meta">
+            {#if imageDimensions}
+              <span class="image-meta-dimensions">{imageDimensions}</span>
+            {/if}
+            {#if imageDimensions && imageByteSize}
+              <span class="image-meta-sep" aria-hidden="true"> · </span>
+            {/if}
+            {#if imageByteSize}
+              <span class="image-meta-size">{imageByteSize}</span>
+            {/if}
+          </div>
+        {/if}
       </div>
     {/if}
   </div>
@@ -298,6 +351,12 @@
     .card:hover {
       transform: none;
     }
+  }
+
+  .card:focus-visible {
+    outline: none;
+    border-color: var(--border-accent-ring);
+    box-shadow: 0 0 0 2px var(--shadow-accent-selected);
   }
 
   .card.selected {
@@ -474,11 +533,22 @@
   .image-meta {
     padding: 7px 10px;
     background: var(--surface-3);
-    border: 1px solid var(--border-default);
     border-radius: 10px;
-    color: var(--color-text-body);
-    font-size: 11px;
-    line-height: 1.45;
+    font-size: 12px;
+    line-height: 1.5;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .image-meta-dimensions {
+    color: var(--color-text-label-strong);
+  }
+
+  .image-meta-sep {
+    color: var(--color-text-faint);
+  }
+
+  .image-meta-size {
+    color: var(--color-text-subtle);
   }
 
   .card-footer {
@@ -537,6 +607,18 @@
     flex-shrink: 0;
   }
 
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
   .card.copied {
     border-color: var(--border-success);
     box-shadow: 0 0 0 2px var(--shadow-success);
@@ -586,6 +668,13 @@
     to {
       stroke-dasharray: 40;
       stroke-dashoffset: 0;
+    }
+  }
+
+  @media (prefers-reduced-transparency: reduce) {
+    .copied-overlay {
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
     }
   }
 

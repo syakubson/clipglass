@@ -48,8 +48,8 @@
   --color-text-label: #8f97aa;
   --color-text-label-muted: #7d8598;
   --color-text-muted: #888888;
-  --color-text-subtle: #666666;
-  --color-text-faint: #555555;
+  --color-text-subtle: #8a9199;
+  --color-text-faint: #757d8a;
   --color-text-disabled: #6b7280;
   --color-text-code: #c8cee0;
   --color-text-tab: #999999;
@@ -163,7 +163,14 @@
     rgb(var(--rgb-card-hover-bottom) / 0.92)
   );
   --surface-overlay: rgb(var(--rgb-overlay) / 0.88);
+  --surface-overlay-opaque: rgb(var(--rgb-overlay));
   --surface-voice: rgb(var(--rgb-voice-bg) / 0.88);
+  --surface-voice-opaque: rgb(var(--rgb-voice-bg));
+  --surface-app-opaque: linear-gradient(
+    180deg,
+    rgb(var(--rgb-app-bg-top)),
+    rgb(var(--rgb-app-bg-bottom))
+  );
   --surface-select-option: #23252c;
 
   /* ── Shadows ───────────────────────────────────────── */
@@ -173,6 +180,16 @@
   --shadow-inset-press: inset 0 1px 2px rgb(var(--rgb-black) / 0.2);
   --shadow-inset-highlight: inset 0 1px 0 rgb(var(--rgb-white) / 0.08);
   --shadow-toggle-knob: 0 1px 2px rgb(var(--rgb-black) / 0.28);
+
+  /* ── Text controls (rest → hover → focus → keyboard focus) ─ */
+  --surface-control: var(--surface-6);
+  --surface-control-hover: rgb(var(--rgb-white) / 0.075);
+  --surface-control-focus: rgb(var(--rgb-white) / 0.09);
+  --border-control: var(--border-medium);
+  --border-control-hover: rgb(var(--rgb-white) / 0.18);
+  --border-control-focus: rgb(var(--rgb-accent-border) / 0.38);
+  --border-control-focus-keyboard: var(--border-accent-hover);
+  --ring-control-focus: 0 0 0 1px rgb(var(--rgb-accent-border) / 0.28);
 
   /* ── Focus rings ───────────────────────────────────── */
   --ring-accent: 0 0 0 3px rgb(var(--rgb-accent-border) / 0.22);
@@ -248,6 +265,26 @@
 }
 
 /* Micro-interactions: instant color/border/opacity when Reduce Motion is on. */
+@media (prefers-contrast: more) {
+  :root {
+    --color-text-subtle: #a3abb8;
+    --color-text-faint: #949dad;
+    --border-control-hover: rgb(var(--rgb-white) / 0.24);
+    --border-control-focus: rgb(var(--rgb-accent-border) / 0.5);
+    --ring-control-focus: 0 0 0 1px rgb(var(--rgb-accent-border) / 0.4);
+    --ring-accent-input: 0 0 0 3px rgb(var(--rgb-accent-focus) / 0.28);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --surface-app: var(--surface-app-opaque);
+    --surface-voice: var(--surface-voice-opaque);
+    --surface-overlay: var(--surface-overlay-opaque);
+    --panel-blur-visible: 0px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   :root {
     --duration-fast: 0.01ms;

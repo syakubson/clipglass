@@ -55,17 +55,24 @@
   </button>
 
   {#each collections as col}
-    <div
-      class="tab"
-      class:active={activeId === col.id && !activePinned}
-      onclick={() => onselect?.(col.id)}
-      onkeydown={(e) => e.key === 'Enter' && onselect?.(col.id)}
-      role="button"
-      tabindex="0"
-    >
-      <span class="tab-dot" style:background={col.color ?? "var(--color-text-subtle)"}></span>
-      {col.name}
-      <button class="tab-delete app-btn" type="button" onclick={(e) => handleDelete(e, col.id)}>×</button>
+    <div class="tab-item">
+      <button
+        class="tab app-btn"
+        class:active={activeId === col.id && !activePinned}
+        type="button"
+        onclick={() => onselect?.(col.id)}
+      >
+        <span class="tab-dot" style:background={col.color ?? "var(--color-text-subtle)"}></span>
+        {col.name}
+      </button>
+      <button
+        class="tab-delete app-btn"
+        type="button"
+        aria-label="Delete collection {col.name}"
+        onclick={(e) => handleDelete(e, col.id)}
+      >
+        ×
+      </button>
     </div>
   {/each}
 
@@ -73,6 +80,7 @@
     <form class="add-form" onsubmit={(e) => { e.preventDefault(); handleAdd(); }}>
       <!-- svelte-ignore a11y_autofocus -->
       <input
+        class="form-input"
         bind:value={newName}
         placeholder="Name..."
         autofocus
@@ -96,6 +104,44 @@
 
   .tabs-container::-webkit-scrollbar {
     display: none;
+  }
+
+  .tab-item {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  .tab-item .tab {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+    padding-right: 6px;
+  }
+
+  .tab-item .tab-delete {
+    align-self: stretch;
+    display: inline-flex;
+    align-items: center;
+    border: none;
+    border-top-right-radius: 6px;
+    border-bottom-right-radius: 6px;
+    padding: 0 6px;
+    margin-left: -2px;
+    background: none;
+    opacity: 0;
+  }
+
+  .tab-item:hover .tab-delete {
+    opacity: 1;
+    background: var(--surface-6);
+  }
+
+  .tab-item .tab.active + .tab-delete {
+    background: var(--surface-10);
+  }
+
+  .tab-item .tab.active:hover + .tab-delete {
+    background: var(--surface-10);
   }
 
   .tab {
@@ -127,6 +173,11 @@
     background: var(--surface-10);
   }
 
+  .tab:focus-visible {
+    outline: none;
+    box-shadow: var(--ring-accent);
+  }
+
   .tab-dot {
     width: 8px;
     height: 8px;
@@ -146,10 +197,6 @@
     transition: opacity var(--duration-fast) var(--ease-interactive);
   }
 
-  .tab:hover .tab-delete {
-    opacity: 1;
-  }
-
   .tab-delete:hover:not(:disabled):not([aria-busy="true"]) {
     color: var(--color-danger);
   }
@@ -159,15 +206,12 @@
     color: var(--color-text-subtle);
   }
 
-  .add-form input {
-    background: var(--surface-6);
-    border: 1px solid var(--border-input);
-    border-radius: 6px;
-    color: var(--color-text-body);
+  .add-form .form-input {
+    width: 120px;
+    min-height: 28px;
     padding: 4px 10px;
     font-size: 12px;
-    outline: none;
-    width: 120px;
-    font-family: inherit;
+    border-radius: 6px;
+    color: var(--color-text-body);
   }
 </style>

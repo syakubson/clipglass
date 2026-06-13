@@ -407,6 +407,18 @@ fn hide_panel(app: &tauri::AppHandle) {
     }
 }
 
+/// Hide the native panel and run any deferred paste (same path as `hide_main_window`).
+pub(crate) fn finalize_panel_hide(app: &tauri::AppHandle) {
+    PANEL_HIDE_SCHEDULED.store(true, Ordering::Release);
+    hide_panel(app);
+    PANEL_HIDE_SCHEDULED.store(false, Ordering::Release);
+
+    if PENDING_PASTE_AFTER_HIDE.swap(false, Ordering::AcqRel) {
+        #[cfg(target_os = "macos")]
+        crate::clipboard_macos::spawn_automated_paste(true);
+    }
+}
+
 fn main_panel_visible(app: &tauri::AppHandle) -> bool {
     #[cfg(target_os = "macos")]
     {

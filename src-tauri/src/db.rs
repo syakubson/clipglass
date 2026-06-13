@@ -560,10 +560,25 @@ impl Database {
         Ok(entries)
     }
 
-    pub fn delete_entry(&self, id: i64) -> Result<(), rusqlite::Error> {
+    pub fn has_entry_with_content_hash(&self, hash: &str) -> Result<bool, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+        let count: i64 = conn.query_row(
+            "SELECT COUNT(1) FROM clipboard_entries WHERE content_hash = ?1",
+            params![hash],
+            |row| row.get(0),
+        )?;
+        Ok(count > 0)
+    }
+
+    pub fn delete_entry(&self, id: i64) -> Result<bool, rusqlite::Error> {
         let conn = self.conn.lock().unwrap();
         conn.execute("DELETE FROM clipboard_entries WHERE id = ?1", params![id])?;
-        Ok(())
+        let unpinned_remaining: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM clipboard_entries WHERE is_pinned = 0",
+            [],
+            |row| row.get(0),
+        )?;
+        Ok(unpinned_remaining == 0)
     }
 
     pub fn pin_entry(&self, id: i64, pinned: bool) -> Result<(), rusqlite::Error> {
@@ -1067,6 +1082,16 @@ mod tests {
     }
 
     #[test]
+    fn has_entry_with_content_hash() {
+        let db = test_db();
+        assert!(!db.has_entry_with_content_hash("missing").unwrap());
+        let entry = make_entry("hello", "hash_lookup");
+        db.insert_entry(&entry).unwrap();
+        assert!(db.has_entry_with_content_hash("hash_lookup").unwrap());
+        assert!(!db.has_entry_with_content_hash("other").unwrap());
+    }
+
+    #[test]
     fn insert_duplicate_hash_returns_existing() {
         let db = test_db();
         let e1 = make_entry("hello", "hash_dup");
@@ -1325,8 +1350,24 @@ mod tests {
     fn delete_entry_removes_it() {
         let db = test_db();
         let (id, _) = db.insert_entry(&make_entry("to delete", "h1")).unwrap();
-        db.delete_entry(id).unwrap();
+        assert!(db.delete_entry(id).unwrap());
         assert!(db.get_entry_by_id(id).unwrap().is_none());
+    }
+
+    #[test]
+    fn delete_last_unpinned_entry_reports_empty_history() {
+        let db = test_db();
+        let (id, _) = db.insert_entry(&make_entry("only one", "h1")).unwrap();
+        assert!(db.delete_entry(id).unwrap());
+    }
+
+    #[test]
+    fn delete_last_unpinned_with_pinned_still_reports_empty_unpinned_pool() {
+        let db = test_db();
+        let (pinned_id, _) = db.insert_entry(&make_entry("pinned", "h1")).unwrap();
+        db.pin_entry(pinned_id, true).unwrap();
+        let (temp_id, _) = db.insert_entry(&make_entry("temp", "h2")).unwrap();
+        assert!(db.delete_entry(temp_id).unwrap());
     }
 
     #[test]

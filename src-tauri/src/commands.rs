@@ -5,9 +5,6 @@ use crate::db::{
 use crate::macos_app;
 use serde::{Deserialize, Serialize};
 
-#[cfg(not(target_os = "macos"))]
-fn simulate_paste() {}
-
 use crate::ollama;
 use arboard::{Clipboard, ImageData};
 use base64::Engine;
@@ -40,7 +37,11 @@ pub fn get_entries(
 
 #[tauri::command]
 pub fn delete_entry(db: State<'_, Arc<Database>>, id: i64) -> Result<(), String> {
-    db.delete_entry(id).map_err(|e| e.to_string())
+    let emptied = db.delete_entry(id).map_err(|e| e.to_string())?;
+    if emptied {
+        crate::clipboard_monitor::notify_history_cleared();
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -80,7 +81,9 @@ pub fn delete_collection(db: State<'_, Arc<Database>>, id: i64) -> Result<(), St
 
 #[tauri::command]
 pub fn clear_history(db: State<'_, Arc<Database>>) -> Result<(), String> {
-    db.clear_history().map_err(|e| e.to_string())
+    db.clear_history().map_err(|e| e.to_string())?;
+    crate::clipboard_monitor::notify_history_cleared();
+    Ok(())
 }
 
 #[tauri::command]
@@ -95,17 +98,7 @@ pub fn resize_main_window(window: tauri::WebviewWindow, height: f64) -> Result<(
 #[tauri::command]
 pub fn hide_main_window(app: tauri::AppHandle) -> Result<(), String> {
     // Frontend played close motion; hide native panel on the main thread.
-    crate::PANEL_HIDE_SCHEDULED.store(true, Ordering::Release);
-    crate::hide_panel(&app);
-    crate::PANEL_HIDE_SCHEDULED.store(false, Ordering::Release);
-
-    if crate::PENDING_PASTE_AFTER_HIDE.swap(false, Ordering::AcqRel) {
-        #[cfg(target_os = "macos")]
-        crate::clipboard_macos::spawn_automated_paste(true);
-        #[cfg(not(target_os = "macos"))]
-        simulate_paste();
-    }
-
+    crate::finalize_panel_hide(&app);
     Ok(())
 }
 
@@ -124,6 +117,13 @@ fn activate_for_settings_window() {
 pub fn open_settings_window(app: tauri::AppHandle) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     crate::clipboard_macos::remember_paste_target();
+
+    // The clipboard panel is always-on-top; if it stays visible, macOS delivers mouse
+    // events to the panel instead of settings — no hover, pointer cursor, or focus rings.
+    if crate::main_panel_visible(&app) {
+        crate::PANEL_HIDE_SCHEDULED.store(false, Ordering::Release);
+        crate::finalize_panel_hide(&app);
+    }
 
     // If settings window already exists, just focus it
     if let Some(window) = app.get_webview_window("settings") {

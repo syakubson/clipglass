@@ -34,7 +34,7 @@
   }
 </script>
 
-<div class="search-bar" role="search">
+<div class="search-bar text-control-host" role="search">
   <svg
     class="search-icon"
     width="16"
@@ -91,22 +91,9 @@
     align-items: center;
     gap: 8px;
     padding: 6px 10px 6px 12px;
-    background: var(--surface-6);
-    border: 1px solid var(--border-medium);
     border-radius: 8px;
     width: 280px;
     flex: 0 0 280px;
-    box-sizing: border-box;
-    transition:
-      border-color var(--duration-fast) var(--ease-interactive),
-      background var(--duration-fast) var(--ease-interactive),
-      box-shadow var(--duration-fast) var(--ease-interactive);
-  }
-
-  .search-bar:focus-within {
-    border-color: var(--border-accent-hover);
-    box-shadow: var(--ring-accent-input);
-    background: var(--surface-8);
   }
 
   .search-icon {

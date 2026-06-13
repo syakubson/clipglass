@@ -106,33 +106,42 @@ export function hasImageEntries(entries: ClipboardEntry[]): boolean {
   return entries.some((entry) => entry.content_type === "image");
 }
 
-export function buildTagBarModel(options: {
-  entries: ClipboardEntry[];
+type TagBarChips = Pick<TagBarModel, "formatChips" | "semanticChips" | "resetLabel"> & {
+  hasChips: boolean;
+};
+
+function tagBarChipsForPool(options: {
+  pool: ClipboardEntry[];
   contentKind: ContentKind;
   aiTaggingEnabled: boolean;
-  activeTag?: string | null;
-}): TagBarModel {
-  const { entries, contentKind, aiTaggingEnabled, activeTag = null } = options;
-
-  const textAvailable = hasTextEntries(entries);
-  const imagesAvailable = hasImageEntries(entries);
-  const showRowA = aiTaggingEnabled && textAvailable && imagesAvailable;
+  showRowA: boolean;
+  textAvailable: boolean;
+  imagesAvailable: boolean;
+}): TagBarChips {
+  const {
+    pool,
+    contentKind,
+    aiTaggingEnabled,
+    showRowA,
+    textAvailable,
+    imagesAvailable,
+  } = options;
   const kindFilterActive = aiTaggingEnabled && showRowA;
-  const kindPool = filterKindPool(entries, kindFilterActive, contentKind);
+  const kindPool = filterKindPool(pool, kindFilterActive, contentKind);
 
   let formatChips: TagChip[] = [];
   let semanticChips: TagChip[] = [];
   let resetLabel = "All tags";
 
   if (!aiTaggingEnabled) {
-    formatChips = countFormatTags(entries);
+    formatChips = countFormatTags(pool);
     resetLabel = "All formats";
   } else if (!showRowA) {
     if (imagesAvailable && !textAvailable) {
-      formatChips = countFormatTags(entries);
+      formatChips = countFormatTags(pool);
       resetLabel = "All formats";
     } else if (textAvailable) {
-      semanticChips = countSemanticTags(entries, true);
+      semanticChips = countSemanticTags(pool, true);
       resetLabel = "All tags";
     }
   } else if (contentKind === "text") {
@@ -147,29 +156,64 @@ export function buildTagBarModel(options: {
     resetLabel = "All tags";
   }
 
+  return {
+    formatChips,
+    semanticChips,
+    resetLabel,
+    hasChips: formatChips.length > 0 || semanticChips.length > 0,
+  };
+}
+
+export function buildTagBarModel(options: {
+  entries: ClipboardEntry[];
+  /** Unfiltered pool for row visibility when search narrows `entries` to zero. */
+  layoutEntries?: ClipboardEntry[];
+  contentKind: ContentKind;
+  aiTaggingEnabled: boolean;
+  activeTag?: string | null;
+}): TagBarModel {
+  const { entries, contentKind, aiTaggingEnabled, activeTag = null } = options;
+  const layoutPool = options.layoutEntries ?? entries;
+
+  const textAvailable = hasTextEntries(layoutPool);
+  const imagesAvailable = hasImageEntries(layoutPool);
+  const showRowA = aiTaggingEnabled && textAvailable && imagesAvailable;
+
+  const chipOptions = {
+    contentKind,
+    aiTaggingEnabled,
+    showRowA,
+    textAvailable,
+    imagesAvailable,
+  };
+  const display = tagBarChipsForPool({ pool: entries, ...chipOptions });
+  const layout = tagBarChipsForPool({ pool: layoutPool, ...chipOptions });
+
   const showDivider =
     showRowA &&
     contentKind === "all" &&
-    formatChips.length > 0 &&
-    semanticChips.length > 0;
+    display.formatChips.length > 0 &&
+    display.semanticChips.length > 0;
 
-  const hasChips = formatChips.length > 0 || semanticChips.length > 0;
   const stickyActiveTag =
     activeTag !== null &&
     (isFormatTag(activeTag)
       ? imagesAvailable
       : aiTaggingEnabled && textAvailable);
-  const stickySegment =
-    showRowA && contentKind !== "all";
+  const stickySegment = showRowA && contentKind !== "all";
 
-  const showRowB = hasChips || stickyActiveTag || stickySegment;
+  const showRowB =
+    display.hasChips ||
+    layout.hasChips ||
+    stickyActiveTag ||
+    stickySegment;
 
   return {
     showRowA,
     showRowB,
-    resetLabel,
-    formatChips,
-    semanticChips,
+    resetLabel: display.resetLabel,
+    formatChips: display.formatChips,
+    semanticChips: display.semanticChips,
     showDivider,
   };
 }

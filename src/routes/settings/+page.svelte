@@ -809,7 +809,9 @@
         <option value="__custom__">Custom model</option>
       </select>
       {#if selectedModelPreset === "__custom__"}
+        <label class="form-label" for="custom-ollama-model">Model name</label>
         <input
+          id="custom-ollama-model"
           class="form-input"
           type="text"
           bind:value={settings.ollama_model}

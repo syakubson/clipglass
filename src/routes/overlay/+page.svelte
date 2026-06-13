@@ -31,9 +31,10 @@
   });
 </script>
 
-<div class="overlay">
-  <div class="content">
-    <div class="mic-icon" aria-hidden="true">
+<div class="overlay" role="status" aria-live="polite" aria-atomic="true">
+  <span class="sr-only">Recording voice</span>
+  <div class="content" aria-hidden="true">
+    <div class="mic-icon">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
         <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
@@ -41,7 +42,7 @@
         <line x1="8" y1="23" x2="16" y2="23"/>
       </svg>
     </div>
-    <div class="eq" aria-hidden="true">
+    <div class="eq">
       {#each bars as h, i}
         <div
           class="bar"
@@ -100,6 +101,13 @@
     animation: pulse-mic var(--duration-pulse-mic) ease-in-out infinite;
   }
 
+  @media (prefers-reduced-transparency: reduce) {
+    .overlay {
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .mic-icon {
       animation: none;
@@ -124,6 +132,18 @@
     gap: 3px;
     height: 24px;
     flex-shrink: 0;
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
   }
 
   .bar {

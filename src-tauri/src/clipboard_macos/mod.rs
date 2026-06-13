@@ -24,7 +24,9 @@ use std::sync::Mutex;
 #[cfg(target_os = "macos")]
 use objc2_app_kit::{NSPasteboard, NSWorkspace};
 #[cfg(target_os = "macos")]
-use objc2_foundation::{ns_string, NSData};
+use objc2_foundation::{ns_string, NSArray, NSData, NSString};
+#[cfg(target_os = "macos")]
+use std::path::PathBuf;
 
 #[cfg(target_os = "macos")]
 pub(crate) struct FocusRef(*mut std::ffi::c_void);
@@ -104,6 +106,34 @@ pub fn pasteboard_gif_bytes() -> Option<Vec<u8>> {
 #[cfg(not(target_os = "macos"))]
 pub fn pasteboard_gif_bytes() -> Option<Vec<u8>> {
     None
+}
+
+/// Absolute file paths from Finder-style copy (`NSFilenamesPboardType`).
+#[cfg(target_os = "macos")]
+pub fn pasteboard_file_paths() -> Vec<PathBuf> {
+    let pasteboard = NSPasteboard::generalPasteboard();
+    let ty = ns_string!("NSFilenamesPboardType");
+    let Some(plist) = pasteboard.propertyListForType(ty) else {
+        return Vec::new();
+    };
+    let Ok(array) = plist.downcast::<NSArray>() else {
+        return Vec::new();
+    };
+
+    let mut paths = Vec::new();
+    let count = array.count();
+    for i in 0..count {
+        let obj = array.objectAtIndex(i);
+        if let Some(s) = obj.downcast_ref::<NSString>() {
+            paths.push(PathBuf::from(s.to_string()));
+        }
+    }
+    paths
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn pasteboard_file_paths() -> Vec<std::path::PathBuf> {
+    Vec::new()
 }
 
 /// Write animated GIF bytes to the general pasteboard.
