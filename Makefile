@@ -1,9 +1,11 @@
 APP_DIR ?= $(CURDIR)
+SHELL := /bin/bash
 export PATH := $(HOME)/.cargo/bin:$(PATH)
 NPM := env -u npm_config_devdir npm
 OLLAMA_MODEL ?= qwen3:4b-instruct-2507-q4_K_M
 OLLAMA_DEBUG ?= 1
 TAURI_DIR := $(APP_DIR)/src-tauri
+RUST_ENV := source "$(APP_DIR)/scripts/env-rust.sh";
 
 .PHONY: help dev build install \
 	check check-frontend check-backend \
@@ -71,29 +73,29 @@ fix-frontend:
 	cd $(APP_DIR) && $(NPM) run fix
 
 fix-backend:
-	cd $(TAURI_DIR) && cargo fmt
-	cd $(TAURI_DIR) && cargo clippy --fix --allow-dirty --allow-staged --all-targets -- -D warnings
-	cd $(TAURI_DIR) && cargo fmt
+	$(RUST_ENV) cd $(TAURI_DIR) && cargo fmt
+	$(RUST_ENV) cd $(TAURI_DIR) && cargo clippy --fix --allow-dirty --allow-staged --all-targets -- -D warnings
+	$(RUST_ENV) cd $(TAURI_DIR) && cargo fmt
 
 # --- Backend internals ---
 
 _compile-backend:
-	cd $(TAURI_DIR) && cargo check
+	$(RUST_ENV) cd $(TAURI_DIR) && cargo check
 
 _test-backend:
-	cd $(TAURI_DIR) && cargo test
+	$(RUST_ENV) cd $(TAURI_DIR) && cargo test
 
 _lint-rust:
-	cd $(TAURI_DIR) && cargo clippy --all-targets -- -D warnings
+	$(RUST_ENV) cd $(TAURI_DIR) && cargo clippy --all-targets -- -D warnings
 
 _lint-rust-fix:
-	cd $(TAURI_DIR) && cargo clippy --fix --allow-dirty --allow-staged --all-targets -- -D warnings
+	$(RUST_ENV) cd $(TAURI_DIR) && cargo clippy --fix --allow-dirty --allow-staged --all-targets -- -D warnings
 
 _fmt-rust:
-	cd $(TAURI_DIR) && cargo fmt --check
+	$(RUST_ENV) cd $(TAURI_DIR) && cargo fmt --check
 
 _fmt-rust-fix:
-	cd $(TAURI_DIR) && cargo fmt
+	$(RUST_ENV) cd $(TAURI_DIR) && cargo fmt
 
 # --- Cache cleanup ---
 

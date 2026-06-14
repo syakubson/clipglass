@@ -6,3 +6,9 @@ if [[ -f "${HOME}/.cargo/env" ]]; then
 elif [[ -d "${HOME}/.cargo/bin" ]]; then
   export PATH="${HOME}/.cargo/bin:${PATH}"
 fi
+
+# Reuse Rust compilation artifacts across dev, check, and release builds when available.
+# This is intentionally opt-in by installation: machines without sccache keep Cargo defaults.
+if [[ -z "${RUSTC_WRAPPER:-}" && "${COPYOSITY_DISABLE_SCCACHE:-0}" != "1" ]] && command -v sccache >/dev/null 2>&1; then
+  export RUSTC_WRAPPER="$(command -v sccache)"
+fi
