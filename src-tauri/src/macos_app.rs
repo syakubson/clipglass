@@ -69,13 +69,7 @@ pub fn app_identity_from_app_bundle_path(path: &Path) -> Option<AppIdentity> {
         return None;
     }
 
-    let display_name = display_name_from_running_bundle_id(&bundle_id)
-        .or_else(|| display_name_from_bundle_plist(&bundle))
-        .or_else(|| {
-            path.file_stem()
-                .and_then(|s| s.to_str())
-                .map(str::to_string)
-        })
+    let display_name = display_name_for_app_bundle_path(path, Some(&bundle))
         .unwrap_or_else(|| humanize_bundle_id(&bundle_id));
 
     Some(AppIdentity {
@@ -100,11 +94,11 @@ pub fn display_name_for_bundle_id(bundle_id: &str) -> String {
 
     #[cfg(target_os = "macos")]
     {
-        if let Some(name) = display_name_from_running_bundle_id(trimmed) {
+        if let Some(name) = display_name_from_bundle_installation(trimmed) {
             return name;
         }
-        if let Some(identity) = find_installed_app_by_bundle_id(trimmed) {
-            return identity.display_name;
+        if let Some(name) = display_name_from_running_bundle_id(trimmed) {
+            return name;
         }
     }
 
@@ -146,13 +140,13 @@ fn list_display_name_for_bundle_id(
         return title_case_first_char(trimmed);
     }
 
-    if let Some(running) = running {
-        if let Some(name) = running.get(trimmed) {
+    if let Some(installed) = installed {
+        if let Some(name) = installed.get(trimmed) {
             return name.clone();
         }
     }
-    if let Some(installed) = installed {
-        if let Some(name) = installed.get(trimmed) {
+    if let Some(running) = running {
+        if let Some(name) = running.get(trimmed) {
             return name.clone();
         }
     }
@@ -351,6 +345,7 @@ fn identity_from_running_app(app: &objc2_app_kit::NSRunningApplication) -> Optio
         .localizedName()
         .map(|s| s.to_string())
         .filter(|s| !s.is_empty())
+        .or_else(|| display_name_from_bundle_installation(&bundle_id))
         .unwrap_or_else(|| humanize_bundle_id(&bundle_id));
     Some(AppIdentity {
         bundle_id,
@@ -362,6 +357,72 @@ fn identity_from_running_app(app: &objc2_app_kit::NSRunningApplication) -> Optio
 fn display_name_from_bundle_plist(bundle: &objc2_foundation::NSBundle) -> Option<String> {
     display_name_from_plist_key(bundle, "CFBundleDisplayName")
         .or_else(|| display_name_from_plist_key(bundle, "CFBundleName"))
+}
+
+/// Prefer bundle metadata; use the `.app` folder name only for a simple and common case:
+/// plist has a short one-word name, while the app bundle folder has a fuller label
+/// ending with that word (for example "Code" -> "Visual Studio Code").
+/// If a user manually renames an app bundle, we do not try to correct for that.
+fn choose_user_visible_app_name(plist: Option<String>, stem: Option<String>) -> Option<String> {
+    let plist = plist.filter(|name| !name.is_empty());
+    let stem = stem.filter(|name| !name.is_empty());
+
+    match (plist.as_ref(), stem.as_ref()) {
+        (Some(plist_name), Some(stem_name)) if stem_name.eq_ignore_ascii_case(plist_name) => stem,
+        (Some(plist_name), Some(stem_name))
+            if should_prefer_bundle_folder_name(plist_name, stem_name) =>
+        {
+            stem
+        }
+        (Some(plist_name), _) => Some(plist_name.clone()),
+        (None, Some(stem_name)) => Some(stem_name.clone()),
+        (None, None) => None,
+    }
+}
+
+fn should_prefer_bundle_folder_name(plist: &str, stem: &str) -> bool {
+    let plist_lower = plist.to_ascii_lowercase();
+    let stem_lower = stem.to_ascii_lowercase();
+    // Keep this explicit and minimal: "Code" -> "Visual Studio Code".
+    stem_lower.contains(' ')
+        && !plist_lower.contains(' ')
+        && stem_lower.ends_with(&format!(" {}", plist_lower))
+}
+
+/// User-visible app name from the `.app` bundle path (matches Finder / Applications).
+#[cfg(target_os = "macos")]
+fn display_name_for_app_bundle_path(
+    path: &Path,
+    bundle: Option<&objc2_foundation::NSBundle>,
+) -> Option<String> {
+    let stem = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .filter(|s| !s.is_empty())
+        .map(str::to_string);
+    let plist = bundle.and_then(display_name_from_bundle_plist);
+    choose_user_visible_app_name(plist, stem)
+}
+
+#[cfg(target_os = "macos")]
+fn bundle_install_path_for_bundle_id(bundle_id: &str) -> Option<PathBuf> {
+    use objc2_app_kit::NSWorkspace;
+    use objc2_foundation::NSString;
+
+    let workspace = NSWorkspace::sharedWorkspace();
+    let bid = NSString::from_str(bundle_id);
+    let url = workspace.URLForApplicationWithBundleIdentifier(&bid)?;
+    url.path().map(|s| PathBuf::from(s.to_string()))
+}
+
+#[cfg(target_os = "macos")]
+fn display_name_from_bundle_installation(bundle_id: &str) -> Option<String> {
+    use objc2_foundation::{NSBundle, NSString};
+
+    let path = bundle_install_path_for_bundle_id(bundle_id)?;
+    let path_str = path.to_str()?;
+    let bundle = NSBundle::bundleWithPath(&NSString::from_str(path_str))?;
+    display_name_for_app_bundle_path(&path, Some(&bundle))
 }
 
 #[cfg(target_os = "macos")]
@@ -467,19 +528,6 @@ fn find_running_app_by_display_name(name: &str) -> Option<AppIdentity> {
 }
 
 #[cfg(target_os = "macos")]
-fn find_installed_app_by_bundle_id(bundle_id: &str) -> Option<AppIdentity> {
-    for path in installed_app_bundle_paths() {
-        let Some(identity) = app_identity_from_app_bundle_path(&path) else {
-            continue;
-        };
-        if identity.bundle_id == bundle_id {
-            return Some(identity);
-        }
-    }
-    None
-}
-
-#[cfg(target_os = "macos")]
 fn find_installed_app_by_display_name(name: &str) -> Option<AppIdentity> {
     let mut matches = Vec::new();
     for path in installed_app_bundle_paths() {
@@ -499,7 +547,11 @@ fn find_installed_app_by_display_name(name: &str) -> Option<AppIdentity> {
 
 #[cfg(target_os = "macos")]
 fn application_directories() -> Vec<PathBuf> {
-    let mut dirs = vec![PathBuf::from("/Applications")];
+    let mut dirs = vec![
+        PathBuf::from("/Applications"),
+        PathBuf::from("/Applications/Utilities"),
+        PathBuf::from("/System/Applications"),
+    ];
     if let Some(home) = std::env::var_os("HOME") {
         dirs.push(PathBuf::from(home).join("Applications"));
     }
@@ -569,6 +621,70 @@ mod tests {
     fn batch_display_names_humanize_without_filesystem_lookup() {
         let names = display_names_for_bundle_ids(&["com.apple.Safari", "Safari", ""]);
         assert_eq!(names, vec!["Safari", "Safari", ""]);
+    }
+
+    #[test]
+    fn choose_user_visible_app_name_prefers_plist_over_renamed_stem() {
+        assert_eq!(
+            choose_user_visible_app_name(Some("Safari".into()), Some("MySafari".into())),
+            Some("Safari".into())
+        );
+    }
+
+    #[test]
+    fn choose_user_visible_app_name_prefers_folder_for_full_marketing_name() {
+        assert_eq!(
+            choose_user_visible_app_name(Some("Code".into()), Some("Visual Studio Code".into()),),
+            Some("Visual Studio Code".into())
+        );
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn display_name_falls_back_to_app_bundle_filename_without_plist() {
+        let path = Path::new("/Applications/Visual Studio Code.app");
+        let name = display_name_for_app_bundle_path(path, None).expect("stem");
+        assert_eq!(name, "Visual Studio Code");
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn vscode_display_name_matches_applications_folder_when_installed() {
+        let bundle_id = "com.microsoft.VSCode";
+        let Some(path) = bundle_install_path_for_bundle_id(bundle_id) else {
+            return;
+        };
+        let stem = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .expect("app bundle stem");
+        assert_eq!(display_name_for_bundle_id(bundle_id), stem);
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn screen_continuity_display_name_matches_applications_folder_when_installed() {
+        let bundle_id = "com.apple.ScreenContinuity";
+        let Some(path) = bundle_install_path_for_bundle_id(bundle_id) else {
+            return;
+        };
+        let stem = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .expect("app bundle stem");
+        assert_ne!(stem, "ScreenContinuity");
+        assert_eq!(humanize_bundle_id(bundle_id), "ScreenContinuity");
+        assert_eq!(display_name_for_bundle_id(bundle_id), stem);
+        assert_eq!(list_display_name_for_bundle_id(bundle_id, None, None), stem);
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn application_directories_include_system_applications() {
+        let dirs = application_directories();
+        assert!(dirs
+            .iter()
+            .any(|dir| dir == Path::new("/System/Applications")));
     }
 
     #[test]

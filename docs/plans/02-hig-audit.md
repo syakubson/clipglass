@@ -267,7 +267,7 @@ Status steps соответствуют product policy в `CLAUDE.md`. Spinner /
 
 ### ✅ 30. Danger / destructive actions pattern `[Settings]`
 
-**Сделано:** `ConfirmDialog` только в Settings для bulk clear (п. 23); title — один `?`, message — declarative последствия с bold-счётчиками и `\u00A0`; `ActionMenu` (opaque dropdown, full-width в Storage). Overlay single delete — без confirm (п. 12). Inset `form-section-divider` в других секциях Settings; Storage — `form-action-stack` без лишнего divider.
+**Сделано:** `ConfirmDialog` только в Settings для bulk clear (п. 23); title — один `?`, message — declarative последствия с bold-счётчиками и `\u00A0`; `ActionMenu` (opaque dropdown, full-width в Storage). Overlay single delete — без confirm (п. 12). Единый паттерн `.inset-list` (разделители только между строками внутри группы); подсекции — `form-subsection` + `form-subsection-rule` с симметричным `--space-subsection`; Storage — `form-field-group` + inline notice без лишнего divider.
 
 ---
 

@@ -95,6 +95,8 @@
   let settingsNotice = $state("");
   let clearHistoryNotice = $state("");
   let historyCounts = $state({ total: 0, unpinned: 0, pinned: 0 });
+  /** Suppress stale-notice reset while Settings-initiated clear is finishing. */
+  let clearHistoryActionInFlight = false;
   let savedModel = $state("");
 
   const A11Y_NOTICE_ENABLE = "Enable Copyosity in the list.";
@@ -333,18 +335,18 @@
       a11yPromptedThisVisit = false;
       void promptAccessibilityIfNeeded();
       void refreshExcludedAppsSection();
-      void syncHistoryCounts();
+      void refreshHistoryCounts();
     });
 
-    const refreshHistoryCounts = () => void syncHistoryCounts();
-    const unlistenClipboard = listen("clipboard-changed", refreshHistoryCounts);
-    const unlistenHistory = listen("history-changed", refreshHistoryCounts);
+    const onHistoryCountsEvent = () => void refreshHistoryCounts();
+    const unlistenClipboard = listen("clipboard-changed", onHistoryCountsEvent);
+    const unlistenHistory = listen("history-changed", onHistoryCountsEvent);
 
     const unlistenFocus = win.onFocusChanged(({ payload: focused }) => {
       if (focused) {
         void updateAccessibilityStatus();
         void refreshExcludedAppsSection();
-        void syncHistoryCounts();
+        void refreshHistoryCounts();
       }
     });
 
@@ -493,9 +495,12 @@
     historyCounts = await getHistoryCounts();
   }
 
-  async function syncHistoryCounts() {
+  /** Refresh counts from backend; clear stale clear-history feedback when counts change externally. */
+  async function refreshHistoryCounts() {
     const previous = historyCounts;
+    const skipNoticeReset = clearHistoryActionInFlight;
     await loadHistoryCounts();
+    if (skipNoticeReset || clearHistoryActionInFlight) return;
     if (
       historyCounts.total !== previous.total ||
       historyCounts.unpinned !== previous.unpinned ||
@@ -505,7 +510,13 @@
     }
   }
 
+  async function finishClearHistoryAction(notice: string) {
+    await loadHistoryCounts();
+    clearHistoryNotice = notice;
+  }
+
   async function handleClearHistoryMenu(action: ClearHistoryAction) {
+    clearHistoryNotice = "";
     await loadHistoryCounts();
 
     switch (action) {
@@ -520,12 +531,16 @@
           confirmLabel: "Clear unpinned",
         });
         if (!confirmed) return;
+        clearHistoryActionInFlight = true;
         try {
           await clearHistory();
-          clearHistoryNotice = "Unpinned history cleared";
+          await finishClearHistoryAction("Unpinned history cleared");
         } catch (err) {
-          clearHistoryNotice =
-            invokeErrorMessage(err) || "Could not clear history. Try again.";
+          await finishClearHistoryAction(
+            invokeErrorMessage(err) || "Could not clear history. Try again.",
+          );
+        } finally {
+          clearHistoryActionInFlight = false;
         }
         break;
       }
@@ -540,12 +555,16 @@
           confirmLabel: "Clear all",
         });
         if (!confirmed) return;
+        clearHistoryActionInFlight = true;
         try {
           await clearAllHistory();
-          clearHistoryNotice = "All history cleared";
+          await finishClearHistoryAction("All history cleared");
         } catch (err) {
-          clearHistoryNotice =
-            invokeErrorMessage(err) || "Could not clear history. Try again.";
+          await finishClearHistoryAction(
+            invokeErrorMessage(err) || "Could not clear history. Try again.",
+          );
+        } finally {
+          clearHistoryActionInFlight = false;
         }
         break;
       }
@@ -555,8 +574,6 @@
         return;
       }
     }
-
-    await loadHistoryCounts();
   }
 
   const clearHistoryMenuDisabled = $derived(historyCounts.total === 0);
@@ -620,7 +637,7 @@
       Permissions
     </div>
     <div class="form-section-body">
-    <div class="status-list">
+    <div class="inset-list">
       <div class="status-step">
         <div class="status-row">
           <span class="status-dot" class:ok={accessibilityGranted === true} class:fail={accessibilityGranted === false} class:checking={accessibilityGranted === null}></span>
@@ -676,26 +693,27 @@
       </label>
     </div>
     <fieldset
-      class="form-section-body toggle-section-body"
+      class="form-section-body form-section-body--subsections toggle-section-body"
       class:is-disabled={!settings.ai_tagging_enabled}
       disabled={!settings.ai_tagging_enabled}
     >
-    <div class="form-hint">
-      Automatically tag clipboard text entries using a local Ollama model.
-    </div>
-    <div class="form-subsection-title form-subsection-title--with-icon">
-      <SectionIcon name="setup" />
-      Setup
-    </div>
-    <div class="status-list">
-    {#if ollamaStatus === null}
-      <div class="status-step">
-        <div class="status-row">
-          <span class="status-dot checking"></span>
-          <span class="status-text">Checking...</span>
-        </div>
+      <div class="form-hint">
+        Automatically tag clipboard text entries using a local Ollama model.
       </div>
-    {:else}
+      <div class="form-subsection">
+        <div class="form-subsection-title form-subsection-title--with-icon">
+          <SectionIcon name="setup" />
+          Setup
+        </div>
+        <div class="inset-list">
+          {#if ollamaStatus === null}
+            <div class="status-step">
+              <div class="status-row">
+                <span class="status-dot checking"></span>
+                <span class="status-text">Checking...</span>
+              </div>
+            </div>
+          {:else}
       <!-- Step 1: Ollama installed -->
       <div class="status-step">
         <div class="status-row">
@@ -882,69 +900,76 @@
         {/if}
       </div>
 
-      <div class="status-list-footer">
-        <button
-          class="form-btn form-btn-ghost app-btn"
-          type="button"
-          class:is-busy={ollamaBusy === "refresh"}
-          class:is-locked={(ollamaBusyActive && ollamaBusy !== "refresh") || taggingLoading}
-          aria-busy={ollamaBusy === "refresh" ? "true" : undefined}
-          onclick={() => refreshOllamaStatus(true)}
-        >
-          <span class="app-btn-label">Check again</span>
-          {@render busySpinner()}
-        </button>
+          {/if}
+        </div>
+        {#if ollamaStatus !== null}
+          <div class="status-list-footer">
+            <button
+              class="form-btn form-btn-ghost app-btn"
+              type="button"
+              class:is-busy={ollamaBusy === "refresh"}
+              class:is-locked={(ollamaBusyActive && ollamaBusy !== "refresh") || taggingLoading}
+              aria-busy={ollamaBusy === "refresh" ? "true" : undefined}
+              onclick={() => refreshOllamaStatus(true)}
+            >
+              <span class="app-btn-label">Check again</span>
+              {@render busySpinner()}
+            </button>
+          </div>
+        {/if}
       </div>
-    {/if}
-    </div>
-    <div class="form-section-divider" role="separator"></div>
-    <div class="form-subsection-title form-subsection-title--with-icon">
-      <SectionIcon name="ollama-model" />
-      Ollama Model
-    </div>
-    <div class="form-field">
-      <select
-        class="form-select"
-        aria-label="Ollama model"
-        bind:value={selectedModelPreset}
-        onchange={(e) => handleModelPresetChange((e.currentTarget as HTMLSelectElement).value)}
-      >
-        {#each modelCatalog.options as option}
-          <option value={option.value}>
-            {option.label} · ~{option.memory_gb.toFixed(1)} GB · {option.fits ? "Fits" : "Too large"}{option.installed ? " · Installed" : ""}
-          </option>
-        {/each}
-        <option value="__custom__">Custom model</option>
-      </select>
-    </div>
-    {#if selectedModelPreset === "__custom__"}
-      <div class="form-field">
-        <label class="form-label" for="custom-ollama-model">Model name</label>
-        <input
-          id="custom-ollama-model"
-          class="form-input"
-          type="text"
-          bind:value={settings.ollama_model}
-          placeholder="qwen3:4b-instruct-2507-q4_K_M"
-        />
-        <div class="form-hint">Memory use cannot be estimated for custom models.</div>
+      <div class="form-subsection-rule" role="separator"></div>
+      <div class="form-subsection">
+        <div class="form-subsection-title form-subsection-title--with-icon">
+          <SectionIcon name="ollama-model" />
+          Ollama Model
+        </div>
+        <div class="form-field">
+          <select
+            class="form-select"
+            aria-label="Ollama model"
+            bind:value={selectedModelPreset}
+            onchange={(e) => handleModelPresetChange((e.currentTarget as HTMLSelectElement).value)}
+          >
+            {#each modelCatalog.options as option}
+              <option value={option.value}>
+                {option.label} · ~{option.memory_gb.toFixed(1)} GB · {option.fits ? "Fits" : "Too large"}{option.installed ? " · Installed" : ""}
+              </option>
+            {/each}
+            <option value="__custom__">Custom model</option>
+          </select>
+        </div>
+        {#if selectedModelPreset === "__custom__"}
+          <div class="form-field">
+            <label class="form-label" for="custom-ollama-model">Model name</label>
+            <input
+              id="custom-ollama-model"
+              class="form-input"
+              type="text"
+              bind:value={settings.ollama_model}
+              placeholder="qwen3:4b-instruct-2507-q4_K_M"
+            />
+            <div class="form-hint">Memory use cannot be estimated for custom models.</div>
+          </div>
+        {/if}
       </div>
-    {/if}
-    <div class="form-section-divider" role="separator"></div>
-    <div class="form-subsection-title form-subsection-title--with-icon">
-      <SectionIcon name="this-mac" />
-      This Mac
-    </div>
-    <dl class="form-meta" aria-label="Machine memory details">
-      <div class="form-meta-item">
-        <dt>Machine RAM</dt>
-        <dd>{modelCatalog.total_memory_gb.toFixed(1)} GB</dd>
+      <div class="form-subsection-rule" role="separator"></div>
+      <div class="form-subsection">
+        <div class="form-subsection-title form-subsection-title--with-icon">
+          <SectionIcon name="this-mac" />
+          This Mac
+        </div>
+        <dl class="form-meta inset-list" aria-label="Machine memory details">
+          <div class="form-meta-item">
+            <dt>Machine RAM</dt>
+            <dd>{modelCatalog.total_memory_gb.toFixed(1)} GB</dd>
+          </div>
+          <div class="form-meta-item">
+            <dt>Recommended Ollama budget</dt>
+            <dd>{modelCatalog.recommended_memory_gb.toFixed(1)} GB</dd>
+          </div>
+        </dl>
       </div>
-      <div class="form-meta-item">
-        <dt>Recommended Ollama budget</dt>
-        <dd>{modelCatalog.recommended_memory_gb.toFixed(1)} GB</dd>
-      </div>
-    </dl>
     </fieldset>
   </section>
 
@@ -963,21 +988,20 @@
         {/each}
       </select>
     </label>
-    <div class="form-action-stack">
-      <ActionMenu
-        block
-        disabled={clearHistoryMenuDisabled}
-        label="Clear history"
-        items={clearHistoryMenuItems}
-        onselect={(id) => void handleClearHistoryMenu(id as ClearHistoryAction)}
-      />
-      <div
-        class="form-note form-note-neutral"
-        class:visible={!!clearHistoryNotice}
-        aria-live="polite"
-      >
-        {clearHistoryNotice}
-      </div>
+    <ActionMenu
+      block
+      disabled={clearHistoryMenuDisabled}
+      label="Clear history"
+      items={clearHistoryMenuItems}
+      onselect={(id) => void handleClearHistoryMenu(id as ClearHistoryAction)}
+    />
+    <div
+      class="form-note form-note-neutral storage-clear-notice"
+      class:visible={!!clearHistoryNotice}
+      aria-live="polite"
+    >
+      {clearHistoryNotice}
+    </div>
     </div>
     </div>
   </section>
@@ -995,14 +1019,17 @@
       </div>
 
       <div class="excluded-apps-stack">
-      <div class="excluded-apps-panel" role="group" aria-label="Excluded applications">
+      <div class="excluded-apps-panel inset-list" role="group" aria-label="Excluded applications">
         {#if excludableCandidate}
           <div class="excluded-apps-row excluded-apps-row--candidate">
-            <div class="excluded-apps-row-main">
+            <div class="excluded-apps-row-leading">
               <span class="excluded-apps-row-label">{excludableCandidate.displayName}</span>
-              <span class="excluded-apps-row-meta"
-                >{excludableCandidateMetaLabel(excludableCandidate.source)}</span
-              >
+              {#if !excludableCandidate.alreadyExcluded}
+                <span class="excluded-apps-row-sep" aria-hidden="true">·</span>
+                <span class="excluded-apps-row-meta"
+                  >{excludableCandidateMetaLabel(excludableCandidate.source)}</span
+                >
+              {/if}
             </div>
             {#if excludableCandidate.alreadyExcluded && activeExcludedEntry}
               {@const removeLabel = allowInClipboardHistoryAriaLabel(excludableCandidate.displayName)}
@@ -1039,9 +1066,7 @@
 
         {#each listedExcludedApps as app (app.id)}
           <div class="excluded-apps-row excluded-apps-row--listed">
-            <div class="excluded-apps-row-main">
-              <span class="excluded-apps-row-label">{app.displayName}</span>
-            </div>
+            <span class="excluded-apps-row-label">{app.displayName}</span>
             <button
               class="form-link-accent excluded-list-action app-btn"
               type="button"

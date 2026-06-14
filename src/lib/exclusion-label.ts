@@ -1,4 +1,4 @@
-/** Visible copy: first letter always capitalized (manual input may be lowercase). */
+/** Visible copy for resolved app names (buttons, list rows, success notices). */
 function formatAppNameForLabel(appName: string): string {
   const trimmed = appName.trim();
   if (!trimmed) return trimmed;
@@ -56,13 +56,13 @@ export const chooseApplicationActionLabel = "Choose Application…";
 
 /** Settings — app name could not be resolved (HIG-style inline warning). */
 export function appNotFoundNotice(appName: string): string {
-  const name = formatAppNameForLabel(appName);
+  const name = appName.trim();
   return `No app named “${name}” was found. Use ${chooseApplicationActionLabel}, or enter the installed app name.`;
 }
 
 /** Settings — generic add-by-name failure with the entered app name. */
 export function couldNotAddExcludedAppNotice(appName: string): string {
-  const name = formatAppNameForLabel(appName);
+  const name = appName.trim();
   return `Could not add ${name}. Try again.`;
 }
 
