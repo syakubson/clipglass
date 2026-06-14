@@ -5,8 +5,8 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
-    "dev": "svelte-kit sync && vite dev",
-    "build": "svelte-kit sync && vite build",
+    "dev": "vite dev",
+    "build": "vite build",
     "preview": "vite preview",
     "check": "npm run typecheck && npm run lint",
     "check:watch": "npm run typecheck:watch",
@@ -30,8 +30,8 @@
   },
   "devDependencies": {
     "@sveltejs/adapter-static": "^3.0.6",
-    "@sveltejs/kit": "^2.61.0",
-    "@sveltejs/vite-plugin-svelte": "^5.0.0",
+    "@sveltejs/kit": "^2.65.0",
+    "@sveltejs/vite-plugin-svelte": "^7.1.2",
     "@tauri-apps/cli": "^2.11.2",
     "@types/node": "^25.9.3",
     "husky": "^9.1.7",
@@ -44,10 +44,10 @@
     "stylelint-config-standard": "^40.0.0",
     "stylelint-declaration-strict-value": "^1.11.1",
     "stylelint-order": "^8.1.1",
-    "svelte": "^5.56.0",
+    "svelte": "^5.56.3",
     "svelte-check": "^4.6.0",
     "typescript": "^6.0.3",
-    "vite": "^6.4.3"
+    "vite": "^8.0.16"
   },
   "overrides": {
     "cookie": "^0.7.2"

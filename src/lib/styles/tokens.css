@@ -20,6 +20,8 @@
   --line-height-relaxed: 1.55;
 
   /* ── Spacing (rem — scales with root font size) ───── */
+  /* HIG 8pt grid: stack = related controls in one group; section = separate fields */
+  --space-stack: 0.5rem;
   --space-section: 0.75rem;
   --space-field: 0.375rem;
   --space-row: 0.25rem;

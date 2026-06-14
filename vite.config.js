@@ -9,6 +9,8 @@ export default defineConfig(async () => ({
   build: {
     target: "esnext",
     cssMinify: true,
+    // Skip gzip size pass — saves ~200–500ms on production builds
+    reportCompressedSize: false,
   },
   optimizeDeps: {
     include: ["svelte", "@tauri-apps/api"],

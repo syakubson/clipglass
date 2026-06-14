@@ -116,6 +116,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Voice overlay layout** — mic icon and level meter share a centered row with tighter side padding, 12pt gap between icon and meter, and larger 22/24px proportions in a compact 96×44 HUD window.
 - **Voice overlay mic color** — live recording indicator uses `--color-recording` so it reads as active capture, not an error state.
 - **Clipboard card layout and spacing** — fixed 168px preview slot with a uniform 8-line text clamp (preview height no longer shrinks when tags are present); footer shows AI metadata tags (`.entry-tag`) above the source-app and character-count row, with metadata pinned to the card bottom; card height 288px (+8px) with 8px breathing room between preview and footer.
+- **Frontend toolchain** — Vite 8 (Rolldown), `@sveltejs/kit` 2.65, `@sveltejs/vite-plugin-svelte` 7, `svelte` 5.56.3; production builds use Oxc minification by default.
+- **Frontend build** — removed redundant `svelte-kit sync` from `dev`/`build` scripts (Vite plugin syncs internally); Tauri SPA uses `bundleStrategy: "single"`; `reportCompressedSize: false` skips the gzip size pass on production builds.
+- **Settings form spacing (HIG 8pt grid)** — `--space-stack` token (8pt) for related controls in one group; `--space-section` (12pt) between separate fields; `form-field-group` wraps related controls (for example History retention + Clear history); `excluded-apps-stack` and `form-inline` use the same stack rhythm.
 
 ### Fixed
 
@@ -154,10 +157,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Clear-history notice** — “All/Unpinned history cleared” no longer persists after history counts change (for example new copies or overlay deletes).
 - **Clear-history errors** — failed unpinned/all clear IPC calls show an inline notice instead of failing silently.
 - **Confirm dialog keyboard leak** — ↑/↓ and other scroll keys no longer move the Settings page while a confirm dialog is open.
+- **Settings Storage/Privacy spacing** — related controls in one setting no longer inherit 12pt section gaps (for example retention select vs Clear history menu).
+- **Privacy excluded apps empty state** — “No apps excluded yet” omits terminal punctuation (HIG empty-state label style).
 
 ### Dependencies
 
-- **Frontend** — `@sveltejs/kit` 2.63, `svelte` 5.56.2, `svelte-check` 4.6; dev dependency `@types/node` for `tsconfig` `node` types.
+- **Frontend** — Vite 8.0, `@sveltejs/kit` 2.65, `@sveltejs/vite-plugin-svelte` 7.1, `svelte` 5.56.3, `svelte-check` 4.6; dev dependency `@types/node` for `tsconfig` `node` types.
 - **Tauri** — synced npm (`@tauri-apps/api` 2.11, `@tauri-apps/cli` 2.11) and Rust (`tauri` 2.11); `tauri-plugin-opener` 2.5.4, `global-shortcut` 2.3.2, `sql` 2.4.0.
 - **macOS** — `objc2`, `objc2-app-kit` (`NSPasteboard`, `NSPasteboardItem`), `objc2-foundation` (`NSData`, `NSURL` for GIF pasteboard writes and file-URL reads).
 

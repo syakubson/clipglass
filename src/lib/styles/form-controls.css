@@ -27,6 +27,7 @@
 .form-section,
 .form-section-body,
 .form-field,
+.form-field-group,
 .form-meta,
 .status-list,
 .status-step,
@@ -225,6 +226,14 @@
   min-width: 0;
 }
 
+/* Related controls that belong to one setting (e.g. retention + clear history). */
+.form-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-stack);
+  min-width: 0;
+}
+
 .form-label {
   font-size: var(--font-size-sm);
   font-weight: 600;
@@ -233,7 +242,7 @@
 
 .form-inline {
   display: flex;
-  gap: 8px;
+  gap: var(--space-stack);
   align-items: center;
 }
 
@@ -515,7 +524,7 @@
 .excluded-apps-stack {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--space-stack);
   min-width: 0;
 }
 
@@ -550,15 +559,11 @@
 
 .excluded-apps-row-main {
   display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 0.0625rem;
+  flex-flow: row wrap;
+  align-items: baseline;
+  column-gap: 0.375rem;
   min-width: 0;
   flex: 1 1 auto;
-}
-
-.excluded-apps-row-main--single {
-  justify-content: center;
 }
 
 .excluded-apps-row-label {
@@ -570,10 +575,17 @@
   overflow-wrap: break-word;
 }
 
+.excluded-apps-row-main > .excluded-apps-row-meta::before {
+  content: "·";
+  margin-right: 0.375rem;
+  color: var(--color-text-faint);
+}
+
 .excluded-apps-row-meta {
   font-size: var(--font-size-2xs);
   line-height: var(--line-height-tight);
   color: var(--color-text-tertiary);
+  flex-shrink: 0;
 }
 
 .excluded-apps-empty {

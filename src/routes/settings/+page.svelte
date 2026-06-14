@@ -954,6 +954,7 @@
       Storage
     </div>
     <div class="form-section-body">
+    <div class="form-field-group">
     <label class="form-field">
       <span class="form-label">History retention</span>
       <select class="form-select" bind:value={settings.retention_days}>
@@ -1038,7 +1039,7 @@
 
         {#each listedExcludedApps as app (app.id)}
           <div class="excluded-apps-row excluded-apps-row--listed">
-            <div class="excluded-apps-row-main excluded-apps-row-main--single">
+            <div class="excluded-apps-row-main">
               <span class="excluded-apps-row-label">{app.displayName}</span>
             </div>
             <button
@@ -1056,7 +1057,7 @@
         {/each}
 
         {#if !excludedAppsPanelHasRows}
-          <div class="excluded-apps-empty" role="status">No apps excluded yet.</div>
+          <div class="excluded-apps-empty" role="status">No apps excluded yet</div>
         {/if}
       </div>
 
