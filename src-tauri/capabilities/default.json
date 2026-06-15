@@ -2,7 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Capability for the main window",
-  "windows": ["main", "settings", "voice_overlay"],
+  "windows": ["main", "settings", "voice_overlay", "command_palette"],
   "permissions": [
     "core:default",
     "opener:default",

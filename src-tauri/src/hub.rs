@@ -139,6 +139,65 @@ pub fn tag_text(base_url: &str, token: &str, model: &str, text: &str) -> Option<
     }
 }
 
+/// Agent quick-search: ask the hub chat model a question and return its answer.
+/// MVP uses the OpenAI-compatible chat endpoint; can later target a dedicated
+/// agent route without changing callers.
+pub fn agent_search(base_url: &str, token: &str, model: &str, query: &str) -> Result<String, String> {
+    let base = normalize_base(base_url);
+    if base.is_empty() {
+        return Err("Hub URL is empty".to_string());
+    }
+    if token.trim().is_empty() {
+        return Err("Hub token is empty".to_string());
+    }
+    if model.trim().is_empty() {
+        return Err("Hub chat model is not set".to_string());
+    }
+    let query = query.trim();
+    if query.is_empty() {
+        return Err("Empty query".to_string());
+    }
+
+    let request = ChatRequest {
+        model: model.trim(),
+        temperature: 0.2,
+        stream: false,
+        messages: vec![
+            ChatMessage {
+                role: "system",
+                content: "You are a fast, concise assistant. Answer directly and briefly. No preamble.".to_string(),
+            },
+            ChatMessage {
+                role: "user",
+                content: query.to_string(),
+            },
+        ],
+    };
+
+    let url = format!("{}/v1/chat/completions", base);
+    let response = agent()
+        .post(&url)
+        .set("Authorization", &format!("Bearer {}", token.trim()))
+        .set("Accept", "application/json")
+        .send_json(request)
+        .map_err(|e| match e {
+            ureq::Error::Status(code, _) => format!("Hub returned HTTP {}", code),
+            other => format!("Hub request failed: {}", other),
+        })?;
+
+    let chat: ChatResponse = response
+        .into_json()
+        .map_err(|e| format!("Failed to parse hub response: {}", e))?;
+
+    let content = chat
+        .choices
+        .first()
+        .map(|c| c.message.content.clone())
+        .ok_or_else(|| "Hub returned no choices".to_string())?;
+
+    Ok(content.trim().to_string())
+}
+
 /// Find the first balanced `{...}` JSON object in a string.
 fn extract_json_object(s: &str) -> Option<&str> {
     let start = s.find('{')?;

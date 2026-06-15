@@ -36,6 +36,10 @@ static LAST_SHOW_MS: AtomicU64 = AtomicU64::new(0);
 /// whatever is frontmost at paste time (which may be Copyosity itself).
 static VOICE_TARGET_PID: AtomicI32 = AtomicI32::new(0);
 
+/// PID of the app that was frontmost when the command palette was opened, so the
+/// agent answer can be inserted back into it.
+static PALETTE_TARGET_PID: AtomicI32 = AtomicI32::new(0);
+
 static RECORDING: std::sync::OnceLock<std::sync::Mutex<Option<whisper::RecordingSession>>> =
     std::sync::OnceLock::new();
 
@@ -225,8 +229,21 @@ pub fn run() {
                 }
             })?;
 
+            // Command palette (hub agent search): Cmd+Shift+Space.
+            let palette_shortcut =
+                Shortcut::new(Some(Modifiers::SUPER | Modifiers::SHIFT), Code::Space);
+            let palette_handle = app.handle().clone();
+            app.global_shortcut()
+                .on_shortcut(palette_shortcut, move |_app, _shortcut, event| {
+                    if event.state == ShortcutState::Pressed {
+                        toggle_command_palette(&palette_handle);
+                    }
+                })?;
+
             // Pre-create voice overlay panel so it's ready without stealing focus later
             ensure_voice_overlay(app.handle());
+            #[cfg(target_os = "macos")]
+            ensure_command_palette(app.handle());
 
             // Register voice transcription shortcut from settings
             if let Err(e) = register_voice_shortcut(app.handle()) {
@@ -280,6 +297,9 @@ pub fn run() {
             commands::rebind_voice_shortcut,
             commands::list_microphones,
             commands::hub_test_connection,
+            palette_search,
+            palette_hide,
+            palette_insert,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
@@ -591,6 +611,116 @@ fn frontmost_app_pid() -> Option<i32> {
 /// Synthesize Cmd+V. When `target_pid` is a valid pid, the event is delivered
 /// straight to that process so it works regardless of which app is frontmost
 /// (the recording overlay can briefly make Copyosity itself frontmost).
+// ---- Hub agent command palette ----
+
+/// Toggle the command palette. Captures the frontmost app first so the answer
+/// can be inserted there, then shows the palette and gives it keyboard focus.
+fn toggle_command_palette(app: &tauri::AppHandle) {
+    // Only active when the user enabled hub search.
+    let enabled = app
+        .try_state::<std::sync::Arc<db::Database>>()
+        .and_then(|db| db.get_app_settings().ok())
+        .map(|s| s.hub_search_enabled)
+        .unwrap_or(false);
+    if !enabled {
+        return;
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        use tauri_nspanel::ManagerExt;
+        ensure_command_palette(app);
+        if let Ok(panel) = app.get_webview_panel("command_palette") {
+            if panel.is_visible() {
+                panel.hide();
+                return;
+            }
+            if let Some(pid) = frontmost_app_pid() {
+                if pid != std::process::id() as i32 {
+                    PALETTE_TARGET_PID.store(pid, Ordering::Relaxed);
+                }
+            }
+            if let Some(window) = app.get_webview_window("command_palette") {
+                let _ = window.center();
+            }
+            panel.show_and_make_key();
+            let _ = app.emit("palette-show", ());
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn ensure_command_palette(app: &tauri::AppHandle) {
+    use tauri_nspanel::ManagerExt;
+    if app.get_webview_panel("command_palette").is_ok() {
+        return;
+    }
+
+    let builder = tauri::WebviewWindowBuilder::new(
+        app,
+        "command_palette",
+        tauri::WebviewUrl::App("/palette".into()),
+    )
+    .title("")
+    .inner_size(640.0, 420.0)
+    .resizable(false)
+    .decorations(false)
+    .transparent(true)
+    .skip_taskbar(true)
+    .visible(false)
+    .center();
+
+    if let Ok(win) = builder.build() {
+        use tauri_nspanel::panel::NSWindowStyleMask;
+        use tauri_nspanel::WebviewWindowExt;
+        if let Ok(panel) = win.to_panel::<CopyosityPanel>() {
+            panel.set_level(24);
+            panel.set_style_mask(NSWindowStyleMask::Borderless | NSWindowStyleMask::Resizable);
+        }
+    }
+}
+
+/// Run an agent search against the hub and return the answer text.
+#[tauri::command]
+fn palette_search(app: tauri::AppHandle, query: String) -> Result<String, String> {
+    let db = app.state::<std::sync::Arc<db::Database>>();
+    let s = db.get_app_settings().map_err(|e| e.to_string())?;
+    if !s.hub_search_enabled {
+        return Err("Hub agent search is disabled in Settings".to_string());
+    }
+    hub::agent_search(&s.hub_url, &s.hub_token, &s.hub_chat_model, &query)
+}
+
+/// Hide the command palette.
+#[tauri::command]
+fn palette_hide(app: tauri::AppHandle) {
+    #[cfg(target_os = "macos")]
+    {
+        use tauri_nspanel::ManagerExt;
+        if let Ok(panel) = app.get_webview_panel("command_palette") {
+            panel.hide();
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        if let Some(win) = app.get_webview_window("command_palette") {
+            let _ = win.hide();
+        }
+    }
+}
+
+/// Hide the palette and paste `text` into the app that was frontmost when it opened.
+#[tauri::command]
+fn palette_insert(app: tauri::AppHandle, text: String) {
+    if let Ok(mut clipboard) = arboard::Clipboard::new() {
+        let _ = clipboard.set_text(&text);
+    }
+    palette_hide(app);
+    std::thread::sleep(std::time::Duration::from_millis(120));
+    let target_pid = PALETTE_TARGET_PID.swap(0, Ordering::Relaxed);
+    simulate_cmd_v(target_pid);
+}
+
 #[cfg(target_os = "macos")]
 fn simulate_cmd_v(target_pid: i32) {
     unsafe {
