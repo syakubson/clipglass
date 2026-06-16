@@ -62,6 +62,7 @@
 
   let hubTesting = $state(false);
   let hubTestResult = $state<{ ok: boolean; message: string } | null>(null);
+  let localOpen = $state(false);
 
   async function handleHubTest() {
     hubTesting = true;
@@ -237,9 +238,91 @@
 <div class="settings-page">
   <div class="settings-head">
     <div class="settings-title">Settings</div>
-    <div class="settings-subtitle">Local AI and history behavior</div>
+    <div class="settings-subtitle">NeuralDeep hub & local AI</div>
   </div>
 
+  <section class="settings-section">
+    <div class="settings-section-title">NeuralDeep Hub</div>
+    <div class="settings-hint" style="margin-bottom: 10px;">
+      Connect your NeuralDeep account to tag and transcribe via the hub instead of
+      local models. Each user configures their own token.
+      <button class="link-btn" type="button" onclick={() => openUrl("https://hub.neuraldeep.ru/app")}>Get API key</button>
+    </div>
+
+    <label class="settings-field">
+      <span class="settings-label">API base URL</span>
+      <input
+        class="settings-input"
+        type="text"
+        bind:value={settings.hub_url}
+        placeholder="https://api.neuraldeep.ru"
+      />
+    </label>
+    <label class="settings-field" style="margin-top: 8px;">
+      <span class="settings-label">API Token</span>
+      <input
+        class="settings-input"
+        type="password"
+        bind:value={settings.hub_token}
+        placeholder="sk-... Bearer token"
+      />
+    </label>
+    <label class="settings-field" style="margin-top: 8px;">
+      <span class="settings-label">Chat model (for tagging & search)</span>
+      <input
+        class="settings-input"
+        type="text"
+        list="hub-models"
+        bind:value={settings.hub_chat_model}
+        placeholder="gpt-oss-120b"
+      />
+      <datalist id="hub-models">
+        <option value="gpt-oss-120b"></option>
+        <option value="qwen3.6-35b-a3b"></option>
+        <option value="gemma-4-31b"></option>
+      </datalist>
+      <div class="settings-hint">
+        Available: <code>gpt-oss-120b</code>, <code>qwen3.6-35b-a3b</code>, <code>gemma-4-31b</code>
+      </div>
+    </label>
+
+    <div class="settings-field" style="margin-top: 10px;">
+      <button class="settings-ghost-btn" type="button" disabled={hubTesting} onclick={handleHubTest}>
+        {hubTesting ? "Testing..." : "Test connection"}
+      </button>
+      {#if hubTestResult}
+        <div class="settings-hint" style="margin-top: 6px; color: {hubTestResult.ok ? '#3bbf6a' : '#e5534b'};">
+          {hubTestResult.message}
+        </div>
+      {/if}
+    </div>
+
+    <label class="settings-toggle" style="margin-top: 12px;">
+      <input type="checkbox" bind:checked={settings.hub_tagging_enabled} />
+      <span>Use hub for tagging (falls back to Ollama on error)</span>
+    </label>
+    <label class="settings-toggle" style="margin-top: 8px;">
+      <input type="checkbox" bind:checked={settings.hub_transcribe_enabled} />
+      <span>Use hub for voice transcription</span>
+    </label>
+    <label class="settings-toggle" style="margin-top: 8px;">
+      <input type="checkbox" bind:checked={settings.hub_search_enabled} />
+      <span>Enable hub agent quick-search (command palette)</span>
+    </label>
+  </section>
+
+  <button
+    class="settings-collapse-header"
+    type="button"
+    aria-expanded={localOpen}
+    onclick={() => (localOpen = !localOpen)}
+  >
+    <span class="settings-collapse-caret" class:open={localOpen}>›</span>
+    <span>Local settings</span>
+    <span class="settings-collapse-sub">Ollama, voice, history, permissions</span>
+  </button>
+
+  {#if localOpen}
   <section class="settings-section">
     <div class="settings-section-title">Permissions</div>
     <div class="status-step">
@@ -554,76 +637,7 @@
       />
     </label>
   </section>
-
-  <section class="settings-section">
-    <div class="settings-section-title">NeuralDeep Hub</div>
-    <div class="settings-hint" style="margin-bottom: 10px;">
-      Connect your NeuralDeep account to tag and transcribe via the hub instead of
-      local models. Each user configures their own token.
-      <button class="link-btn" type="button" onclick={() => openUrl("https://hub.neuraldeep.ru/app")}>Get API key</button>
-    </div>
-
-    <label class="settings-field">
-      <span class="settings-label">API base URL</span>
-      <input
-        class="settings-input"
-        type="text"
-        bind:value={settings.hub_url}
-        placeholder="https://api.neuraldeep.ru"
-      />
-    </label>
-    <label class="settings-field" style="margin-top: 8px;">
-      <span class="settings-label">API Token</span>
-      <input
-        class="settings-input"
-        type="password"
-        bind:value={settings.hub_token}
-        placeholder="sk-... Bearer token"
-      />
-    </label>
-    <label class="settings-field" style="margin-top: 8px;">
-      <span class="settings-label">Chat model (for tagging & search)</span>
-      <input
-        class="settings-input"
-        type="text"
-        list="hub-models"
-        bind:value={settings.hub_chat_model}
-        placeholder="gpt-oss-120b"
-      />
-      <datalist id="hub-models">
-        <option value="gpt-oss-120b"></option>
-        <option value="qwen3.6-35b-a3b"></option>
-        <option value="gemma-4-31b"></option>
-      </datalist>
-      <div class="settings-hint">
-        Available: <code>gpt-oss-120b</code>, <code>qwen3.6-35b-a3b</code>, <code>gemma-4-31b</code>
-      </div>
-    </label>
-
-    <div class="settings-field" style="margin-top: 10px;">
-      <button class="settings-ghost-btn" type="button" disabled={hubTesting} onclick={handleHubTest}>
-        {hubTesting ? "Testing..." : "Test connection"}
-      </button>
-      {#if hubTestResult}
-        <div class="settings-hint" style="margin-top: 6px; color: {hubTestResult.ok ? '#3bbf6a' : '#e5534b'};">
-          {hubTestResult.message}
-        </div>
-      {/if}
-    </div>
-
-    <label class="settings-toggle" style="margin-top: 12px;">
-      <input type="checkbox" bind:checked={settings.hub_tagging_enabled} />
-      <span>Use hub for tagging (falls back to Ollama on error)</span>
-    </label>
-    <label class="settings-toggle" style="margin-top: 8px;">
-      <input type="checkbox" bind:checked={settings.hub_transcribe_enabled} />
-      <span>Use hub for voice transcription</span>
-    </label>
-    <label class="settings-toggle" style="margin-top: 8px;">
-      <input type="checkbox" bind:checked={settings.hub_search_enabled} />
-      <span>Enable hub agent quick-search (command palette)</span>
-    </label>
-  </section>
+  {/if}
 
   <div class="settings-actions">
     <button class="settings-save-btn" type="button" disabled={savingSettings} onclick={saveSettings}>
@@ -818,6 +832,47 @@
     width: 16px;
     height: 16px;
     cursor: pointer;
+  }
+
+  .settings-collapse-header {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 12px 14px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 11px;
+    color: #e0e0e0;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s ease;
+  }
+
+  .settings-collapse-header:hover {
+    background: rgba(255, 255, 255, 0.06);
+  }
+
+  .settings-collapse-caret {
+    display: inline-block;
+    transition: transform 0.15s ease;
+    color: #8a8a93;
+    font-size: 16px;
+    line-height: 1;
+  }
+
+  .settings-collapse-caret.open {
+    transform: rotate(90deg);
+  }
+
+  .settings-collapse-sub {
+    margin-left: auto;
+    font-weight: 400;
+    font-size: 12px;
+    color: #76767f;
   }
 
   .settings-small-btn {
