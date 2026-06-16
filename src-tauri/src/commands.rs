@@ -1,6 +1,7 @@
 use crate::app_exclusion::{self, ExcludableAppSource};
 use crate::db::{
-    AppSettings, ClipboardEntry, Collection, Database, ExcludedApp, HistoryCounts, ModelCatalog,
+    AppSettings, ClipboardEntry, Collection, Database, EntryTaggedPayload, ExcludedApp,
+    HistoryCounts, ModelCatalog, OverlayTagCounts,
 };
 use crate::macos_app;
 use serde::Serialize;
@@ -28,10 +29,29 @@ pub fn get_entries(
     collection_id: Option<i64>,
     pinned_only: Option<bool>,
     search: Option<String>,
+    tag: Option<String>,
+    content_kind: Option<String>,
 ) -> Result<Vec<ClipboardEntry>, String> {
     db.get_entries(
         limit.unwrap_or(50),
         offset.unwrap_or(0),
+        collection_id,
+        pinned_only.unwrap_or(false),
+        search.as_deref(),
+        tag.as_deref(),
+        content_kind.as_deref(),
+    )
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_overlay_tag_counts(
+    db: State<'_, Arc<Database>>,
+    collection_id: Option<i64>,
+    pinned_only: Option<bool>,
+    search: Option<String>,
+) -> Result<OverlayTagCounts, String> {
+    db.get_overlay_tag_counts(
         collection_id,
         pinned_only.unwrap_or(false),
         search.as_deref(),
@@ -348,26 +368,36 @@ pub fn retag_entry(
     app: tauri::AppHandle,
     db: State<'_, Arc<Database>>,
     entry_id: i64,
-) -> Result<(), String> {
+) -> Result<Vec<String>, String> {
     if !ollama::is_tagging_ready(db.inner()) {
-        return Ok(());
+        return Ok(Vec::new());
     }
 
     let Some(text) = db.get_entry_text(entry_id).map_err(|e| e.to_string())? else {
-        return Ok(());
+        return Ok(Vec::new());
     };
 
-    match ollama::tag_text(&text) {
-        Some(tags) => db
-            .set_entry_tags(entry_id, &tags)
-            .map_err(|e| e.to_string())?,
-        None => db
-            .set_entry_tag_state(entry_id, "skipped")
-            .map_err(|e| e.to_string())?,
-    }
+    let tags = match ollama::tag_text(&text) {
+        Some(tags) => {
+            db.set_entry_tags(entry_id, &tags)
+                .map_err(|e| e.to_string())?;
+            tags
+        }
+        None => {
+            db.set_entry_tag_state(entry_id, "skipped")
+                .map_err(|e| e.to_string())?;
+            Vec::new()
+        }
+    };
 
-    let _ = app.emit("entry-tagged", entry_id);
-    Ok(())
+    let _ = app.emit(
+        "entry-tagged",
+        EntryTaggedPayload {
+            entry_id,
+            tags: tags.clone(),
+        },
+    );
+    Ok(tags)
 }
 
 #[tauri::command]

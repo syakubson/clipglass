@@ -70,6 +70,27 @@ pub struct HistoryCounts {
     pub pinned: i64,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct TagCount {
+    pub tag: String,
+    pub count: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct OverlayTagCounts {
+    pub semantic: Vec<TagCount>,
+    pub format: Vec<TagCount>,
+    pub has_text: bool,
+    pub has_images: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EntryTaggedPayload {
+    pub entry_id: i64,
+    pub tags: Vec<String>,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Collection {
     pub id: i64,
@@ -92,6 +113,80 @@ pub struct Database {
 
 fn lowercase_search_text(text: &str) -> String {
     text.to_lowercase()
+}
+
+const FORMAT_TAG_ORDER: &[&str] = &["gif", "jpg", "png"];
+const SEMANTIC_TAG_LIMIT: i64 = 8;
+
+fn push_entry_list_filters(
+    sql: &mut String,
+    param_values: &mut Vec<Box<dyn rusqlite::types::ToSql>>,
+    table_prefix: &str,
+    collection_id: Option<i64>,
+    pinned_only: bool,
+    search: Option<&str>,
+) {
+    if let Some(cid) = collection_id {
+        sql.push_str(&format!(" AND {table_prefix}collection_id = ?"));
+        param_values.push(Box::new(cid));
+    }
+    if pinned_only {
+        sql.push_str(&format!(" AND {table_prefix}is_pinned = 1"));
+    }
+    if let Some(q) = search {
+        let q_lower = lowercase_search_text(q);
+        if !q_lower.is_empty() {
+            sql.push_str(&format!(" AND {table_prefix}text_content_search LIKE ?"));
+            param_values.push(Box::new(format!("%{q_lower}%")));
+        }
+    }
+}
+
+fn is_format_tag(tag: &str) -> bool {
+    matches!(tag, "gif" | "jpg" | "png")
+}
+
+fn push_content_kind_filter(sql: &mut String, table_prefix: &str, content_kind: &str) {
+    match content_kind {
+        "text" => sql.push_str(&format!(" AND {table_prefix}content_type = 'text'")),
+        "image" => sql.push_str(&format!(" AND {table_prefix}content_type = 'image'")),
+        _ => {}
+    }
+}
+
+fn push_entry_tag_filter(
+    sql: &mut String,
+    param_values: &mut Vec<Box<dyn rusqlite::types::ToSql>>,
+    table_prefix: &str,
+    tag: &str,
+) {
+    let id_col = format!("{table_prefix}id");
+    if is_format_tag(tag) {
+        sql.push_str(&format!(
+            " AND {table_prefix}content_type = 'image' AND (
+              CASE
+                WHEN UPPER({table_prefix}image_format) IN ('JPG', 'JPEG') THEN 'jpg'
+                WHEN UPPER({table_prefix}image_format) = 'GIF' THEN 'gif'
+                WHEN UPPER({table_prefix}image_format) = 'PNG' THEN 'png'
+                ELSE NULL
+              END = ?
+              OR EXISTS (
+                SELECT 1 FROM clipboard_tags ct
+                WHERE ct.entry_id = {id_col} AND ct.tag = ?
+              )
+            )"
+        ));
+        param_values.push(Box::new(tag.to_owned()));
+        param_values.push(Box::new(tag.to_owned()));
+    } else {
+        sql.push_str(&format!(
+            " AND {table_prefix}content_type = 'text' AND EXISTS (
+                SELECT 1 FROM clipboard_tags ct
+                WHERE ct.entry_id = {id_col} AND ct.tag = ?
+              )"
+        ));
+        param_values.push(Box::new(tag.to_owned()));
+    }
 }
 
 fn backfill_text_content_search(conn: &Connection) -> Result<(), rusqlite::Error> {
@@ -495,6 +590,8 @@ impl Database {
         collection_id: Option<i64>,
         pinned_only: bool,
         search: Option<&str>,
+        tag: Option<&str>,
+        content_kind: Option<&str>,
     ) -> Result<Vec<ClipboardEntry>, rusqlite::Error> {
         let conn = self.conn.lock().unwrap();
 
@@ -506,21 +603,20 @@ impl Database {
         );
         let mut param_values: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
 
-        if let Some(cid) = collection_id {
-            sql.push_str(" AND collection_id = ?");
-            param_values.push(Box::new(cid));
-        }
+        push_entry_list_filters(
+            &mut sql,
+            &mut param_values,
+            "",
+            collection_id,
+            pinned_only,
+            search,
+        );
 
-        if pinned_only {
-            sql.push_str(" AND is_pinned = 1");
+        if let Some(kind) = content_kind {
+            push_content_kind_filter(&mut sql, "", kind);
         }
-
-        if let Some(q) = search {
-            let q_lower = lowercase_search_text(q);
-            if !q_lower.is_empty() {
-                sql.push_str(" AND text_content_search LIKE ?");
-                param_values.push(Box::new(format!("%{}%", q_lower)));
-            }
+        if let Some(tag) = tag {
+            push_entry_tag_filter(&mut sql, &mut param_values, "", tag);
         }
 
         sql.push_str(" ORDER BY created_at DESC LIMIT ? OFFSET ?");
@@ -565,6 +661,147 @@ impl Database {
             resolve_image_format(entry);
         }
         Ok(entries)
+    }
+
+    pub fn get_overlay_tag_counts(
+        &self,
+        collection_id: Option<i64>,
+        pinned_only: bool,
+        search: Option<&str>,
+    ) -> Result<OverlayTagCounts, rusqlite::Error> {
+        let conn = self.conn.lock().unwrap();
+
+        let mut semantic_sql = String::from(
+            "SELECT ct.tag, COUNT(DISTINCT ce.id) AS cnt
+             FROM clipboard_tags ct
+             INNER JOIN clipboard_entries ce ON ce.id = ct.entry_id
+             WHERE ce.content_type = 'text'
+               AND ct.tag NOT IN ('code', 'otp', 'token', 'log', 'gif', 'jpg', 'png', 'jpeg')",
+        );
+        let mut semantic_params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+        push_entry_list_filters(
+            &mut semantic_sql,
+            &mut semantic_params,
+            "ce.",
+            collection_id,
+            pinned_only,
+            search,
+        );
+        semantic_sql.push_str(" GROUP BY ct.tag ORDER BY cnt DESC, ct.tag ASC LIMIT ?");
+        semantic_params.push(Box::new(SEMANTIC_TAG_LIMIT));
+
+        let semantic_params_ref: Vec<&dyn rusqlite::types::ToSql> =
+            semantic_params.iter().map(|p| p.as_ref()).collect();
+        let semantic = conn
+            .prepare(&semantic_sql)?
+            .query_map(semantic_params_ref.as_slice(), |row| {
+                Ok(TagCount {
+                    tag: row.get(0)?,
+                    count: row.get(1)?,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let mut format_sql = String::from(
+            "SELECT fmt, COUNT(DISTINCT id) AS cnt FROM (
+                SELECT ce.id,
+                  CASE
+                    WHEN UPPER(ce.image_format) IN ('JPG', 'JPEG') THEN 'jpg'
+                    WHEN UPPER(ce.image_format) = 'GIF' THEN 'gif'
+                    WHEN UPPER(ce.image_format) = 'PNG' THEN 'png'
+                    ELSE NULL
+                  END AS fmt
+                FROM clipboard_entries ce
+                WHERE ce.content_type = 'image' AND ce.image_format IS NOT NULL",
+        );
+        let mut format_params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+        push_entry_list_filters(
+            &mut format_sql,
+            &mut format_params,
+            "ce.",
+            collection_id,
+            pinned_only,
+            search,
+        );
+        format_sql.push_str(
+            "
+                UNION
+                SELECT ce.id, ct.tag AS fmt
+                FROM clipboard_entries ce
+                INNER JOIN clipboard_tags ct ON ct.entry_id = ce.id
+                WHERE ce.content_type = 'image'
+                  AND ct.tag IN ('gif', 'jpg', 'png')",
+        );
+        push_entry_list_filters(
+            &mut format_sql,
+            &mut format_params,
+            "ce.",
+            collection_id,
+            pinned_only,
+            search,
+        );
+        format_sql.push_str(") WHERE fmt IS NOT NULL GROUP BY fmt ORDER BY cnt DESC, fmt ASC");
+
+        let format_params_ref: Vec<&dyn rusqlite::types::ToSql> =
+            format_params.iter().map(|p| p.as_ref()).collect();
+        let format_rows = conn
+            .prepare(&format_sql)?
+            .query_map(format_params_ref.as_slice(), |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let format_map: std::collections::HashMap<String, i64> = format_rows.into_iter().collect();
+        let format = FORMAT_TAG_ORDER
+            .iter()
+            .filter_map(|tag| {
+                format_map.get(*tag).map(|count| TagCount {
+                    tag: (*tag).to_owned(),
+                    count: *count,
+                })
+            })
+            .collect();
+
+        let mut kind_sql = String::from(
+            "SELECT
+                EXISTS(SELECT 1 FROM clipboard_entries WHERE content_type = 'text'",
+        );
+        let mut kind_params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+        push_entry_list_filters(
+            &mut kind_sql,
+            &mut kind_params,
+            "",
+            collection_id,
+            pinned_only,
+            search,
+        );
+        kind_sql.push_str(
+            "),
+                EXISTS(SELECT 1 FROM clipboard_entries WHERE content_type = 'image'",
+        );
+        push_entry_list_filters(
+            &mut kind_sql,
+            &mut kind_params,
+            "",
+            collection_id,
+            pinned_only,
+            search,
+        );
+        kind_sql.push(')');
+
+        let kind_params_ref: Vec<&dyn rusqlite::types::ToSql> =
+            kind_params.iter().map(|p| p.as_ref()).collect();
+        let (has_text, has_images): (i32, i32) =
+            conn.query_row(&kind_sql, kind_params_ref.as_slice(), |row| {
+                Ok((row.get(0)?, row.get(1)?))
+            })?;
+
+        Ok(OverlayTagCounts {
+            semantic,
+            format,
+            has_text: has_text != 0,
+            has_images: has_images != 0,
+        })
     }
 
     pub fn has_entry_with_content_hash(&self, hash: &str) -> Result<bool, rusqlite::Error> {
@@ -1192,7 +1429,9 @@ mod tests {
         let entry = make_image_entry("img_jpg", thumb, None, None, None, None);
         let (id, _) = db.insert_entry(&entry).unwrap();
 
-        let entries = db.get_entries(10, 0, None, false, None).unwrap();
+        let entries = db
+            .get_entries(10, 0, None, false, None, None, None)
+            .unwrap();
         let found = entries.iter().find(|e| e.id == id).unwrap();
         assert_eq!(found.image_format.as_deref(), Some("JPG"));
     }
@@ -1207,7 +1446,9 @@ mod tests {
         let updated = db.backfill_missing_image_formats(100).unwrap();
         assert_eq!(updated, 1);
 
-        let entries = db.get_entries(10, 0, None, false, None).unwrap();
+        let entries = db
+            .get_entries(10, 0, None, false, None, None, None)
+            .unwrap();
         assert_eq!(entries[0].image_format.as_deref(), Some("GIF"));
     }
 
@@ -1233,7 +1474,9 @@ mod tests {
         assert_eq!(fetched.image_height, Some(48));
         assert_eq!(fetched.image_byte_size, Some(12_345));
 
-        let listed = db.get_entries(10, 0, None, false, None).unwrap();
+        let listed = db
+            .get_entries(10, 0, None, false, None, None, None)
+            .unwrap();
         let found = listed.iter().find(|e| e.id == id).unwrap();
         assert_eq!(found.image_format.as_deref(), Some("PNG"));
         assert_eq!(found.image_width, Some(64));
@@ -1252,7 +1495,9 @@ mod tests {
         let updated = db.backfill_missing_image_meta(100).unwrap();
         assert!(updated >= 1);
 
-        let entries = db.get_entries(10, 0, None, false, None).unwrap();
+        let entries = db
+            .get_entries(10, 0, None, false, None, None, None)
+            .unwrap();
         assert!(entries[0].image_width.is_some());
         assert!(entries[0].image_height.is_some());
         assert!(entries[0].image_byte_size.is_some());
@@ -1310,7 +1555,7 @@ mod tests {
             db.insert_entry(&make_entry(&format!("text {}", i), &format!("h{}", i)))
                 .unwrap();
         }
-        let entries = db.get_entries(3, 0, None, false, None).unwrap();
+        let entries = db.get_entries(3, 0, None, false, None, None, None).unwrap();
         assert_eq!(entries.len(), 3);
     }
 
@@ -1322,10 +1567,14 @@ mod tests {
         db.insert_entry(&make_entry("python script", "h2")).unwrap();
         db.insert_entry(&make_entry("rust cargo", "h3")).unwrap();
 
-        let results = db.get_entries(50, 0, None, false, Some("rust")).unwrap();
+        let results = db
+            .get_entries(50, 0, None, false, Some("rust"), None, None)
+            .unwrap();
         assert_eq!(results.len(), 2);
 
-        let upper = db.get_entries(50, 0, None, false, Some("RUST")).unwrap();
+        let upper = db
+            .get_entries(50, 0, None, false, Some("RUST"), None, None)
+            .unwrap();
         assert_eq!(upper.len(), 2);
     }
 
@@ -1337,7 +1586,9 @@ mod tests {
         db.insert_entry(&make_entry("другой текст", "h_other"))
             .unwrap();
 
-        let results = db.get_entries(50, 0, None, false, Some("что уч")).unwrap();
+        let results = db
+            .get_entries(50, 0, None, false, Some("что уч"), None, None)
+            .unwrap();
         assert_eq!(results.len(), 1);
         assert_eq!(
             results[0].text_content.as_deref(),
@@ -1385,7 +1636,7 @@ mod tests {
         db.insert_entry(&make_entry("not pinned", "h2")).unwrap();
         db.pin_entry(id1, true).unwrap();
 
-        let pinned = db.get_entries(50, 0, None, true, None).unwrap();
+        let pinned = db.get_entries(50, 0, None, true, None, None, None).unwrap();
         assert_eq!(pinned.len(), 1);
         assert_eq!(pinned[0].text_content.as_deref(), Some("pinned"));
     }
@@ -1438,7 +1689,9 @@ mod tests {
         db.pin_entry(id1, true).unwrap();
 
         db.clear_history().unwrap();
-        let all = db.get_entries(50, 0, None, false, None).unwrap();
+        let all = db
+            .get_entries(50, 0, None, false, None, None, None)
+            .unwrap();
         assert_eq!(all.len(), 1);
         assert!(all[0].is_pinned);
     }
@@ -1451,7 +1704,9 @@ mod tests {
         db.pin_entry(id1, true).unwrap();
 
         db.clear_all_history().unwrap();
-        let all = db.get_entries(50, 0, None, false, None).unwrap();
+        let all = db
+            .get_entries(50, 0, None, false, None, None, None)
+            .unwrap();
         assert!(all.is_empty());
     }
 
@@ -1481,6 +1736,179 @@ mod tests {
         let entry = db.get_entry_by_id(id).unwrap().unwrap();
         assert!(entry.tags.contains(&"rust".to_owned()));
         assert!(entry.tags.contains(&"code".to_owned()));
+    }
+
+    #[test]
+    fn get_overlay_tag_counts_aggregates_across_all_entries() {
+        let db = test_db();
+        for i in 0..3 {
+            let (id, _) = db
+                .insert_entry(&make_entry(&format!("rust {i}"), &format!("h{i}")))
+                .unwrap();
+            db.set_entry_tags(id, &["rust".to_owned(), "api".to_owned()])
+                .unwrap();
+        }
+        let (id, _) = db.insert_entry(&make_entry("python only", "hpy")).unwrap();
+        db.set_entry_tags(id, &["python".to_owned()]).unwrap();
+
+        for i in 0..2 {
+            let entry =
+                make_image_entry(&format!("img{i}"), "thumb", Some("PNG"), None, None, None);
+            db.insert_entry(&entry).unwrap();
+        }
+
+        let counts = db.get_overlay_tag_counts(None, false, None).unwrap();
+        assert!(counts.has_text);
+        assert!(counts.has_images);
+
+        let rust = counts
+            .semantic
+            .iter()
+            .find(|c| c.tag == "rust")
+            .expect("rust tag");
+        assert_eq!(rust.count, 3);
+
+        let png = counts
+            .format
+            .iter()
+            .find(|c| c.tag == "png")
+            .expect("png format");
+        assert_eq!(png.count, 2);
+    }
+
+    #[test]
+    fn get_overlay_tag_counts_respects_search_scope() {
+        let db = test_db();
+        let (rust_id, _) = db.insert_entry(&make_entry("rust api note", "h1")).unwrap();
+        db.set_entry_tags(rust_id, &["rust".to_owned(), "api".to_owned()])
+            .unwrap();
+        let (py_id, _) = db.insert_entry(&make_entry("python tip", "h2")).unwrap();
+        db.set_entry_tags(py_id, &["python".to_owned()]).unwrap();
+
+        let scoped = db
+            .get_overlay_tag_counts(None, false, Some("rust"))
+            .unwrap();
+        let rust = scoped
+            .semantic
+            .iter()
+            .find(|c| c.tag == "rust")
+            .expect("rust in search scope");
+        assert_eq!(rust.count, 1);
+        assert!(!scoped.semantic.iter().any(|c| c.tag == "python"));
+    }
+
+    #[test]
+    fn get_entries_format_tag_matches_jpeg_image_format() {
+        let db = test_db();
+        let entry = make_image_entry("jpeg1", "thumb", Some("JPEG"), None, None, None);
+        db.insert_entry(&entry).unwrap();
+
+        let results = db
+            .get_entries(50, 0, None, false, None, Some("jpg"), None)
+            .unwrap();
+        assert_eq!(results.len(), 1);
+        assert!(matches!(
+            results[0].image_format.as_deref(),
+            Some("JPEG") | Some("JPG")
+        ));
+    }
+
+    #[test]
+    fn get_entries_semantic_tag_ignores_mis_tagged_images() {
+        let db = test_db();
+        let (text_id, _) = db.insert_entry(&make_entry("api note", "h1")).unwrap();
+        db.set_entry_tags(text_id, &["api".to_owned()]).unwrap();
+
+        let image = make_image_entry("img", "thumb", Some("PNG"), None, None, None);
+        let (image_id, _) = db.insert_entry(&image).unwrap();
+        db.set_entry_tags(image_id, &["api".to_owned()]).unwrap();
+
+        let results = db
+            .get_entries(50, 0, None, false, None, Some("api"), None)
+            .unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].content_type, "text");
+    }
+
+    #[test]
+    fn get_entries_filters_by_semantic_tag() {
+        let db = test_db();
+        let (id1, _) = db.insert_entry(&make_entry("python one", "h1")).unwrap();
+        db.set_entry_tags(id1, &["python".to_owned()]).unwrap();
+        let (id2, _) = db.insert_entry(&make_entry("python two", "h2")).unwrap();
+        db.set_entry_tags(id2, &["python".to_owned()]).unwrap();
+        db.insert_entry(&make_entry("other", "h3")).unwrap();
+
+        let results = db
+            .get_entries(50, 0, None, false, None, Some("python"), None)
+            .unwrap();
+        assert_eq!(results.len(), 2);
+        assert!(results
+            .iter()
+            .all(|e| e.tags.contains(&"python".to_owned())));
+    }
+
+    #[test]
+    fn get_entries_filters_by_format_tag() {
+        let db = test_db();
+        let png = make_image_entry("png1", "thumb", Some("PNG"), None, None, None);
+        let gif = make_image_entry("gif1", "thumb", Some("GIF"), None, None, None);
+        db.insert_entry(&png).unwrap();
+        db.insert_entry(&gif).unwrap();
+
+        let results = db
+            .get_entries(50, 0, None, false, None, Some("png"), None)
+            .unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].image_format.as_deref(), Some("PNG"));
+    }
+
+    #[test]
+    fn get_entries_filters_by_content_kind() {
+        let db = test_db();
+        db.insert_entry(&make_entry("text one", "ht1")).unwrap();
+        db.insert_entry(&make_entry("text two", "ht2")).unwrap();
+        let png = make_image_entry("img1", "thumb", Some("PNG"), None, None, None);
+        db.insert_entry(&png).unwrap();
+
+        let text_only = db
+            .get_entries(50, 0, None, false, None, None, Some("text"))
+            .unwrap();
+        assert_eq!(text_only.len(), 2);
+        assert!(text_only.iter().all(|e| e.content_type == "text"));
+
+        let images_only = db
+            .get_entries(50, 0, None, false, None, None, Some("image"))
+            .unwrap();
+        assert_eq!(images_only.len(), 1);
+        assert_eq!(images_only[0].content_type, "image");
+    }
+
+    #[test]
+    fn get_entries_combined_search_tag_and_content_kind() {
+        let db = test_db();
+        let (py_id, _) = db
+            .insert_entry(&make_entry("python api tip", "h1"))
+            .unwrap();
+        db.set_entry_tags(py_id, &["python".to_owned()]).unwrap();
+        db.insert_entry(&make_entry("plain rust note", "h2"))
+            .unwrap();
+        let png = make_image_entry("img1", "thumb", Some("PNG"), None, None, None);
+        db.insert_entry(&png).unwrap();
+
+        let results = db
+            .get_entries(
+                50,
+                0,
+                None,
+                false,
+                Some("api"),
+                Some("python"),
+                Some("text"),
+            )
+            .unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].text_content.as_deref(), Some("python api tip"));
     }
 
     #[test]

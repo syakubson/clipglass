@@ -70,6 +70,7 @@ pub fn app_identity_from_app_bundle_path(path: &Path) -> Option<AppIdentity> {
     }
 
     let display_name = display_name_for_app_bundle_path(path, Some(&bundle))
+        .map(|name| prefer_folder_name_over_humanized_plist(&bundle_id, path, name))
         .unwrap_or_else(|| humanize_bundle_id(&bundle_id));
 
     Some(AppIdentity {
@@ -149,6 +150,11 @@ fn list_display_name_for_bundle_id(
         if let Some(name) = running.get(trimmed) {
             return name.clone();
         }
+    }
+
+    #[cfg(target_os = "macos")]
+    if let Some(name) = display_name_from_bundle_installation(trimmed) {
+        return name;
     }
 
     humanize_bundle_id(trimmed)
@@ -380,13 +386,43 @@ fn choose_user_visible_app_name(plist: Option<String>, stem: Option<String>) -> 
     }
 }
 
+fn prefer_folder_name_over_humanized_plist(bundle_id: &str, path: &Path, chosen: String) -> String {
+    let Some(stem) = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .filter(|s| !s.is_empty())
+    else {
+        return chosen;
+    };
+    if stem.contains(' ')
+        && chosen.eq_ignore_ascii_case(&humanize_bundle_id(bundle_id))
+        && !stem.eq_ignore_ascii_case(&chosen)
+    {
+        return stem.to_string();
+    }
+    chosen
+}
+
 fn should_prefer_bundle_folder_name(plist: &str, stem: &str) -> bool {
     let plist_lower = plist.to_ascii_lowercase();
     let stem_lower = stem.to_ascii_lowercase();
     // Keep this explicit and minimal: "Code" -> "Visual Studio Code".
-    stem_lower.contains(' ')
+    if stem_lower.contains(' ')
         && !plist_lower.contains(' ')
         && stem_lower.ends_with(&format!(" {}", plist_lower))
+    {
+        return true;
+    }
+    // Marketing rename: plist keeps an internal id (ScreenContinuity) while the
+    // .app folder matches Finder (iPhone Mirroring).
+    if stem_lower.contains(' ') && !plist_lower.contains(' ') && !stem_lower.contains(&plist_lower)
+    {
+        let stem_compact = stem_lower.replace(' ', "");
+        if !plist_lower.contains(&stem_compact) {
+            return true;
+        }
+    }
+    false
 }
 
 /// User-visible app name from the `.app` bundle path (matches Finder / Applications).
@@ -422,7 +458,10 @@ fn display_name_from_bundle_installation(bundle_id: &str) -> Option<String> {
     let path = bundle_install_path_for_bundle_id(bundle_id)?;
     let path_str = path.to_str()?;
     let bundle = NSBundle::bundleWithPath(&NSString::from_str(path_str))?;
-    display_name_for_app_bundle_path(&path, Some(&bundle))
+    let name = display_name_for_app_bundle_path(&path, Some(&bundle))?;
+    Some(prefer_folder_name_over_humanized_plist(
+        bundle_id, &path, name,
+    ))
 }
 
 #[cfg(target_os = "macos")]
@@ -636,6 +675,17 @@ mod tests {
         assert_eq!(
             choose_user_visible_app_name(Some("Code".into()), Some("Visual Studio Code".into()),),
             Some("Visual Studio Code".into())
+        );
+    }
+
+    #[test]
+    fn choose_user_visible_app_name_prefers_folder_when_plist_is_internal_id() {
+        assert_eq!(
+            choose_user_visible_app_name(
+                Some("ScreenContinuity".into()),
+                Some("iPhone Mirroring".into()),
+            ),
+            Some("iPhone Mirroring".into())
         );
     }
 

@@ -310,6 +310,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             frontend_ready,
             commands::get_entries,
+            commands::get_overlay_tag_counts,
             commands::delete_entry,
             commands::pin_entry,
             commands::set_entry_collection,

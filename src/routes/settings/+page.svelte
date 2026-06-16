@@ -3,13 +3,14 @@
   import { prepareBusyUi } from "$lib/run-with-busy-ui";
   import { listen } from "@tauri-apps/api/event";
   import { getCurrentWindow } from "@tauri-apps/api/window";
-  import type {
-    AppSettings,
-    AudioInputDevice,
-    ExcludedApp,
-    ExcludableAppCandidate,
-    ExcludeAppResult,
-    ModelCatalog,
+  import {
+    parseEntryTaggedEvent,
+    type AppSettings,
+    type AudioInputDevice,
+    type ExcludedApp,
+    type ExcludableAppCandidate,
+    type ExcludeAppResult,
+    type ModelCatalog,
   } from "$lib/types";
   import {
     addExcludedApp,
@@ -352,7 +353,8 @@
 
     // Retag / auto-tag can load an unloaded model — refresh step 3 only then.
     let ollamaSyncTimer: ReturnType<typeof setTimeout>;
-    const unlistenEntryTagged = listen("entry-tagged", () => {
+    const unlistenEntryTagged = listen("entry-tagged", (event) => {
+      if (parseEntryTaggedEvent(event.payload) === null) return;
       if (ollamaStatus?.model_loaded) return;
       clearTimeout(ollamaSyncTimer);
       ollamaSyncTimer = setTimeout(() => void syncOllamaStatus(), 150);

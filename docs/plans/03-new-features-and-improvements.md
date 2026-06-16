@@ -29,7 +29,7 @@ Backlog and completed items formerly tracked in `AGENTS.md`.
   - Image card meta (dimensions, file size); filter vs metadata badge separation
   - Follow-up UX and filter behavior — open; extend the linked plan as ideas land
 
-- [ ] **Infinite scroll** — lazy loading entries on horizontal scroll (backend already supports `limit` + `offset`)
+- [x] **Infinite scroll** — lazy loading entries on horizontal scroll (`get_entries` with `limit` + `offset`; prefetch on scroll, backfill after local deletes, **Try again** on failed page loads)
 
 - [ ] **Shortcut recorder** (voice + future overlay shortcut)
   - Replace text inputs with a shortcut recorder control

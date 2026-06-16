@@ -2,15 +2,12 @@
   import { onMount, tick } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
-  import type { ClipboardEntry, Collection, ExcludableAppCandidate } from "$lib/types";
+  import { parseEntryTaggedEvent, type Collection, type ExcludableAppCandidate } from "$lib/types";
   import {
-    getEntries,
     getCollections,
-    getAppSettings,
     hideMainWindow,
     openSettingsWindow,
     activateEntry,
-    isTaggingReady,
     getExcludableAppCandidate,
     addExcludableAppCandidate,
   } from "$lib/api";
@@ -26,19 +23,12 @@
   import ContentKindSegment from "$lib/components/ContentKindSegment.svelte";
   import TagFilterBar from "$lib/components/TagFilterBar.svelte";
   import {
-    type ContentKind,
     buildTagBarModel,
-    filterKindPool,
-    filterByActiveTag,
-    activeTagCompatibleWithKind,
-    activeTagCompatibleWithAi,
     isFormatTag,
     contentKindEmptyLabel,
     formatTagEmptyLabel,
-    hasImageEntries,
-    hasTextEntries,
-    reconcileOverlayFilters,
   } from "$lib/overlay-filters";
+  import { createOverlayEntriesStore } from "$lib/overlay-entries.svelte";
   import { overlayEscapeAction } from "$lib/overlay-search";
   import { setInputModality } from "$lib/input-modality";
   import { overlayHeightForLayout } from "$lib/overlay-layout";
@@ -48,17 +38,8 @@
     resizeMainWindow,
   } from "$lib/overlay-resize";
   import { panelCloseFallbackMs, panelOpenMs, scrollBehavior } from "$lib/motion";
+  import { shouldLoadNextEntryPage } from "$lib/overlay-pagination";
 
-  let entries: ClipboardEntry[] = $state([]);
-  /** Collection pool without search — keeps filter rows and overlay height stable. */
-  let catalogEntries: ClipboardEntry[] = $state([]);
-  let collections: Collection[] = $state([]);
-  let searchQuery = $state("");
-  let activeCollectionId: number | null = $state(null);
-  let pinnedOnly = $state(false);
-  let activeTag = $state<string | null>(null);
-  let contentKind = $state<ContentKind>("all");
-  let aiTaggingEnabled = $state(false);
   let selectedIndex = $state(-1);
   let gridEl: HTMLDivElement | undefined = $state();
   let appEl: HTMLDivElement | undefined = $state();
@@ -69,96 +50,80 @@
   let pendingReload = false;
   let revealSeq = 0;
   let hideTransitionHandler: ((e: TransitionEvent) => void) | undefined;
-  let retagAvailable = $state(false);
   let excludeCandidate: ExcludableAppCandidate | null = $state(null);
   let excludeNotice = $state("");
   let excludeNoticeTone = $state<"neutral" | "warn">("neutral");
   let excludeBusy = $state(false);
   let searchBar: SearchBar | undefined = $state();
-  let settingsLoadError = $state<string | null>(null);
   let lastLayoutHeight = $state<number | null>(null);
-  let dataFetchGen = 0;
+  let collections: Collection[] = $state([]);
   let activating = $state(false);
 
   const SETTINGS_SYNC_USER_NOTICE =
     "Couldn't load app settings. Tags and filters may not work properly. Restart Copyosity.";
 
+  const overlay = createOverlayEntriesStore({
+    getVisible: () => visible,
+    getIsRevealing: () => isRevealing,
+    onSelectionRequested: (_selectFirst, scrollToFirst) => {
+      selectedIndex = filteredEntries.length > 0 ? 0 : -1;
+      if (scrollToFirst) scrollToSelected();
+    },
+    onClampSelection: () => {
+      if (selectedIndex >= overlay.entries.length) {
+        selectedIndex = overlay.entries.length > 0 ? overlay.entries.length - 1 : -1;
+      }
+    },
+  });
+
   const settingsSyncNotice = $derived(
-    settingsLoadError !== null ? SETTINGS_SYNC_USER_NOTICE : null,
+    overlay.settingsLoadError !== null ? SETTINGS_SYNC_USER_NOTICE : null,
   );
 
-  async function syncRetagAvailability() {
-    retagAvailable = await isTaggingReady();
-  }
+  const tagBarModel = $derived(
+    buildTagBarModel({
+      entries: overlay.entries,
+      layoutEntries: overlay.catalogEntries,
+      contentKind: overlay.contentKind,
+      aiTaggingEnabled: overlay.aiTaggingEnabled,
+      activeTag: overlay.activeTag,
+      displayTagCounts: overlay.searchQuery ? overlay.searchTagCounts : overlay.catalogTagCounts,
+      layoutTagCounts: overlay.catalogTagCounts,
+    }),
+  );
 
-  async function syncAiTaggingSettings() {
-    try {
-      const settings = await getAppSettings();
-      settingsLoadError = null;
-      const enabled = settings.ai_tagging_enabled;
-      if (enabled !== aiTaggingEnabled) {
-        if (!enabled) {
-          if (activeTag && !activeTagCompatibleWithAi(activeTag, false)) {
-            activeTag = null;
-          }
-        } else {
-          contentKind = "all";
-          activeTag = null;
-        }
-      }
-      aiTaggingEnabled = enabled;
-    } catch (err) {
-      aiTaggingEnabled = false;
-      settingsLoadError = invokeErrorMessage(err) || "unknown";
+  const overlayLayoutHeight = $derived(
+    overlayHeightForLayout({
+      tagBar: tagBarModel,
+      hasSettingsNotice: settingsSyncNotice !== null,
+    }),
+  );
+
+  const filteredEntries = $derived(overlay.entries);
+
+  $effect(() => {
+    if (selectedIndex < 0) return;
+    if (selectedIndex < filteredEntries.length) return;
+    selectedIndex = filteredEntries.length > 0 ? filteredEntries.length - 1 : -1;
+    if (filteredEntries.length > 0) scrollToSelected();
+  });
+
+  $effect(() => {
+    if (overlay.displayListPending) selectedIndex = -1;
+  });
+
+  $effect(() => {
+    const height = overlayLayoutHeight;
+    if (!visible) {
+      lastLayoutHeight = null;
+      return;
     }
-  }
-
-  async function syncOverlaySettings() {
-    await Promise.all([syncRetagAvailability(), syncAiTaggingSettings()]);
-  }
-
-  async function loadExcludeCandidate() {
-    try {
-      const candidate = await getExcludableAppCandidate();
-      excludeCandidate = candidate;
-      if (candidate?.alreadyExcluded) {
-        excludeNotice = alreadyExcludedFromHistoryLabel(candidate.displayName);
-        excludeNoticeTone = "neutral";
-        return;
-      }
-      excludeNotice = "";
-    } catch (err) {
-      excludeCandidate = null;
-      excludeNotice = invokeErrorMessage(err) || "Could not detect active app";
-      excludeNoticeTone = "warn";
-    }
-  }
-
-  async function handleExcludeFromPanel() {
-    if (excludeBusy) return;
-    excludeBusy = true;
-    try {
-      const added = await addExcludableAppCandidate();
-      if (added) {
-        await loadExcludeCandidate();
-        return;
-      }
-      excludeNotice = "No active app";
-      excludeNoticeTone = "warn";
-    } catch (err) {
-      excludeNotice = invokeErrorMessage(err) || "Could not exclude this app";
-      excludeNoticeTone = "warn";
-    } finally {
-      excludeBusy = false;
-    }
-  }
-
-  function entryQuery() {
-    return {
-      collection_id: activeCollectionId,
-      pinned_only: pinnedOnly,
-    };
-  }
+    if (lastLayoutHeight === height) return;
+    const previous = lastLayoutHeight;
+    lastLayoutHeight = height;
+    const animate = previous !== null && !isRevealing;
+    void applyOverlayHeight(height, animate);
+  });
 
   async function activateSelectedEntry(entryId: number) {
     if (activating) return;
@@ -170,49 +135,75 @@
     }
   }
 
-  function applyEntrySelection(selectFirst: boolean, scrollToFirst: boolean) {
-    if (selectFirst) {
-      selectedIndex = filteredEntries.length > 0 ? 0 : -1;
-      if (scrollToFirst) scrollToSelected();
+  function emptyStateCopy(): { title: string; hint?: string } {
+    if (overlay.displayFetchFailed) {
+      if (overlay.searchQuery) {
+        return {
+          title: `Couldn't search for “${overlay.searchQuery}”`,
+          hint: "Something went wrong — try again or clear the search",
+        };
+      }
+      if (overlay.activeTag) {
+        return {
+          title: `Couldn't load tag “${overlay.activeTag}”`,
+          hint: "Something went wrong — try again or clear the filter",
+        };
+      }
+      if (overlay.aiTaggingEnabled && overlay.contentKind !== "all") {
+        const kindLabel = contentKindEmptyLabel(overlay.contentKind);
+        return {
+          title: kindLabel ? `Couldn't load ${kindLabel.toLowerCase()}` : "Couldn't load filter",
+          hint: "Something went wrong — try again or clear filters",
+        };
+      }
+      return {
+        title: "Couldn't load clipboard entries",
+        hint: "Something went wrong — try again",
+      };
     }
-  }
-
-  async function loadCatalog(gen: number) {
-    const data = await getEntries({ ...entryQuery(), search: null });
-    if (gen !== dataFetchGen) return false;
-    catalogEntries = data;
-    if (!searchQuery) entries = data;
-    return true;
-  }
-
-  async function loadSearchEntries(
-    selectFirst = false,
-    scrollToFirst = true,
-    gen = dataFetchGen,
-  ) {
-    if (gen !== dataFetchGen) return;
-
-    if (!searchQuery) {
-      entries = catalogEntries;
-      applyEntrySelection(selectFirst, scrollToFirst);
-      return;
+    if (overlay.loadMoreFailed) {
+      return {
+        title: "Couldn't load more entries",
+        hint: "Something went wrong — try again",
+      };
     }
-
-    const data = await getEntries({ ...entryQuery(), search: searchQuery });
-    if (gen !== dataFetchGen) return;
-    entries = data;
-    applyEntrySelection(selectFirst, scrollToFirst);
-  }
-
-  /** Refresh catalog; when search is active, also refresh filtered entries. */
-  async function loadEntries(selectFirst = false, scrollToFirst = true) {
-    const gen = ++dataFetchGen;
-    if (!(await loadCatalog(gen))) return;
-    if (searchQuery) {
-      await loadSearchEntries(selectFirst, scrollToFirst, gen);
-    } else {
-      applyEntrySelection(selectFirst, scrollToFirst);
+    if (overlay.searchQuery && overlay.activeTag) {
+      return {
+        title: `No results for “${overlay.searchQuery}” in tag “${overlay.activeTag}”`,
+        hint: "Try a different search or tag",
+      };
     }
+    if (overlay.searchQuery) {
+      return {
+        title: `No results for “${overlay.searchQuery}”`,
+        hint: "Try a different search term",
+      };
+    }
+    if (overlay.activeTag) {
+      if (isFormatTag(overlay.activeTag)) {
+        return {
+          title: formatTagEmptyLabel(overlay.activeTag),
+          hint: "Try another format or clear the filter",
+        };
+      }
+      return {
+        title: `No results for tag “${overlay.activeTag}”`,
+        hint: "Try another tag or clear the filter",
+      };
+    }
+    if (overlay.aiTaggingEnabled) {
+      const kindLabel = contentKindEmptyLabel(overlay.contentKind);
+      if (kindLabel) {
+        return {
+          title: kindLabel,
+          hint: "Try another content type or clear filters",
+        };
+      }
+    }
+    return {
+      title: "Clipboard history is empty",
+      hint: "Copy something to get started",
+    };
   }
 
   function nextPaint(): Promise<void> {
@@ -278,15 +269,10 @@
     if (pendingReload) {
       pendingReload = false;
       void (async () => {
-        await loadEntries(true, false);
+        await overlay.loadEntries(true, false);
         scrollToSelected();
       })();
     }
-  }
-
-  function resetOverlayFilters() {
-    contentKind = "all";
-    activeTag = null;
   }
 
   function resetOverlayMotionState() {
@@ -294,8 +280,9 @@
     clearRevealTimer();
     isRevealing = false;
     visible = false;
-    clearSearch({ reload: false });
-    resetOverlayFilters();
+    overlay.resetDisplayStateOnHide();
+    overlay.clearSearch({ reload: false });
+    overlay.resetOverlayFilters();
     selectedIndex = -1;
     resetOverlayResizeState();
   }
@@ -308,15 +295,16 @@
     }
   }
 
-  async function prepareOverlayLayout() {
-    await syncOverlaySettings();
-    await loadEntries(true, false);
+  async function prepareOverlayLayout(seq: number): Promise<boolean> {
+    const loaded = await overlay.prepareCatalogAndDisplay(() => seq === revealSeq);
+    if (!loaded || seq !== revealSeq) return false;
     const height = overlayHeightForLayout({
       tagBar: tagBarModel,
       hasSettingsNotice: settingsSyncNotice !== null,
     });
     await applyOverlayHeight(height, false);
     lastLayoutHeight = height;
+    return true;
   }
 
   function showWindow() {
@@ -325,25 +313,31 @@
     clearHideTimer();
     clearHideTransitionHandler();
     clearRevealTimer();
-    clearSearch({ reload: false });
-    resetOverlayFilters();
+    overlay.clearSearch({ reload: false });
+    overlay.resetOverlayFilters();
     resetOverlayResizeState();
 
     isRevealing = true;
+    const hadPendingReload = pendingReload;
     pendingReload = false;
     if (gridEl) gridEl.scrollLeft = 0;
 
-    // Always reset to hidden first so CSS transition replays on every open.
     visible = false;
     void (async () => {
-      await prepareOverlayLayout();
-      if (seq !== revealSeq) return;
+      const ready = await prepareOverlayLayout(seq);
+      if (!ready || seq !== revealSeq) {
+        isRevealing = false;
+        return;
+      }
       await nextPaint();
       if (seq !== revealSeq) return;
       visible = true;
       searchBar?.blur();
       await nextPaint();
       if (seq !== revealSeq) return;
+      if (hadPendingReload) {
+        void overlay.loadEntries(true, false);
+      }
       scrollToSelected();
       revealTimer = setTimeout(finishReveal, panelOpenMs());
       void loadExcludeCandidate();
@@ -354,8 +348,8 @@
     revealSeq += 1;
     clearRevealTimer();
     isRevealing = false;
-    pendingReload = false;
     visible = false;
+    overlay.resetDisplayStateOnHide();
   }
 
   function animateOut() {
@@ -367,27 +361,81 @@
     animateOut();
   }
 
+  async function loadExcludeCandidate() {
+    try {
+      const candidate = await getExcludableAppCandidate();
+      excludeCandidate = candidate;
+      if (candidate?.alreadyExcluded) {
+        excludeNotice = alreadyExcludedFromHistoryLabel(candidate.displayName);
+        excludeNoticeTone = "neutral";
+        return;
+      }
+      excludeNotice = "";
+    } catch (err) {
+      excludeCandidate = null;
+      excludeNotice = invokeErrorMessage(err) || "Could not detect active app";
+      excludeNoticeTone = "warn";
+    }
+  }
+
+  async function handleExcludeFromPanel() {
+    if (excludeBusy) return;
+    excludeBusy = true;
+    try {
+      const added = await addExcludableAppCandidate();
+      if (added) {
+        await loadExcludeCandidate();
+        return;
+      }
+      excludeNotice = "No active app";
+      excludeNoticeTone = "warn";
+    } catch (err) {
+      excludeNotice = invokeErrorMessage(err) || "Could not exclude this app";
+      excludeNoticeTone = "warn";
+    } finally {
+      excludeBusy = false;
+    }
+  }
+
+  // TEST-NOTE (+page integration): reveal/hide, keyboard, scroll prefetch, and Tauri
+  // events are not automated. Playwright + running app would be needed (not installed).
+  // Manual QA: docs/plans/05-overlay-content-and-tag-filters.md §7.
   onMount(() => {
-    void syncOverlaySettings();
-    loadEntries();
+    void overlay.syncOverlaySettings();
+    void overlay.warmCatalog();
     loadCollections();
 
-    // Tell Rust we're loaded — it will hide the off-screen warmup window
     invoke("frontend_ready");
 
-    // Debounce entry reloads — clipboard-changed and entry-tagged can fire together
     let reloadTimer: ReturnType<typeof setTimeout>;
     function scheduleReload() {
-      if (isRevealing) {
+      if (isRevealing || !visible) {
         pendingReload = true;
         return;
       }
       clearTimeout(reloadTimer);
-      reloadTimer = setTimeout(() => loadEntries(), 100);
+      reloadTimer = setTimeout(() => {
+        if (isRevealing || !visible) {
+          pendingReload = true;
+          return;
+        }
+        overlay.loadEntries();
+      }, 100);
+    }
+
+    function handleEntryTagged(event: { payload: unknown }) {
+      const parsed = parseEntryTaggedEvent(event.payload);
+      if (!parsed) return;
+      if (parsed.kind === "legacy-id") {
+        // Pre-EntryTaggedPayload emitters only sent the entry id; reload matches old behavior.
+        void overlay.reloadDisplayList(false, false);
+        return;
+      }
+      overlay.applyEntryTags(parsed.payload.entryId, parsed.payload.tags);
     }
 
     const unlistenClipboard = listen("clipboard-changed", scheduleReload);
-    const unlistenTagged = listen("entry-tagged", scheduleReload);
+    const unlistenTagged = listen("entry-tagged", handleEntryTagged);
 
     const unlistenShow = listen("window-show", () => {
       showWindow();
@@ -419,8 +467,8 @@
       if (e.key === "Escape") {
         e.preventDefault();
         e.stopPropagation();
-        if (overlayEscapeAction(searchQuery.length > 0) === "clear-search") {
-          clearSearch({ immediate: true });
+        if (overlayEscapeAction(overlay.searchQuery.length > 0) === "clear-search") {
+          overlay.clearSearch({ immediate: true });
           searchBar?.blur();
           return;
         }
@@ -449,12 +497,15 @@
       }
 
       if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
-        // ←/→ always browse cards (including while search is focused); block in other text inputs.
         if (typingInField && !searchFocused) return;
+        if (overlay.displayListPending || overlay.displayFetchFailed) return;
         e.preventDefault();
         setInputModality("keyboard");
         if (e.key === "ArrowRight") {
           selectedIndex = Math.min(selectedIndex + 1, filteredEntries.length - 1);
+          if (selectedIndex === filteredEntries.length - 1) {
+            void overlay.loadNextEntryPage();
+          }
         } else {
           selectedIndex = Math.max(selectedIndex - 1, 0);
         }
@@ -463,8 +514,8 @@
       }
 
       if (e.key === "Enter") {
+        if (overlay.displayListPending || overlay.displayFetchFailed) return;
         if (selectedIndex < 0 || selectedIndex >= filteredEntries.length) return;
-        // Paste from search when a result is selected; block Enter in other text fields.
         if (typingInField && !searchFocused) return;
         e.preventDefault();
         e.stopPropagation();
@@ -483,7 +534,7 @@
       clearHideTransitionHandler();
       clearRevealTimer();
       clearTimeout(reloadTimer);
-      clearTimeout(debounceTimer);
+      overlay.dispose();
       unlistenClipboard.then((fn) => fn());
       unlistenTagged.then((fn) => fn());
       unlistenShow.then((fn) => fn());
@@ -496,6 +547,23 @@
 
   function handleCardSelect(index: number) {
     selectedIndex = index;
+  }
+
+  function handleGridScroll(event: Event) {
+    const target = event.currentTarget;
+    if (!(target instanceof HTMLElement)) return;
+
+    if (
+      shouldLoadNextEntryPage({
+        scrollLeft: target.scrollLeft,
+        clientWidth: target.clientWidth,
+        scrollWidth: target.scrollWidth,
+        hasMore: overlay.entriesHasMore && !overlay.displayFetchFailed,
+        loading: overlay.loadingMoreEntries || overlay.displayListPending,
+      })
+    ) {
+      void overlay.loadNextEntryPage();
+    }
   }
 
   function getGridScrollInsets(container: HTMLElement) {
@@ -569,193 +637,16 @@
       }
     })();
   }
-
-  function setSearchQuery(
-    q: string,
-    options: { reload?: boolean; immediate?: boolean } = {},
-  ) {
-    const { reload = true, immediate = false } = options;
-    searchQuery = q;
-    clearTimeout(debounceTimer);
-    if (!reload) return;
-    if (immediate || q === "") {
-      const gen = ++dataFetchGen;
-      void loadSearchEntries(true, true, gen);
-      return;
-    }
-    debounceTimer = setTimeout(() => {
-      const gen = ++dataFetchGen;
-      void loadSearchEntries(true, true, gen);
-    }, 150);
-  }
-
-  function queueSearch(q: string) {
-    setSearchQuery(q);
-  }
-
-  function clearSearch(options: { reload?: boolean; immediate?: boolean } = {}) {
-    setSearchQuery("", options);
-  }
-
-  function handleCollectionSelect(id: number | null) {
-    pinnedOnly = id === -1;
-    activeCollectionId = id === -1 ? null : id;
-    activeTag = null;
-    void loadEntries(true);
-  }
-
-  function handleEntryAction() {
-    loadEntries();
-  }
-
-  let debounceTimer: ReturnType<typeof setTimeout>;
-  function debouncedSearch(q: string) {
-    if (q === "") {
-      clearSearch({ immediate: true });
-      return;
-    }
-    queueSearch(q);
-  }
-
-  function emptyStateCopy(): { title: string; hint?: string } {
-    if (searchQuery && activeTag) {
-      return {
-        title: `No results for “${searchQuery}” in tag “${activeTag}”`,
-        hint: "Try a different search or tag",
-      };
-    }
-    if (searchQuery) {
-      return {
-        title: `No results for “${searchQuery}”`,
-        hint: "Try a different search term",
-      };
-    }
-    if (activeTag) {
-      if (isFormatTag(activeTag)) {
-        return {
-          title: formatTagEmptyLabel(activeTag),
-          hint: "Try another format or clear the filter",
-        };
-      }
-      return {
-        title: `No results for tag “${activeTag}”`,
-        hint: "Try another tag or clear the filter",
-      };
-    }
-    if (aiTaggingEnabled) {
-      const kindLabel = contentKindEmptyLabel(contentKind);
-      if (kindLabel) {
-        return {
-          title: kindLabel,
-          hint: "Try another content type or clear filters",
-        };
-      }
-    }
-    return {
-      title: "Clipboard history is empty",
-      hint: "Copy something to get started",
-    };
-  }
-
-  const showContentKindRow = $derived(
-    aiTaggingEnabled && hasTextEntries(catalogEntries) && hasImageEntries(catalogEntries),
-  );
-
-  const kindPool = $derived(filterKindPool(entries, showContentKindRow, contentKind));
-
-  const tagBarModel = $derived(
-    buildTagBarModel({
-      entries: kindPool,
-      layoutEntries: catalogEntries,
-      contentKind,
-      aiTaggingEnabled,
-      activeTag,
-    }),
-  );
-
-  const overlayLayoutHeight = $derived(
-    overlayHeightForLayout({
-      tagBar: tagBarModel,
-      hasSettingsNotice: settingsSyncNotice !== null,
-    }),
-  );
-
-  $effect(() => {
-    if (!showContentKindRow && contentKind !== "all") {
-      contentKind = "all";
-      if (activeTag && !activeTagCompatibleWithKind(activeTag, "all")) {
-        activeTag = null;
-      }
-    }
-  });
-
-  const filteredEntries = $derived(filterByActiveTag(kindPool, activeTag));
-
-  $effect(() => {
-    const patch = reconcileOverlayFilters({
-      entries,
-      filteredEntries,
-      activeTag,
-      contentKind,
-      kindFilterActive: showContentKindRow,
-    });
-    if (!patch) return;
-    if (patch.activeTag !== activeTag) activeTag = patch.activeTag;
-    if (patch.contentKind !== contentKind) contentKind = patch.contentKind;
-  });
-
-  $effect(() => {
-    if (selectedIndex < 0) return;
-    if (selectedIndex < filteredEntries.length) return;
-    selectedIndex = filteredEntries.length > 0 ? 0 : -1;
-    if (filteredEntries.length > 0) scrollToSelected();
-  });
-
-  $effect(() => {
-    const height = overlayLayoutHeight;
-    if (!visible) {
-      lastLayoutHeight = null;
-      return;
-    }
-    if (lastLayoutHeight === height) return;
-    const previous = lastLayoutHeight;
-    lastLayoutHeight = height;
-    const animate = previous !== null && !isRevealing;
-    void applyOverlayHeight(height, animate);
-  });
-
-  function handleContentKindChange(kind: ContentKind) {
-    contentKind = kind;
-    if (!activeTagCompatibleWithKind(activeTag, kind)) {
-      activeTag = null;
-    }
-    resetKeyboardSelection();
-  }
-
-  function handleTagSelect(tag: string) {
-    activeTag = tag;
-    resetKeyboardSelection();
-  }
-
-  function handleTagReset() {
-    activeTag = null;
-    resetKeyboardSelection();
-  }
-
-  function resetKeyboardSelection() {
-    selectedIndex = filteredEntries.length > 0 ? 0 : -1;
-    scrollToSelected();
-  }
 </script>
 
 <div class="app" class:visible bind:this={appEl}>
   <header class="header">
-    <SearchBar bind:this={searchBar} value={searchQuery} onchange={debouncedSearch} />
+    <SearchBar bind:this={searchBar} value={overlay.searchQuery} onchange={overlay.debouncedSearch} />
     <CollectionTabs
       {collections}
-      activeId={activeCollectionId}
-      activePinned={pinnedOnly}
-      onselect={handleCollectionSelect}
+      activeId={overlay.activeCollectionId}
+      activePinned={overlay.pinnedOnly}
+      onselect={overlay.handleCollectionSelect}
       onupdate={loadCollections}
     />
     <div class="header-actions">
@@ -824,30 +715,68 @@
       {/if}
       {#if tagBarModel.showRowA}
         <div class="filter-row-a">
-          <ContentKindSegment value={contentKind} onchange={handleContentKindChange} />
+          <ContentKindSegment
+            value={overlay.contentKind}
+            onchange={overlay.handleContentKindChange}
+          />
         </div>
       {/if}
       {#if tagBarModel.showRowB}
         <TagFilterBar
           resetLabel={tagBarModel.resetLabel}
-          {activeTag}
+          activeTag={overlay.activeTag}
           formatChips={tagBarModel.formatChips}
           semanticChips={tagBarModel.semanticChips}
           showDivider={tagBarModel.showDivider}
-          onreset={handleTagReset}
-          onselect={handleTagSelect}
+          onreset={overlay.handleTagReset}
+          onselect={overlay.handleTagSelect}
         />
       {/if}
     </div>
   {/if}
 
-  <div class="grid-container" bind:this={gridEl}>
+  <div class="grid-container" bind:this={gridEl} onscroll={handleGridScroll}>
     {#if filteredEntries.length === 0}
       {@const empty = emptyStateCopy()}
+      {@const listPending = overlay.displayListPending}
+      {@const searchingMore = overlay.loadingMoreEntries}
       <div class="empty-state" role="status" aria-live="polite">
-        <p class="empty-title">{empty.title}</p>
-        {#if empty.hint}
+        <p class="empty-title">
+          {#if listPending && overlay.searchQuery}
+            Searching for “{overlay.searchQuery}”…
+          {:else if listPending}
+            Loading entries…
+          {:else if searchingMore}
+            Loading more entries…
+          {:else}
+            {empty.title}
+          {/if}
+        </p>
+        {#if listPending && overlay.searchQuery}
+          <p class="hint">Matching entries will appear here</p>
+        {:else if listPending}
+          <p class="hint">Updating the list</p>
+        {:else if searchingMore}
+          <p class="hint">Fetching the next page of matching entries</p>
+        {:else if empty.hint}
           <p class="hint">{empty.hint}</p>
+        {/if}
+        {#if overlay.displayFetchFailed}
+          <button
+            class="empty-retry-btn"
+            type="button"
+            onclick={() => overlay.retryDisplayFetch()}
+          >
+            Try again
+          </button>
+        {:else if overlay.loadMoreFailed}
+          <button
+            class="empty-retry-btn"
+            type="button"
+            onclick={() => overlay.retryLoadMore()}
+          >
+            Try again
+          </button>
         {/if}
       </div>
     {:else}
@@ -855,18 +784,26 @@
         <div class="card-wrapper">
           <ClipboardCard
             {entry}
-            {retagAvailable}
-            {aiTaggingEnabled}
+            retagAvailable={overlay.retagAvailable}
+            aiTaggingEnabled={overlay.aiTaggingEnabled}
             selected={i === selectedIndex}
             onselect={() => handleCardSelect(i)}
-            ondeleted={handleEntryAction}
-            onpinned={handleEntryAction}
-            onretagged={handleEntryAction}
+            ondeleted={() => overlay.removeEntry(entry.id)}
+            onpinned={() => overlay.handlePinned(entry.id, !entry.is_pinned)}
+            onretagged={(tags) => overlay.applyEntryTags(entry.id, tags)}
           />
         </div>
       {/each}
     {/if}
   </div>
+  {#if filteredEntries.length > 0 && overlay.loadMoreFailed}
+    <div class="load-more-banner" role="status" aria-live="polite">
+      <p class="hint">Couldn't load more entries</p>
+      <button class="empty-retry-btn" type="button" onclick={() => overlay.retryLoadMore()}>
+        Try again
+      </button>
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -1043,22 +980,7 @@
     scroll-padding-inline: 16px;
     overflow: auto hidden;
     align-items: flex-start;
-    scrollbar-width: thin;
-    scrollbar-color: var(--scrollbar-thumb) transparent;
     min-height: 0;
-  }
-
-  .grid-container::-webkit-scrollbar {
-    height: 6px;
-  }
-
-  .grid-container::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  .grid-container::-webkit-scrollbar-thumb {
-    background: var(--scrollbar-thumb);
-    border-radius: var(--radius-scrollbar);
   }
 
   .card-wrapper {
@@ -1088,5 +1010,41 @@
     margin: 8px 0 0;
     font-size: var(--font-size-md);
     color: var(--color-text-label);
+  }
+
+  .empty-retry-btn {
+    margin-top: 12px;
+    padding: 6px 14px;
+    font-size: var(--font-size-md);
+    font-weight: 500;
+    color: var(--color-text-body);
+    background: var(--surface-2);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-control);
+    cursor: pointer;
+  }
+
+  .empty-retry-btn:hover {
+    background: var(--surface-3);
+  }
+
+  .empty-retry-btn:focus-visible {
+    outline: none;
+    box-shadow: var(--ring-accent);
+  }
+
+  .load-more-banner {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 8px 16px;
+    border-top: 1px solid var(--border-default);
+    background: var(--surface-1);
+  }
+
+  .load-more-banner .hint {
+    margin: 0;
   }
 </style>

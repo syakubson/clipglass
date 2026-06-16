@@ -15,7 +15,7 @@ pub fn notify_history_cleared() {
     HISTORY_CLEAR_EPOCH.fetch_add(1, Ordering::Release);
 }
 
-use crate::db::{ClipboardEntry, Database};
+use crate::db::{ClipboardEntry, Database, EntryTaggedPayload};
 use crate::image_format;
 use crate::ollama;
 
@@ -338,7 +338,10 @@ impl CaptureContext {
                         }
                         if let Some(tags) = ollama::tag_text(&text) {
                             if db.set_entry_tags(id, &tags).is_ok() {
-                                let _ = app.emit("entry-tagged", id);
+                                let _ = app.emit(
+                                    "entry-tagged",
+                                    EntryTaggedPayload { entry_id: id, tags },
+                                );
                             }
                         } else {
                             let _ = db.set_entry_tag_state(id, "skipped");

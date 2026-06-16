@@ -31,6 +31,18 @@ export interface HistoryCounts {
   pinned: number;
 }
 
+export interface TagCount {
+  tag: string;
+  count: number;
+}
+
+export interface OverlayTagCounts {
+  semantic: TagCount[];
+  format: TagCount[];
+  has_text: boolean;
+  has_images: boolean;
+}
+
 export interface AppSettings {
   ollama_model: string;
   retention_days: number;
@@ -63,6 +75,40 @@ export interface ModelCatalog {
 }
 
 // Exclusion IPC types use camelCase (backend #[serde(rename_all = "camelCase")]).
+
+/** `entry-tagged` Tauri event payload (Rust: `db::EntryTaggedPayload`). */
+export interface EntryTaggedPayload {
+  entryId: number;
+  tags: string[];
+}
+
+export function isEntryTaggedPayload(payload: unknown): payload is EntryTaggedPayload {
+  if (typeof payload !== "object" || payload === null) return false;
+  const record = payload as Record<string, unknown>;
+  return (
+    typeof record.entryId === "number" &&
+    Array.isArray(record.tags) &&
+    record.tags.every((tag) => typeof tag === "string")
+  );
+}
+
+export type ParsedEntryTaggedEvent =
+  | { kind: "payload"; payload: EntryTaggedPayload }
+  | { kind: "legacy-id"; entryId: number };
+
+/**
+ * Parse `entry-tagged` event payload. Accepts current `{ entryId, tags }` and
+ * legacy bare entry id (pre-0.4 payload shape) for rolling upgrades.
+ */
+export function parseEntryTaggedEvent(payload: unknown): ParsedEntryTaggedEvent | null {
+  if (isEntryTaggedPayload(payload)) {
+    return { kind: "payload", payload };
+  }
+  if (typeof payload === "number" && Number.isInteger(payload) && payload > 0) {
+    return { kind: "legacy-id", entryId: payload };
+  }
+  return null;
+}
 
 export interface ExcludedApp {
   id: number;

@@ -20,7 +20,7 @@
     selected?: boolean;
     ondeleted?: () => void;
     onpinned?: () => void;
-    onretagged?: () => void;
+    onretagged?: (tags: string[]) => void;
     onselect?: () => void;
     retagAvailable?: boolean;
     aiTaggingEnabled?: boolean;
@@ -260,8 +260,8 @@
     e.stopPropagation();
     onselect?.();
     try {
-      await retagEntry(entry.id);
-      onretagged?.();
+      const tags = await retagEntry(entry.id);
+      onretagged?.(tags);
     } finally {
       releaseMouseActionFocus();
     }
@@ -281,7 +281,9 @@
 
   const textKind = $derived(detectTextKind(entry.text_content));
   const usesMonoPreview = $derived(MONO_TEXT_KINDS.has(textKind));
-  const typeLabel = $derived(entry.content_type === "text" ? textKind : entry.content_type === "image" ? "Image" : "File");
+  const typeLabel = $derived(
+    entry.content_type === "text" ? "Text" : entry.content_type === "image" ? "Image" : "File",
+  );
   const imageFormat = $derived(entry.content_type === "image" ? entry.image_format : null);
   const imageDimensions = $derived(
     formatImageDimensions(entry.image_width, entry.image_height),

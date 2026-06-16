@@ -5,7 +5,7 @@ use std::thread;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter};
 
-use crate::db::{Database, ModelCatalog, ModelOption};
+use crate::db::{Database, EntryTaggedPayload, ModelCatalog, ModelOption};
 
 #[derive(Serialize, Clone)]
 pub struct OllamaStatus {
@@ -718,7 +718,13 @@ pub fn backfill_existing_tags(app: AppHandle, db: Arc<Database>) {
                             "retag heuristic entry_id={} tags={:?}",
                             entry_id, next_tags
                         ));
-                        let _ = app.emit("entry-tagged", entry_id);
+                        let _ = app.emit(
+                            "entry-tagged",
+                            EntryTaggedPayload {
+                                entry_id,
+                                tags: next_tags.clone(),
+                            },
+                        );
                     } else {
                         let _ = db.set_entry_tag_state(entry_id, "done");
                     }
@@ -774,7 +780,13 @@ pub fn backfill_existing_tags(app: AppHandle, db: Arc<Database>) {
                             "backfill saved entry_id={} tags={:?}",
                             entry_id, tags
                         ));
-                        let _ = app.emit("entry-tagged", entry_id);
+                        let _ = app.emit(
+                            "entry-tagged",
+                            EntryTaggedPayload {
+                                entry_id,
+                                tags: tags.clone(),
+                            },
+                        );
                     }
                     None => {
                         let _ = db.set_entry_tag_state(entry_id, "skipped");

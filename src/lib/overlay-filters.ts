@@ -1,4 +1,4 @@
-import type { ClipboardEntry } from "$lib/types";
+import type { ClipboardEntry, OverlayTagCounts } from "$lib/types";
 
 export type ContentKind = "all" | "text" | "image";
 
@@ -21,6 +21,14 @@ export function isFormatTag(tag: string): boolean {
   return IMAGE_FORMAT_TAG_SET.has(tag);
 }
 
+/** Mirrors Rust `image_format` normalization (JPEG → jpg tag). */
+export function normalizeImageFormatForTagMatch(format: string | null | undefined): string | null {
+  if (!format) return null;
+  const lower = format.toLowerCase();
+  if (lower === "jpeg") return "jpg";
+  return lower;
+}
+
 export function entryMatchesKind(entry: ClipboardEntry, kind: ContentKind): boolean {
   switch (kind) {
     case "all":
@@ -38,7 +46,7 @@ export function entryMatchesKind(entry: ClipboardEntry, kind: ContentKind): bool
 export function entryMatchesTag(entry: ClipboardEntry, tag: string): boolean {
   if ((entry.tags ?? []).includes(tag)) return true;
   if (!isFormatTag(tag) || entry.content_type !== "image") return false;
-  return entry.image_format?.toLowerCase() === tag;
+  return normalizeImageFormatForTagMatch(entry.image_format) === tag;
 }
 
 export function filterKindPool(
@@ -56,6 +64,50 @@ export function filterByActiveTag(
 ): ClipboardEntry[] {
   if (!activeTag) return entries;
   return entries.filter((entry) => entryMatchesTag(entry, activeTag));
+}
+
+function tagCountsToChips(counts: { tag: string; count: number }[]): TagChip[] {
+  return counts.map((item) => [item.tag, item.count] as TagChip);
+}
+
+function chipsFromServerCounts(
+  counts: OverlayTagCounts,
+  contentKind: ContentKind,
+  aiTaggingEnabled: boolean,
+  showRowA: boolean,
+): TagBarChips {
+  const kindFilterActive = aiTaggingEnabled && showRowA;
+  let formatChips = tagCountsToChips(counts.format);
+  let semanticChips = tagCountsToChips(counts.semantic);
+  let resetLabel = "All tags";
+
+  if (!aiTaggingEnabled) {
+    semanticChips = [];
+    resetLabel = "All formats";
+  } else if (!showRowA) {
+    if (counts.has_images && !counts.has_text) {
+      semanticChips = [];
+      resetLabel = "All formats";
+    } else if (counts.has_text) {
+      formatChips = [];
+      resetLabel = "All tags";
+    }
+  } else if (kindFilterActive) {
+    if (contentKind === "text") {
+      formatChips = [];
+      resetLabel = "All tags";
+    } else if (contentKind === "image") {
+      semanticChips = [];
+      resetLabel = "All formats";
+    }
+  }
+
+  return {
+    formatChips,
+    semanticChips,
+    resetLabel,
+    hasChips: formatChips.length > 0 || semanticChips.length > 0,
+  };
 }
 
 function countFormatTags(pool: ClipboardEntry[]): TagChip[] {
@@ -116,8 +168,22 @@ function tagBarChipsForPool(options: {
   showRowA: boolean;
   textAvailable: boolean;
   imagesAvailable: boolean;
+  serverCounts?: OverlayTagCounts | null;
 }): TagBarChips {
-  const { pool, contentKind, aiTaggingEnabled, showRowA, textAvailable, imagesAvailable } = options;
+  const {
+    pool,
+    contentKind,
+    aiTaggingEnabled,
+    showRowA,
+    textAvailable,
+    imagesAvailable,
+    serverCounts,
+  } = options;
+
+  if (serverCounts) {
+    return chipsFromServerCounts(serverCounts, contentKind, aiTaggingEnabled, showRowA);
+  }
+
   const kindFilterActive = aiTaggingEnabled && showRowA;
   const kindPool = filterKindPool(pool, kindFilterActive, contentKind);
 
@@ -163,12 +229,16 @@ export function buildTagBarModel(options: {
   contentKind: ContentKind;
   aiTaggingEnabled: boolean;
   activeTag?: string | null;
+  /** DB-wide tag totals for the visible entry scope (includes search when active). */
+  displayTagCounts?: OverlayTagCounts | null;
+  /** DB-wide tag totals for catalog scope (no search), used for row layout. */
+  layoutTagCounts?: OverlayTagCounts | null;
 }): TagBarModel {
   const { entries, contentKind, aiTaggingEnabled, activeTag = null } = options;
   const layoutPool = options.layoutEntries ?? entries;
 
-  const textAvailable = hasTextEntries(layoutPool);
-  const imagesAvailable = hasImageEntries(layoutPool);
+  const textAvailable = options.layoutTagCounts?.has_text ?? hasTextEntries(layoutPool);
+  const imagesAvailable = options.layoutTagCounts?.has_images ?? hasImageEntries(layoutPool);
   const showRowA = aiTaggingEnabled && textAvailable && imagesAvailable;
 
   const chipOptions = {
@@ -178,8 +248,16 @@ export function buildTagBarModel(options: {
     textAvailable,
     imagesAvailable,
   };
-  const display = tagBarChipsForPool({ pool: entries, ...chipOptions });
-  const layout = tagBarChipsForPool({ pool: layoutPool, ...chipOptions });
+  const display = tagBarChipsForPool({
+    pool: entries,
+    ...chipOptions,
+    serverCounts: options.displayTagCounts,
+  });
+  const layout = tagBarChipsForPool({
+    pool: layoutPool,
+    ...chipOptions,
+    serverCounts: options.layoutTagCounts,
+  });
 
   const showDivider =
     showRowA &&
@@ -249,16 +327,61 @@ export function contentKindEmptyLabel(kind: ContentKind): string | null {
   return null;
 }
 
-/** Drop stale overlay filters when the grid is empty but history still has entries. */
-export function reconcileOverlayFilters(options: {
-  entries: ClipboardEntry[];
+/** True when history has entries beyond an empty first catalog page. */
+export function catalogHasHistory(
+  catalogEntries: ClipboardEntry[],
+  catalogTagCounts: OverlayTagCounts | null | undefined,
+): boolean {
+  if (catalogEntries.length > 0) return true;
+  if (!catalogTagCounts) return false;
+  return (
+    catalogTagCounts.has_text ||
+    catalogTagCounts.has_images ||
+    catalogTagCounts.semantic.length > 0 ||
+    catalogTagCounts.format.length > 0
+  );
+}
+
+export interface ReconcileOverlayFiltersOptions {
+  catalogHasHistory: boolean;
   filteredEntries: ClipboardEntry[];
   activeTag: string | null;
   contentKind: ContentKind;
   kindFilterActive: boolean;
-}): { activeTag: string | null; contentKind: ContentKind } | null {
-  const { entries, filteredEntries, activeTag, contentKind, kindFilterActive } = options;
-  if (entries.length === 0 || filteredEntries.length > 0) return null;
+  hasMore?: boolean;
+  /** When set, empty grid may be a legitimate search miss — keep sticky tag/kind filters. */
+  searchQuery?: string;
+}
+
+/**
+ * Drop stale overlay filters when the grid is empty but the catalog still has
+ * entries.
+ *
+ * With server-side filtering, an empty first page means there are no DB matches,
+ * so callers normally pass `hasMore: false`. The `hasMore` guard remains for
+ * client-side pagination: do not clear an active filter while unloaded pages
+ * may still contain matches.
+ *
+ * Product choice: when the grid is empty and every page is loaded, auto-clear
+ * stale tag/kind filters instead of showing a persistent "no results" state.
+ * Chip counts come from the server; chips with count 0 are hidden, so users
+ * cannot select a tag that reconcile would immediately clear under normal use.
+ */
+export function reconcileOverlayFilters(
+  options: ReconcileOverlayFiltersOptions,
+): { activeTag: string | null; contentKind: ContentKind } | null {
+  const {
+    catalogHasHistory: catalogHasData,
+    filteredEntries,
+    activeTag,
+    contentKind,
+    kindFilterActive,
+    hasMore = false,
+    searchQuery = "",
+  } = options;
+  if (!catalogHasData || filteredEntries.length > 0) return null;
+  if (hasMore) return null;
+  if (searchQuery) return null;
 
   if (activeTag) {
     return { activeTag: null, contentKind };
@@ -269,4 +392,78 @@ export function reconcileOverlayFilters(options: {
   }
 
   return null;
+}
+
+export interface OverlayFilterAdjustment {
+  contentKind: ContentKind;
+  activeTag: string | null;
+  clearContentKindSession: boolean;
+  needsReload: boolean;
+}
+
+export interface ReconcileOverlayFilterStateOptions {
+  isRevealing: boolean;
+  showContentKindRow: boolean;
+  contentKind: ContentKind;
+  activeTag: string | null;
+  catalogEntries: ClipboardEntry[];
+  catalogTagCounts: OverlayTagCounts | null | undefined;
+  displayEntries: ClipboardEntry[];
+  hasMore: boolean;
+  searchQuery?: string;
+}
+
+/**
+ * Single pass for overlay filter hygiene: hide Row A when only one kind remains,
+ * then drop stale tag/kind filters when the grid is empty. Returns one adjustment
+ * so the UI can apply state and reload at most once per reactive cycle.
+ */
+export function reconcileOverlayFilterState(
+  options: ReconcileOverlayFilterStateOptions,
+): OverlayFilterAdjustment | null {
+  if (options.isRevealing) return null;
+
+  let contentKind = options.contentKind;
+  let activeTag = options.activeTag;
+  let needsReload = false;
+  let clearContentKindSession = false;
+
+  if (!options.showContentKindRow && contentKind !== "all") {
+    contentKind = "all";
+    clearContentKindSession = true;
+    if (activeTag && !activeTagCompatibleWithKind(activeTag, "all")) {
+      activeTag = null;
+    }
+    needsReload = true;
+  }
+
+  const patch = reconcileOverlayFilters({
+    catalogHasHistory: catalogHasHistory(options.catalogEntries, options.catalogTagCounts),
+    filteredEntries: options.displayEntries,
+    activeTag,
+    contentKind,
+    kindFilterActive: options.showContentKindRow,
+    hasMore: options.hasMore,
+    searchQuery: options.searchQuery ?? "",
+  });
+
+  if (patch) {
+    if (patch.activeTag !== activeTag) {
+      activeTag = patch.activeTag;
+      needsReload = true;
+    }
+    if (patch.contentKind !== contentKind) {
+      contentKind = patch.contentKind;
+      if (patch.contentKind === "all") {
+        clearContentKindSession = true;
+      }
+      needsReload = true;
+    }
+  }
+
+  if (!needsReload && contentKind === options.contentKind && activeTag === options.activeTag) {
+    return null;
+  }
+
+  return { contentKind, activeTag, clearContentKindSession, needsReload };
 }

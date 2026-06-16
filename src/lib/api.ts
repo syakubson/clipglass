@@ -10,7 +10,11 @@ import type {
   ExcludeAppResult,
   HistoryCounts,
   ModelCatalog,
+  OverlayTagCounts,
 } from "./types";
+
+/** Page size for entry list pagination; mirrored by the backend default. */
+export const ENTRY_PAGE_SIZE = 50;
 
 export async function getEntries(opts?: {
   limit?: number;
@@ -18,10 +22,26 @@ export async function getEntries(opts?: {
   collection_id?: number | null;
   pinned_only?: boolean;
   search?: string | null;
+  tag?: string | null;
+  content_kind?: "text" | "image" | null;
 }): Promise<ClipboardEntry[]> {
   return invoke("get_entries", {
-    limit: opts?.limit ?? 50,
+    limit: opts?.limit ?? ENTRY_PAGE_SIZE,
     offset: opts?.offset ?? 0,
+    collectionId: opts?.collection_id ?? null,
+    pinnedOnly: opts?.pinned_only ?? false,
+    search: opts?.search ?? null,
+    tag: opts?.tag ?? null,
+    contentKind: opts?.content_kind ?? null,
+  });
+}
+
+export async function getOverlayTagCounts(opts?: {
+  collection_id?: number | null;
+  pinned_only?: boolean;
+  search?: string | null;
+}): Promise<OverlayTagCounts> {
+  return invoke("get_overlay_tag_counts", {
     collectionId: opts?.collection_id ?? null,
     pinnedOnly: opts?.pinned_only ?? false,
     search: opts?.search ?? null,
@@ -135,7 +155,7 @@ export async function pickAppToExclude(): Promise<ExcludeAppResult | null> {
   return invoke("pick_app_to_exclude");
 }
 
-export async function retagEntry(entryId: number): Promise<void> {
+export async function retagEntry(entryId: number): Promise<string[]> {
   return invoke("retag_entry", { entryId });
 }
 
