@@ -8,6 +8,7 @@
 
 # --- Local tooling ---
 .local/
+lefthook-local.yml
 
 # --- Node / frontend ---
 node_modules

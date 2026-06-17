@@ -21,7 +21,7 @@ Command contract: `make fix` auto-fixes, `make lint` checks lint/format only, an
 
 - Frontend: `svelte-check`, Oxlint, Oxfmt, Stylelint.
 - Backend: `cargo check`, Clippy (`-D warnings --all-targets`), rustfmt, `cargo test`.
-- Pre-commit: Husky + lint-staged auto-fixes staged files with Oxfmt, Oxlint, Stylelint, `cargo fmt` (staged paths only), and `cargo clippy --fix --lib` (faster than `--all-targets`; full Clippy gate is `make check` / CI).
+- Pre-commit: Lefthook (`lefthook.yml`) auto-fixes staged files in parallel with Oxfmt, Oxlint, Stylelint, `cargo fmt` (staged paths only), and `cargo clippy --fix --lib` (faster than `--all-targets`; full Clippy gate is `make check` / CI). Install hooks via `npm install` / `lefthook install`; local overrides in gitignored `lefthook-local.yml`.
 
 ## Branching
 

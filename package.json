@@ -21,9 +21,8 @@
     "lint:css:fix": "stylelint --fix \"src/**/*.{css,svelte}\"",
     "format": "oxfmt --check .",
     "format:fix": "oxfmt .",
-    "lint-staged": "lint-staged",
     "tauri": "bash scripts/with-tauri.sh",
-    "prepare": "husky"
+    "prepare": "lefthook install"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.0",
@@ -35,8 +34,7 @@
     "@sveltejs/vite-plugin-svelte": "^7.1.2",
     "@tauri-apps/cli": "^2.11.2",
     "@types/node": "^25.9.3",
-    "husky": "^9.1.7",
-    "lint-staged": "^17.0.7",
+    "lefthook": "^2.1.9",
     "oxfmt": "^0.54.0",
     "oxlint": "^1.69.0",
     "postcss-html": "^1.8.1",
@@ -52,25 +50,5 @@
   },
   "overrides": {
     "cookie": "^0.7.2"
-  },
-  "lint-staged": {
-    "*.{js,ts}": [
-      "oxfmt --write --no-error-on-unmatched-pattern",
-      "oxlint --fix",
-      "oxfmt --write --no-error-on-unmatched-pattern"
-    ],
-    "*.svelte": [
-      "oxfmt --write --no-error-on-unmatched-pattern",
-      "oxlint --fix",
-      "stylelint --fix",
-      "oxfmt --write --no-error-on-unmatched-pattern"
-    ],
-    "*.css": [
-      "oxfmt --write --no-error-on-unmatched-pattern",
-      "stylelint --fix",
-      "oxfmt --write --no-error-on-unmatched-pattern"
-    ],
-    "*.{json,md}": "oxfmt --write --no-error-on-unmatched-pattern",
-    "src-tauri/**/*.rs": "bash scripts/lint-staged-rust.sh"
   }
 }

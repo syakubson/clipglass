@@ -19,6 +19,14 @@ Backlog and completed items formerly tracked in `AGENTS.md`.
 
 ---
 
+## Developer toolchain
+
+**Status: complete (0.4.0).**
+
+- [x] **Lefthook pre-commit** — [Lefthook](https://github.com/evilmartians/lefthook) git hooks (`lefthook.yml`): parallel jobs per file type (JS/TS, Svelte, CSS, docs, Rust), piped auto-fix pipelines (Oxfmt → Oxlint/Stylelint), `stage_fixed` restaging, `skip_in_ci`. **Why:** fast staged-only auto-fix before commit; mixed file types run in parallel (wall time ≈ slowest job); full gate remains `make check` / CI.
+
+---
+
 ## Features
 
 **Status: in progress — due in 0.4.0.**

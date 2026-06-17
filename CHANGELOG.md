@@ -24,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Settings — clear history** — `get_history_counts` and `clear_all_history` IPC; menu for unpinned or all with confirm dialog; live count sync.
 - **Design system** — `tokens.css` (spacing, surfaces, typography, motion, selection); shared `form-controls.css`, `button-interaction.css`, and `.inset-list` grouped rows; section icons; input modality tracking for pointer vs keyboard focus rings.
 - **Accessibility** — `:focus-visible` rings, reduced-motion and reduced-transparency support, voice HUD live region baseline, primary **Paste** on cards with keyboard selection and roving `tabindex`; card selection chrome separated from keyboard focus ring via `data-input-modality`.
-- **Release and dev toolchain** — Oxlint, Oxfmt, Husky + lint-staged, `make fix` / `make lint` / `make check`; Vite 8 (Rolldown); optional `sccache` for Rust dev builds.
+- **Release and dev toolchain** — Oxlint, Oxfmt, Lefthook, `make fix` / `make lint` / `make check`; Vite 8 (Rolldown); optional `sccache` for Rust dev builds.
 
 ### Changed
 

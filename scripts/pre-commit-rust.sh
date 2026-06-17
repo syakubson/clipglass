@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Pre-commit Rust hook (via lint-staged).
+# Pre-commit Rust hook (via Lefthook).
 #
 # Speed contract: fmt only on staged paths; clippy uses --lib by default because
 # main.rs is a thin wrapper and all logic lives in the library crate. Rust cannot
@@ -9,7 +9,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-cd "$ROOT/src-tauri"
+cd "$ROOT"
 
 export PATH="${HOME}/.cargo/bin:${PATH}"
 
@@ -17,7 +17,9 @@ if [ "$#" -eq 0 ]; then
   exit 0
 fi
 
-cargo fmt -- "$@"
+MANIFEST=src-tauri/Cargo.toml
+
+cargo fmt --manifest-path "$MANIFEST" -- "$@"
 
 clippy_targets=(--lib)
 for f in "$@"; do
@@ -29,5 +31,5 @@ for f in "$@"; do
   esac
 done
 
-cargo clippy --fix --allow-dirty --allow-staged "${clippy_targets[@]}" -- -D warnings
-cargo fmt -- "$@"
+cargo clippy --manifest-path "$MANIFEST" --fix --allow-dirty --allow-staged "${clippy_targets[@]}" -- -D warnings
+cargo fmt --manifest-path "$MANIFEST" -- "$@"
