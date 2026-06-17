@@ -133,10 +133,15 @@ pub fn get_history_counts(db: State<'_, Arc<Database>>) -> Result<HistoryCounts,
 }
 
 #[tauri::command]
-pub fn resize_main_window(window: tauri::WebviewWindow, height: f64) -> Result<(), String> {
-    const MIN_HEIGHT: f64 = 360.0;
-    const MAX_HEIGHT: f64 = 560.0;
-    let clamped = height.clamp(MIN_HEIGHT, MAX_HEIGHT);
+pub fn resize_main_window(
+    window: tauri::WebviewWindow,
+    height: f64,
+    remember_height: Option<bool>,
+) -> Result<(), String> {
+    let clamped = height.clamp(crate::OVERLAY_HEIGHT_MIN, crate::OVERLAY_HEIGHT_MAX);
+    if remember_height.unwrap_or(true) {
+        crate::remember_overlay_height(clamped);
+    }
     crate::position_window_bottom(&window, clamped);
     Ok(())
 }

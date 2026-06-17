@@ -41,3 +41,12 @@ export function subscribeReducedMotion(onChange: (reduced: boolean) => void): ()
   mq.addEventListener("change", handler);
   return () => mq.removeEventListener("change", handler);
 }
+
+/** Run after two animation frames so DOM/class changes are committed before transitions resume. */
+export function afterLayoutFlush(): Promise<void> {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => resolve());
+    });
+  });
+}

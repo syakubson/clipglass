@@ -377,7 +377,7 @@ fn toggle_window(app: &tauri::AppHandle) {
                 animated_hide_panel(app);
             } else {
                 if let Some(window) = app.get_webview_window("main") {
-                    position_window_bottom(&window, OVERLAY_HEIGHT_COMPACT);
+                    position_window_bottom(&window, remembered_overlay_height());
                 }
                 clipboard_macos::remember_paste_target();
                 PANEL_HIDE_SCHEDULED.store(false, Ordering::Release);
@@ -397,7 +397,7 @@ fn toggle_window(app: &tauri::AppHandle) {
             animated_hide_panel(app);
         } else {
             LAST_SHOW_MS.store(now_ms(), Ordering::Relaxed);
-            position_window_bottom(&window, OVERLAY_HEIGHT_COMPACT);
+            position_window_bottom(&window, remembered_overlay_height());
             let _ = window.show();
             let _ = window.set_focus();
             let _ = app.emit("window-show", ());
@@ -657,6 +657,31 @@ fn hide_voice_overlay(app: &tauri::AppHandle) {
 /// Default overlay height (compact tier) until the frontend applies layout.
 pub const OVERLAY_HEIGHT_COMPACT: f64 = 448.0;
 
+pub const OVERLAY_HEIGHT_MIN: f64 = 360.0;
+pub const OVERLAY_HEIGHT_MAX: f64 = 560.0;
+
+static LAST_OVERLAY_HEIGHT_BITS: AtomicU64 = AtomicU64::new(0);
+
+pub(crate) fn remember_overlay_height(height: f64) {
+    let clamped = height.clamp(OVERLAY_HEIGHT_MIN, OVERLAY_HEIGHT_MAX);
+    LAST_OVERLAY_HEIGHT_BITS.store(clamped.to_bits(), Ordering::Relaxed);
+}
+
+pub(crate) fn remembered_overlay_height() -> f64 {
+    // Hint for pre-show placement only; frontend resize_main_window is authoritative before reveal.
+    let bits = LAST_OVERLAY_HEIGHT_BITS.load(Ordering::Relaxed);
+    if bits == 0 {
+        OVERLAY_HEIGHT_COMPACT
+    } else {
+        f64::from_bits(bits).clamp(OVERLAY_HEIGHT_MIN, OVERLAY_HEIGHT_MAX)
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn reset_remembered_overlay_height_for_tests() {
+    LAST_OVERLAY_HEIGHT_BITS.store(0, Ordering::Relaxed);
+}
+
 pub(crate) fn position_window_bottom(window: &tauri::WebviewWindow, height_px: f64) {
     use tauri::PhysicalPosition;
 
@@ -676,5 +701,34 @@ pub(crate) fn position_window_bottom(window: &tauri::WebviewWindow, height_px: f
 
         let _ = window.set_size(tauri::PhysicalSize::new(win_width, win_height));
         let _ = window.set_position(PhysicalPosition::new(x, y));
+    }
+}
+
+#[cfg(test)]
+mod overlay_height_tests {
+    use super::*;
+
+    #[test]
+    fn remembered_height_defaults_to_compact() {
+        reset_remembered_overlay_height_for_tests();
+        assert_eq!(remembered_overlay_height(), OVERLAY_HEIGHT_COMPACT);
+    }
+
+    #[test]
+    fn remember_overlay_height_round_trips() {
+        reset_remembered_overlay_height_for_tests();
+        remember_overlay_height(508.0);
+        assert_eq!(remembered_overlay_height(), 508.0);
+        reset_remembered_overlay_height_for_tests();
+    }
+
+    #[test]
+    fn remember_overlay_height_clamps_out_of_range_values() {
+        reset_remembered_overlay_height_for_tests();
+        remember_overlay_height(999.0);
+        assert_eq!(remembered_overlay_height(), OVERLAY_HEIGHT_MAX);
+        remember_overlay_height(100.0);
+        assert_eq!(remembered_overlay_height(), OVERLAY_HEIGHT_MIN);
+        reset_remembered_overlay_height_for_tests();
     }
 }

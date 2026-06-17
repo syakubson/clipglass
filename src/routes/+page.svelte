@@ -38,7 +38,12 @@
     resetOverlayResizeState,
     resizeMainWindow,
   } from "$lib/overlay-resize";
-  import { panelCloseFallbackMs, panelOpenMs, scrollBehavior } from "$lib/motion";
+  import { panelCloseFallbackMs, panelOpenMs, scrollBehavior, afterLayoutFlush } from "$lib/motion";
+  import {
+    createPanelTransitionEpoch,
+    planInstantNativeHide,
+    type PanelMotionMode,
+  } from "$lib/overlay-motion";
   import { shouldLoadNextEntryPage } from "$lib/overlay-pagination";
 
   const overlayShortcutHints: KeyboardHint[] = [
@@ -58,6 +63,8 @@
   let revealTimer: ReturnType<typeof setTimeout> | undefined;
   let pendingReload = false;
   let revealSeq = 0;
+  let hideGeneration = 0;
+  let nativeHidePending = false;
   let hideTransitionHandler: ((e: TransitionEvent) => void) | undefined;
   let excludeCandidate: ExcludableAppCandidate | null = $state(null);
   let excludeNotice = $state("");
@@ -67,6 +74,14 @@
   let lastLayoutHeight = $state<number | null>(null);
   let collections: Collection[] = $state([]);
   let activating = $state(false);
+  /**
+   * Panel motion coordination (settings instant-hide vs animated hide vs in-flight reveal):
+   * - revealSeq: invalidates async showWindow pipeline; bumped on hide reset and new show.
+   * - panelMotionMode: `instant` snaps CSS pose; `animate` runs open/close transitions.
+   * - panelTransitionEpoch: stale-guard for deferred motion-mode release after instant hide.
+   */
+  let panelMotionMode = $state<PanelMotionMode>("animate");
+  const panelTransitionEpoch = createPanelTransitionEpoch();
 
   const SETTINGS_SYNC_USER_NOTICE =
     "Couldn't load app settings. Tags and filters may not work properly. Restart Copyosity.";
@@ -216,12 +231,6 @@
     };
   }
 
-  function nextPaint(): Promise<void> {
-    return new Promise((resolve) => {
-      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-    });
-  }
-
   function clearHideTimer() {
     if (hideTimer !== undefined) {
       clearTimeout(hideTimer);
@@ -244,17 +253,25 @@
   }
 
   function requestNativeHide() {
+    const gen = ++hideGeneration;
+    nativeHidePending = true;
     clearHideTimer();
     clearHideTransitionHandler();
 
     let committed = false;
     const commit = () => {
-      if (committed) return;
+      if (committed || gen !== hideGeneration) return;
       committed = true;
+      nativeHidePending = false;
       clearHideTimer();
       clearHideTransitionHandler();
       void hideMainWindow();
     };
+
+    if (panelMotionMode === "instant") {
+      void afterLayoutFlush().then(commit);
+      return;
+    }
 
     const onTransitionEnd = (e: TransitionEvent) => {
       if (e.target !== appEl || e.propertyName !== "opacity") return;
@@ -269,6 +286,15 @@
     }, panelCloseFallbackMs());
   }
 
+  async function finalizePendingNativeHide(): Promise<void> {
+    if (!nativeHidePending) return;
+    hideGeneration += 1;
+    nativeHidePending = false;
+    clearHideTimer();
+    clearHideTransitionHandler();
+    await hideMainWindow();
+  }
+
   async function loadCollections() {
     collections = await getCollections();
   }
@@ -276,13 +302,36 @@
   function finishReveal() {
     isRevealing = false;
     revealTimer = undefined;
-    if (pendingReload) {
-      pendingReload = false;
-      void (async () => {
-        await overlay.loadEntries(true, false);
-        scrollToSelected();
-      })();
+    const reload = pendingReload;
+    pendingReload = false;
+    // Scroll/focus after open animation so horizontal scroll does not fight panel motion.
+    void (async () => {
+      if (reload) await overlay.loadEntries(true, false);
+      scrollToSelected();
+    })();
+  }
+
+  function schedulePanelMotionRelease(epoch: number) {
+    void (async () => {
+      await afterLayoutFlush();
+      if (!panelTransitionEpoch.isCurrent(epoch)) return;
+      panelMotionMode = "animate";
+    })();
+  }
+
+  function handleNativeWindowHide() {
+    hideGeneration += 1;
+    nativeHidePending = false;
+    clearHideTimer();
+    clearHideTransitionHandler();
+    const plan = planInstantNativeHide(visible, () => panelTransitionEpoch.bump());
+    panelMotionMode = plan.motionMode;
+    resetOverlayMotionState();
+    if (plan.releaseEpoch === null) {
+      panelMotionMode = "animate";
+      return;
     }
+    schedulePanelMotionRelease(plan.releaseEpoch);
   }
 
   function resetOverlayMotionState() {
@@ -320,9 +369,9 @@
 
   function showWindow() {
     const seq = ++revealSeq;
+    panelTransitionEpoch.bump();
+    const pendingNativeHide = nativeHidePending;
     window.getSelection()?.removeAllRanges();
-    clearHideTimer();
-    clearHideTransitionHandler();
     clearRevealTimer();
     overlay.clearSearch({ reload: false });
     overlay.resetOverlayFilters();
@@ -333,25 +382,38 @@
     pendingReload = false;
     if (gridEl) gridEl.scrollLeft = 0;
 
+    panelMotionMode = "instant";
     visible = false;
     void (async () => {
-      const ready = await prepareOverlayLayout(seq);
-      if (!ready || seq !== revealSeq) {
-        isRevealing = false;
-        return;
+      let revealed = false;
+      try {
+        if (pendingNativeHide) {
+          await finalizePendingNativeHide();
+          if (seq !== revealSeq) return;
+        }
+        const ready = await prepareOverlayLayout(seq);
+        if (!ready || seq !== revealSeq) return;
+        await afterLayoutFlush();
+        if (seq !== revealSeq) return;
+        panelMotionMode = "animate";
+        await afterLayoutFlush();
+        if (seq !== revealSeq) return;
+        visible = true;
+        searchBar?.blur();
+        await afterLayoutFlush();
+        if (seq !== revealSeq) return;
+        if (hadPendingReload) {
+          void overlay.loadEntries(true, false);
+        }
+        revealTimer = setTimeout(finishReveal, panelOpenMs());
+        void loadExcludeCandidate();
+        revealed = true;
+      } finally {
+        if (!revealed) {
+          panelMotionMode = "animate";
+          if (seq === revealSeq) isRevealing = false;
+        }
       }
-      await nextPaint();
-      if (seq !== revealSeq) return;
-      visible = true;
-      searchBar?.blur();
-      await nextPaint();
-      if (seq !== revealSeq) return;
-      if (hadPendingReload) {
-        void overlay.loadEntries(true, false);
-      }
-      scrollToSelected();
-      revealTimer = setTimeout(finishReveal, panelOpenMs());
-      void loadExcludeCandidate();
     })();
   }
 
@@ -359,6 +421,7 @@
     revealSeq += 1;
     clearRevealTimer();
     isRevealing = false;
+    panelMotionMode = "animate";
     visible = false;
     overlay.resetDisplayStateOnHide();
   }
@@ -410,6 +473,7 @@
 
   // TEST-NOTE (+page integration): reveal/hide, keyboard, scroll prefetch, and Tauri
   // events are not automated. Playwright + running app would be needed (not installed).
+  // panelMotionMode / settings instant-hide: manual QA — overlay → settings → reopen.
   // Manual QA: docs/plans/05-overlay-content-and-tag-filters.md §7.
   onMount(() => {
     void overlay.syncOverlaySettings();
@@ -460,11 +524,7 @@
       requestNativeHide();
     });
 
-    const unlistenHide = listen("window-hide", () => {
-      clearHideTimer();
-      clearHideTransitionHandler();
-      resetOverlayMotionState();
-    });
+    const unlistenHide = listen("window-hide", handleNativeWindowHide);
 
     const unlistenOpenSettings = listen("open-settings", () => {
       openSettingsWindow();
@@ -654,7 +714,12 @@
   }
 </script>
 
-<div class="app" class:visible bind:this={appEl}>
+<div
+  class="app"
+  class:visible
+  data-panel-motion={panelMotionMode}
+  bind:this={appEl}
+>
   <header class="header">
     <SearchBar bind:this={searchBar} value={overlay.searchQuery} onchange={overlay.debouncedSearch} />
     <CollectionTabs
@@ -860,7 +925,11 @@
     transform: translate3d(0, var(--panel-open-travel), 0);
     opacity: 0;
     will-change: transform, opacity;
-    /* Transition on hidden state runs when opening (visible added). */
+    transition: none;
+  }
+
+  .app[data-panel-motion="animate"] {
+    /* Open transition runs when `.visible` is added. */
     transition:
       transform var(--duration-panel-open) var(--ease-apple-panel),
       opacity var(--duration-panel-opacity-open) var(--ease-apple-panel);
@@ -870,7 +939,10 @@
     transform: translate3d(0, 0, 0);
     opacity: 1;
     will-change: auto;
-    /* Transition on visible state runs when closing (visible removed). */
+  }
+
+  .app[data-panel-motion="animate"].visible {
+    /* Close transition runs when `.visible` is removed. */
     transition:
       transform var(--duration-panel-close) var(--ease-panel-dismiss),
       opacity var(--duration-panel-opacity-close) var(--ease-panel-dismiss);
@@ -878,7 +950,9 @@
 
   @media (prefers-reduced-motion: reduce) {
     .app,
-    .app.visible {
+    .app.visible,
+    .app[data-panel-motion="animate"],
+    .app[data-panel-motion="animate"].visible {
       transition-duration: 0.01ms;
     }
   }

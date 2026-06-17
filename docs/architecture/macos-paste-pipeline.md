@@ -72,6 +72,18 @@ When the panel opens (`toggle_window` → show), `remember_paste_target` stores:
 
 Call `remember_paste_target` **before** `show_and_make_key`, or focus capture points at Copyosity.
 
+### Panel hide paths (overlay motion)
+
+| Path                                        | Rust                                           | Frontend event                                                 | CSS close animation?                                                      |
+| ------------------------------------------- | ---------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Esc, outside click, tray toggle             | `animated_hide_panel`                          | `window-hide-request` → `startVisualHide` → `hide_main_window` | Yes — `visible=false` while native panel still shown                      |
+| Paste after activate                        | `finish_paste` → `window-hide-request`         | Same as above                                                  | Yes                                                                       |
+| Open settings (panel must hide immediately) | `open_settings_window` → `finalize_panel_hide` | `window-hide` only (no `window-hide-request`)                  | No — native hide first; frontend snaps with `data-panel-motion="instant"` |
+
+When settings (or any instant native hide) runs while the overlay is still `visible`, the frontend must snap the panel to its hidden pose without playing the close transition; otherwise the next open can double-jump. See `overlay-motion.ts` and `data-panel-motion` on `.app` in `+page.svelte`. Rust also reuses `remembered_overlay_height()` on show so the native panel is not repositioned to compact height before the frontend layout resize.
+
+If the user reopens while an animated close is still pending (`requestNativeHide` without `hide_main_window` yet), `showWindow` calls `finalizePendingNativeHide()` first so native hide is not dropped when hide timers are superseded. Animated close uses `data-panel-motion="animate"`; instant snap uses `instant` and commits hide after `afterLayoutFlush()` instead of waiting for a missing CSS transition. Intermediate height animation frames call `resize_main_window` with `rememberHeight: false` so Rust only stores the final layout height.
+
 Voice paste reuses the last remembered target. It does not call `remember_paste_target` on shortcut press; if no target was captured yet (`pid <= 0`), `simulate_cmd_v` falls back to the session event tap (frontmost app).
 
 ## Source files
@@ -86,7 +98,8 @@ Voice paste reuses the last remembered target. It does not call `remember_paste_
 | `src-tauri/src/lib.rs`                           | `toggle_window`, `finalize_panel_hide`, `PENDING_PASTE_AFTER_HIDE`, voice transcription paste                                              |
 | `src-tauri/src/macos_app.rs`                     | Bundle ID lookup for keyboard-paste routing                                                                                                |
 | `src-tauri/src/app_exclusion.rs`                 | Stores last frontmost app identity when the panel opens                                                                                    |
-| `src/routes/+page.svelte`                        | `window-hide-request` listener, hide animation, `hideMainWindow`                                                                           |
+| `src/routes/+page.svelte`                        | `window-hide-request` / `window-hide` listeners, hide animation, `data-panel-motion`, `hideMainWindow`                                     |
+| `src/lib/overlay-motion.ts`                      | Instant-hide plan, transition epoch guard                                                                                                  |
 
 ## Clipboard write modes
 

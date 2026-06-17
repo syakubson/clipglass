@@ -7,8 +7,13 @@ let lastThrottledHeight: number | null = null;
 
 const RESIZE_THROTTLE_MS = 32;
 
+async function invokeResizeMainWindow(height: number, rememberHeight: boolean): Promise<void> {
+  await invoke("resize_main_window", { height, rememberHeight });
+}
+
+/** Authoritative resize; Rust remembers height for the next pre-show placement. */
 export async function resizeMainWindow(height: number): Promise<void> {
-  await invoke("resize_main_window", { height });
+  await invokeResizeMainWindow(height, true);
   appliedHeight = height;
 }
 
@@ -58,7 +63,7 @@ export async function animateOverlayResize(targetHeight: number): Promise<void> 
       if (h !== lastThrottledHeight && now - lastInvokeAt >= RESIZE_THROTTLE_MS) {
         lastThrottledHeight = h;
         lastInvokeAt = now;
-        void invoke("resize_main_window", { height: h });
+        void invokeResizeMainWindow(h, false);
       }
       animFrame = requestAnimationFrame(step);
     };
