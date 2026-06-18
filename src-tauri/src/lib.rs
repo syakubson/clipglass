@@ -1,3 +1,4 @@
+mod agent;
 mod clipboard_monitor;
 mod commands;
 mod db;
@@ -46,6 +47,38 @@ static RECORDING: std::sync::OnceLock<std::sync::Mutex<Option<whisper::Recording
 
 fn recording_mutex() -> &'static std::sync::Mutex<Option<whisper::RecordingSession>> {
     RECORDING.get_or_init(|| std::sync::Mutex::new(None))
+}
+
+/// Separate recording slot for the command-palette mic (independent of the
+/// global voice-paste hotkey).
+static PALETTE_RECORDING: std::sync::OnceLock<std::sync::Mutex<Option<whisper::RecordingSession>>> =
+    std::sync::OnceLock::new();
+
+fn palette_recording_mutex() -> &'static std::sync::Mutex<Option<whisper::RecordingSession>> {
+    PALETTE_RECORDING.get_or_init(|| std::sync::Mutex::new(None))
+}
+
+/// Transcribe finished audio using hub or standalone Whisper, per settings.
+fn transcribe_with_settings(
+    settings: &db::AppSettings,
+    samples: Vec<f32>,
+    sample_rate: u32,
+) -> Result<String, String> {
+    let use_hub = settings.hub_transcribe_enabled
+        && !settings.hub_token.is_empty()
+        && !settings.hub_url.trim().is_empty();
+    let (url, tok) = if use_hub {
+        (
+            format!("{}/v1/audio/transcriptions", settings.hub_url.trim_end_matches('/')),
+            settings.hub_token.clone(),
+        )
+    } else {
+        (settings.whisper_server_url.clone(), settings.whisper_server_token.clone())
+    };
+    if url.is_empty() {
+        return Err("Transcription endpoint not configured".to_string());
+    }
+    whisper::transcribe_audio(samples, sample_rate, &url, &tok, &settings.whisper_server_model)
 }
 
 static CURRENT_VOICE_SHORTCUT: std::sync::OnceLock<std::sync::Mutex<Option<Shortcut>>> =
@@ -303,6 +336,9 @@ pub fn run() {
             palette_hide,
             palette_insert,
             open_command_palette,
+            palette_agent,
+            palette_voice_start,
+            palette_voice_stop,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
@@ -686,6 +722,48 @@ fn palette_search(app: tauri::AppHandle, query: String) -> Result<String, String
 #[tauri::command]
 fn open_command_palette(app: tauri::AppHandle) {
     toggle_command_palette(&app);
+}
+
+/// Run the research agent loop for `query` in the background, streaming
+/// progress to the palette via agent-progress / agent-final / agent-error.
+#[tauri::command]
+fn palette_agent(app: tauri::AppHandle, query: String) -> Result<(), String> {
+    let db = app.state::<std::sync::Arc<db::Database>>();
+    let s = db.get_app_settings().map_err(|e| e.to_string())?;
+    std::thread::spawn(move || {
+        agent::run(&app, &s.hub_url, &s.hub_token, &query);
+    });
+    Ok(())
+}
+
+/// Start recording from the palette mic.
+#[tauri::command]
+fn palette_voice_start(app: tauri::AppHandle) -> Result<(), String> {
+    let mut rec = palette_recording_mutex().lock().unwrap();
+    if rec.is_some() {
+        return Ok(());
+    }
+    let mic = app
+        .try_state::<std::sync::Arc<db::Database>>()
+        .and_then(|db| db.get_app_settings().ok())
+        .map(|s| s.selected_microphone)
+        .filter(|s| !s.is_empty());
+    let session = whisper::RecordingSession::start(mic.as_deref())?;
+    *rec = Some(session);
+    Ok(())
+}
+
+/// Stop palette recording, transcribe, and return the text.
+#[tauri::command]
+fn palette_voice_stop(app: tauri::AppHandle) -> Result<String, String> {
+    let session = palette_recording_mutex().lock().unwrap().take();
+    let Some(session) = session else {
+        return Ok(String::new());
+    };
+    let (samples, sample_rate) = session.finish();
+    let db = app.state::<std::sync::Arc<db::Database>>();
+    let settings = db.get_app_settings().map_err(|e| e.to_string())?;
+    transcribe_with_settings(&settings, samples, sample_rate)
 }
 
 /// Hide the command palette.

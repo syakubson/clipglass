@@ -328,6 +328,13 @@ impl Database {
         ).ok();
 
         if let Some(id) = existing {
+            // Re-copying content that's already in history: bump it to the top
+            // so it resurfaces (a clipboard manager must show the latest copy
+            // as newest), instead of silently leaving it buried at its old time.
+            conn.execute(
+                "UPDATE clipboard_entries SET created_at = ?1 WHERE id = ?2",
+                params![entry.created_at, id],
+            )?;
             // Backfill image_data for entries created before full-size storage was added
             if entry.image_data.is_some() {
                 conn.execute(
@@ -701,7 +708,11 @@ impl Database {
     pub fn cleanup_old_entries(&self, max_age_days: i64) -> Result<(), rusqlite::Error> {
         let conn = self.conn.lock().unwrap();
         conn.execute(
-            "DELETE FROM clipboard_entries WHERE is_pinned = 0 AND created_at < datetime('now', ?1)",
+            // datetime(created_at) normalizes the stored RFC3339 ('T' + tz) so
+            // the comparison is correct — a raw string compare against
+            // datetime('now') (space-separated) never matched, so retention
+            // cleanup silently never ran.
+            "DELETE FROM clipboard_entries WHERE is_pinned = 0 AND datetime(created_at) < datetime('now', ?1)",
             params![format!("-{} days", max_age_days)],
         )?;
         Ok(())

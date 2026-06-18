@@ -3,31 +3,70 @@
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
 
+  type Mode = "search" | "agent";
+
+  let mode = $state<Mode>("agent");
   let query = $state("");
   let answer = $state("");
+  let progress = $state<string[]>([]);
   let error = $state("");
   let loading = $state(false);
+  let recording = $state(false);
   let inputEl: HTMLInputElement | undefined = $state();
 
   function reset() {
     query = "";
     answer = "";
+    progress = [];
     error = "";
     loading = false;
   }
 
-  async function runSearch() {
+  async function run() {
     const q = query.trim();
     if (!q || loading) return;
     loading = true;
     answer = "";
     error = "";
+    progress = [];
     try {
-      answer = await invoke<string>("palette_search", { query: q });
+      if (mode === "agent") {
+        // Streams via agent-progress / agent-final / agent-error events.
+        await invoke("palette_agent", { query: q });
+      } else {
+        answer = await invoke<string>("palette_search", { query: q });
+        loading = false;
+      }
     } catch (e) {
       error = String(e);
-    } finally {
       loading = false;
+    }
+  }
+
+  async function toggleMic() {
+    if (recording) {
+      recording = false;
+      loading = true;
+      try {
+        const text = await invoke<string>("palette_voice_stop");
+        if (text.trim()) {
+          query = text.trim();
+          loading = false;
+          run();
+        } else {
+          loading = false;
+        }
+      } catch (e) {
+        error = String(e);
+        loading = false;
+      }
+    } else {
+      try {
+        await invoke("palette_voice_start");
+        recording = true;
+      } catch (e) {
+        error = String(e);
+      }
     }
   }
 
@@ -51,25 +90,38 @@
     if (e.key === "Escape") {
       e.preventDefault();
       close();
+    } else if (e.key === "Tab") {
+      e.preventDefault();
+      mode = mode === "agent" ? "search" : "agent";
     } else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       insert();
     } else if (e.key === "Enter") {
       e.preventDefault();
-      runSearch();
+      run();
     }
   }
 
   onMount(() => {
-    const unlisten = listen("palette-show", () => {
-      reset();
-      // focus shortly after the panel becomes key
-      setTimeout(() => inputEl?.focus(), 40);
-    });
+    const unlistens = [
+      listen("palette-show", () => {
+        reset();
+        setTimeout(() => inputEl?.focus(), 40);
+      }),
+      listen<string>("agent-progress", (e) => {
+        progress = [...progress, e.payload];
+      }),
+      listen<string>("agent-final", (e) => {
+        answer = e.payload;
+        loading = false;
+      }),
+      listen<string>("agent-error", (e) => {
+        error = e.payload;
+        loading = false;
+      }),
+    ];
     inputEl?.focus();
-    return () => {
-      unlisten.then((fn) => fn());
-    };
+    return () => unlistens.forEach((u) => u.then((fn) => fn()));
   });
 </script>
 
@@ -77,21 +129,27 @@
 
 <div class="palette">
   <div class="search-row">
-    <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-    </svg>
+    <div class="mode-badge" class:agent={mode === "agent"}>
+      {mode === "agent" ? "Agent" : "Web"}
+    </div>
     <input
       bind:this={inputEl}
       bind:value={query}
       class="search-input"
       type="text"
-      placeholder="Search the web via NeuralDeep…"
+      placeholder={mode === "agent"
+        ? "Спроси агента — он поищет и проанализирует…"
+        : "Поиск в вебе через NeuralDeep…"}
       autocomplete="off"
       spellcheck="false"
     />
-    {#if loading}
-      <span class="spinner"></span>
-    {/if}
+    <button class="mic-btn" class:recording type="button" title="Голос" onclick={toggleMic} aria-label="Voice">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/>
+      </svg>
+    </button>
+    {#if loading}<span class="spinner"></span>{/if}
   </div>
 
   {#if error}
@@ -103,8 +161,15 @@
       <button onclick={copy}>Copy</button>
       <button class="ghost" onclick={close}>Close Esc</button>
     </div>
+  {:else if loading && progress.length}
+    <div class="progress">
+      {#each progress as line}<div class="progress-line">{line}</div>{/each}
+    </div>
   {:else if !loading}
-    <div class="hint">Enter to ask · ⌘Enter to insert into the active app · Esc to close</div>
+    <div class="hint">
+      Enter — {mode === "agent" ? "запустить агента" : "искать"} · Tab — сменить режим (Web ⇄ Agent) ·
+      🎤 — голос · ⌘↵ — вставить · Esc — закрыть
+    </div>
   {/if}
 </div>
 
@@ -141,9 +206,20 @@
     flex-shrink: 0;
   }
 
-  .search-icon {
-    color: #9a9aa6;
+  .mode-badge {
     flex-shrink: 0;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 7px;
+    background: rgba(120, 160, 255, 0.18);
+    color: #acc4ff;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .mode-badge.agent {
+    background: rgba(155, 120, 255, 0.22);
+    color: #d2bcff;
   }
 
   .search-input {
@@ -154,10 +230,29 @@
     color: #f2f2f5;
     font-size: 18px;
   }
+  .search-input::placeholder { color: #76767f; }
 
-  .search-input::placeholder {
-    color: #76767f;
+  .mic-btn {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    background: transparent;
+    color: #b8b8c0;
+    cursor: pointer;
   }
+  .mic-btn:hover { background: rgba(255, 255, 255, 0.06); }
+  .mic-btn.recording {
+    color: #fff;
+    background: #e5534b;
+    border-color: #e5534b;
+    animation: pulse 1.1s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.55; } }
 
   .result {
     flex: 1;
@@ -171,10 +266,17 @@
     border-top: 1px solid rgba(255, 255, 255, 0.08);
     padding-top: 12px;
   }
+  .result.error { color: #ff8a80; }
 
-  .result.error {
-    color: #ff8a80;
+  .progress {
+    flex: 1;
+    overflow-y: auto;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    padding-top: 12px;
+    font-size: 13px;
+    color: #b9b9c2;
   }
+  .progress-line { padding: 3px 0; }
 
   .hint {
     font-size: 12px;
@@ -183,12 +285,7 @@
     padding-top: 12px;
   }
 
-  .actions {
-    display: flex;
-    gap: 8px;
-    flex-shrink: 0;
-  }
-
+  .actions { display: flex; gap: 8px; flex-shrink: 0; }
   .actions button {
     font: inherit;
     font-size: 12px;
@@ -199,30 +296,20 @@
     color: #dce4ff;
     cursor: pointer;
   }
-
   .actions button.ghost {
     background: transparent;
     border-color: rgba(255, 255, 255, 0.12);
     color: #b8b8c0;
   }
-
-  .actions button:hover {
-    filter: brightness(1.15);
-  }
+  .actions button:hover { filter: brightness(1.15); }
 
   .spinner {
-    width: 14px;
-    height: 14px;
+    width: 14px; height: 14px;
     border: 2px solid rgba(255, 255, 255, 0.25);
     border-top-color: #8aa0ff;
     border-radius: 50%;
     animation: spin 0.7s linear infinite;
     flex-shrink: 0;
   }
-
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
+  @keyframes spin { to { transform: rotate(360deg); } }
 </style>
