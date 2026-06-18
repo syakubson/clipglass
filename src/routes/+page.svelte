@@ -735,7 +735,7 @@
           excludeCandidate.displayName,
         )}
         <button
-          class="form-btn-restrict exclude-app-btn app-btn"
+          class="exclude-app-btn app-btn"
           type="button"
           aria-label={excludeLabel}
           aria-busy={excludeBusy}
@@ -972,6 +972,7 @@
     border-bottom: 1px solid var(--border-default);
     background: var(--surface-1);
     flex-shrink: 0;
+    min-height: calc(var(--overlay-header-control-height) + 24px);
   }
 
   .filter-zone {
@@ -1009,14 +1010,35 @@
   }
 
   .exclude-app-btn {
-    height: 36px;
-    max-width: min(220px, 42vw);
-    padding: 0 12px;
+    box-sizing: border-box;
+    height: var(--overlay-header-control-height);
+    max-width: min(200px, 38vw);
+    padding: 0 10px;
     border-radius: var(--radius-control);
+    border: 1px solid var(--border-soft);
+    background: var(--surface-3);
     font: inherit;
-    font-size: var(--font-size-xs);
-    font-weight: 600;
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--color-text-secondary);
+    opacity: 0.72;
     cursor: pointer;
+  }
+
+  .exclude-app-btn:hover:not(:disabled, [aria-busy="true"]) {
+    opacity: 0.92;
+    background: var(--surface-warning-subtle);
+    border-color: var(--border-warning);
+    color: var(--color-text-body);
+  }
+
+  .exclude-app-btn:focus-visible {
+    outline: none;
+    opacity: 1;
+    background: var(--surface-warning-subtle);
+    border-color: var(--border-warning-hover);
+    color: var(--color-text-body);
+    box-shadow: var(--ring-accent-input);
   }
 
   .exclude-app-btn-text {
@@ -1033,8 +1055,9 @@
 
   .settings-btn,
   .close-btn {
-    width: 36px;
-    height: 36px;
+    box-sizing: border-box;
+    width: var(--overlay-header-control-height);
+    height: var(--overlay-header-control-height);
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -1052,14 +1075,14 @@
   }
 
   .settings-btn svg {
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    height: 16px;
     fill: currentcolor;
   }
 
   .close-btn svg {
-    width: 16px;
-    height: 16px;
+    width: 14px;
+    height: 14px;
     fill: none;
     stroke: currentcolor;
     stroke-width: 2;

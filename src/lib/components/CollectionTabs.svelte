@@ -1,6 +1,11 @@
 <script lang="ts">
   import type { Collection } from "$lib/types";
   import { createCollection, deleteCollection } from "$lib/api";
+  import {
+    isCollectionsScrollable,
+    isCustomCollectionActive,
+    isHistoryCollectionActive,
+  } from "$lib/collection-tabs";
 
   const {
     collections = [],
@@ -19,6 +24,9 @@
   let showAdd = $state(false);
   let newName = $state("");
 
+  const historySelected = $derived(isHistoryCollectionActive(activeId, activePinned));
+  const collectionsScrollable = $derived(isCollectionsScrollable(collections.length, showAdd));
+
   async function handleAdd() {
     if (!newName.trim()) return;
     await createCollection(newName.trim());
@@ -35,182 +43,334 @@
   }
 </script>
 
+<!-- TEST-NOTE: Svelte markup/a11y not covered here; see collection-tabs.test.ts for scroll/selection helpers. -->
 <div class="tabs-container">
-  <button
-    class="tab app-btn"
-    class:active={activeId === null && !activePinned}
-    type="button"
-    onclick={() => onselect?.(null)}
-  >
-    Clipboard History
-  </button>
-
-  <button
-    class="tab app-btn"
-    class:active={activePinned}
-    type="button"
-    onclick={() => onselect?.(-1)}
-  >
-    Starred
-  </button>
-
-  {#each collections as col}
-    <div class="tab-item">
+  <div role="tablist" aria-label="Clipboard view" class="view-tablist">
+    <div class="primary-segment" role="presentation">
       <button
-        class="tab app-btn"
-        class:active={activeId === col.id && !activePinned}
         type="button"
-        onclick={() => onselect?.(col.id)}
+        class="segment-tab app-btn"
+        role="tab"
+        aria-selected={historySelected}
+        onclick={() => onselect?.(null)}
       >
-        <span class="tab-dot" style:background={col.color ?? "var(--color-text-subtle)"}></span>
-        {col.name}
+        History
       </button>
       <button
-        class="tab-delete app-btn"
         type="button"
-        aria-label="Delete collection {col.name}"
-        onclick={(e) => handleDelete(e, col.id)}
+        class="segment-tab app-btn"
+        role="tab"
+        aria-selected={activePinned}
+        onclick={() => onselect?.(-1)}
       >
-        ×
+        Starred
       </button>
     </div>
-  {/each}
+  </div>
 
-  {#if showAdd}
-    <form class="add-form" onsubmit={(e) => { e.preventDefault(); handleAdd(); }}>
-      <!-- svelte-ignore a11y_autofocus -->
-      <input
-        class="form-input"
-        bind:value={newName}
-        placeholder="Name..."
-        aria-label="Collection name"
-        autofocus
-        onblur={() => { if (!newName) showAdd = false; }}
-      />
-    </form>
-  {:else}
-    <button class="tab add-tab app-btn" type="button" onclick={() => (showAdd = true)}>+</button>
-  {/if}
+  <div
+    role="group"
+    aria-label="Custom collections"
+    class="collections-scroll"
+    class:scrollable={collectionsScrollable}
+  >
+    {#each collections as col (col.id)}
+      {@const selected = isCustomCollectionActive(col.id, activeId, activePinned)}
+      <div class="collection-tab-item" class:selected role="presentation">
+        <button
+          type="button"
+          class="collection-tab app-btn"
+          aria-pressed={selected}
+          title={col.name}
+          onclick={() => onselect?.(col.id)}
+        >
+          <span class="tab-dot" style:background={col.color ?? "var(--color-text-subtle)"}></span>
+          <span class="tab-label">{col.name}</span>
+        </button>
+        <button
+          type="button"
+          class="tab-delete app-btn"
+          aria-label="Delete collection {col.name}"
+          onclick={(e) => handleDelete(e, col.id)}
+        >
+          ×
+        </button>
+      </div>
+    {/each}
+
+    {#if showAdd}
+      <form class="add-form" onsubmit={(e) => { e.preventDefault(); handleAdd(); }}>
+        <!-- svelte-ignore a11y_autofocus -->
+        <input
+          class="form-input"
+          bind:value={newName}
+          placeholder="Name..."
+          aria-label="Collection name"
+          autofocus
+          onblur={() => { if (!newName) showAdd = false; }}
+        />
+      </form>
+    {:else}
+      <button
+        class="add-tab app-btn"
+        type="button"
+        aria-label="Add collection"
+        onclick={() => (showAdd = true)}
+      >
+        +
+      </button>
+    {/if}
+  </div>
 </div>
 
 <style>
   .tabs-container {
     display: flex;
     align-items: center;
-    gap: 4px;
-    overflow-x: auto;
-    padding: 0 4px;
-    scrollbar-width: none;
+    gap: 8px;
+    flex-shrink: 1;
+    min-width: 0;
+    height: var(--overlay-header-control-height);
+    overflow: hidden;
   }
 
-  .tabs-container::-webkit-scrollbar {
-    display: none;
-  }
-
-  .tab-item {
-    display: flex;
-    align-items: center;
+  .view-tablist {
     flex-shrink: 0;
   }
 
-  .tab-item .tab {
-    border-top-right-radius: 0;
-    border-bottom-right-radius: 0;
-    padding-right: 6px;
-  }
-
-  .tab-item .tab-delete {
-    align-self: stretch;
-    display: inline-flex;
-    align-items: center;
-    border: none;
-    border-top-right-radius: 6px;
-    border-bottom-right-radius: 6px;
-    padding: 0 6px;
-    margin-left: -2px;
-    background: none;
-    opacity: 0;
-  }
-
-  .tab-item:hover .tab-delete {
-    opacity: 1;
-    background: var(--surface-6);
-  }
-
-  .tab-item .tab.active + .tab-delete {
-    background: var(--surface-10);
-  }
-
-  .tab-item .tab.active:hover + .tab-delete {
-    background: var(--surface-10);
-  }
-
-  .tab {
+  .collections-scroll {
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 4px 12px;
-    border-radius: var(--radius-control-sm);
-    background: none;
+    gap: 8px;
+    min-width: 0;
+    flex: 0 0 auto;
+  }
+
+  .collections-scroll.scrollable {
+    flex: 1 1 auto;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .collections-scroll.scrollable::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* ── Primary segmented control (History / Starred) ── */
+  .primary-segment {
+    display: inline-flex;
+    align-items: stretch;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    height: var(--overlay-header-control-height);
+    gap: 2px;
+    padding: 2px;
+    border-radius: var(--radius-control);
+    background: var(--surface-3);
+    border: 1px solid var(--border-soft);
+  }
+
+  .segment-tab {
+    min-width: 72px;
+    height: calc(var(--overlay-header-control-height) - 4px);
+    padding: 0 12px;
     border: none;
-    color: var(--color-text-tab);
+    border-radius: var(--radius-control-sm);
+    background: transparent;
+    color: var(--color-text-secondary);
+    font: inherit;
     font-size: var(--font-size-sm);
     font-weight: 500;
     cursor: pointer;
     white-space: nowrap;
-    font-family: inherit;
     transition:
+      background var(--duration-fast) var(--ease-interactive),
       color var(--duration-fast) var(--ease-interactive),
-      background var(--duration-fast) var(--ease-interactive);
+      box-shadow var(--duration-fast) var(--ease-interactive);
   }
 
-  .tab:hover:not(:disabled, [aria-busy="true"]) {
-    color: var(--color-text-tab-hover);
-    background: var(--surface-6);
+  .segment-tab:hover:not(:disabled, [aria-busy="true"]) {
+    color: var(--color-text-body);
+    background: var(--surface-5);
   }
 
-  .tab.active {
-    color: var(--color-text-bright);
-    background: var(--surface-10);
+  .segment-tab[aria-selected="true"] {
+    background: var(--surface-7);
+    color: var(--color-text-primary);
+    box-shadow: var(--shadow-inset-highlight);
+    border: 1px solid var(--border-default);
   }
 
-  .tab:focus-visible {
+  .segment-tab[aria-selected="true"]:hover:not(:disabled, [aria-busy="true"]) {
+    background: var(--surface-8);
+    border-color: var(--border-medium);
+  }
+
+  .segment-tab:focus-visible {
+    outline: none;
+    box-shadow: var(--ring-accent-input);
+  }
+
+  /* ── Custom collection pills ── */
+  .collection-tab-item {
+    display: inline-flex;
+    align-items: stretch;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    height: var(--overlay-header-control-height);
+    border-radius: var(--radius-control-sm);
+    background: var(--surface-3);
+    border: 1px solid var(--border-soft);
+    transition:
+      background var(--duration-fast) var(--ease-interactive),
+      border-color var(--duration-fast) var(--ease-interactive);
+  }
+
+  .collection-tab-item:hover {
+    background: var(--surface-5);
+    border-color: var(--border-default);
+  }
+
+  .collection-tab-item.selected {
+    background: var(--surface-7);
+    border-color: var(--border-default);
+    box-shadow: var(--shadow-inset-highlight);
+  }
+
+  .collection-tab-item.selected:hover {
+    background: var(--surface-8);
+    border-color: var(--border-medium);
+  }
+
+  .collection-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 100%;
+    padding: 0 4px 0 10px;
+    border: none;
+    border-radius: var(--radius-control-sm) 0 0 var(--radius-control-sm);
+    background: transparent;
+    color: var(--color-text-secondary);
+    font: inherit;
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color var(--duration-fast) var(--ease-interactive);
+  }
+
+  .collection-tab-item:hover .collection-tab {
+    color: var(--color-text-body);
+  }
+
+  .collection-tab[aria-pressed="true"] {
+    color: var(--color-text-primary);
+  }
+
+  .collection-tab-item.selected:hover .collection-tab {
+    color: var(--color-text-primary);
+  }
+
+  .collection-tab:focus-visible {
     outline: none;
     box-shadow: var(--ring-accent);
+    z-index: 1;
+  }
+
+  .tab-label {
+    max-width: 9rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .tab-dot {
-    width: 8px;
-    height: 8px;
+    width: 7px;
+    height: 7px;
     border-radius: 50%;
     flex-shrink: 0;
   }
 
   .tab-delete {
-    background: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    align-self: stretch;
+    width: calc(var(--overlay-header-control-height) - 4px);
+    min-width: calc(var(--overlay-header-control-height) - 4px);
     border: none;
+    border-radius: 0 var(--radius-control-sm) var(--radius-control-sm) 0;
+    background: transparent;
     color: var(--color-text-subtle);
     cursor: pointer;
-    font-size: var(--font-size-base);
-    padding: 0 2px;
+    font-size: var(--font-size-md);
     line-height: 1;
-    opacity: 0;
-    transition: opacity var(--duration-fast) var(--ease-interactive);
+    opacity: 0.45;
+    transition:
+      opacity var(--duration-fast) var(--ease-interactive),
+      color var(--duration-fast) var(--ease-interactive),
+      background var(--duration-fast) var(--ease-interactive);
+  }
+
+  .collection-tab-item:hover .tab-delete,
+  .collection-tab-item:focus-within .tab-delete,
+  .tab-delete:focus-visible {
+    opacity: 1;
   }
 
   .tab-delete:hover:not(:disabled, [aria-busy="true"]) {
     color: var(--color-danger);
+    background: var(--surface-6);
+  }
+
+  .tab-delete:focus-visible {
+    outline: none;
+    box-shadow: var(--ring-accent);
   }
 
   .add-tab {
-    font-size: var(--font-size-xl);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: var(--overlay-header-control-height);
+    height: var(--overlay-header-control-height);
+    padding: 0;
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius-control-sm);
+    background: var(--surface-3);
     color: var(--color-text-subtle);
+    font-size: var(--font-size-lg);
+    font-weight: 400;
+    line-height: 1;
+    cursor: pointer;
+    transition:
+      background var(--duration-fast) var(--ease-interactive),
+      color var(--duration-fast) var(--ease-interactive),
+      border-color var(--duration-fast) var(--ease-interactive);
+  }
+
+  .add-tab:hover:not(:disabled, [aria-busy="true"]) {
+    color: var(--color-text-body);
+    background: var(--surface-5);
+    border-color: var(--border-default);
+  }
+
+  .add-tab:focus-visible {
+    outline: none;
+    box-shadow: var(--ring-accent-input);
+  }
+
+  .add-form {
+    flex-shrink: 0;
   }
 
   .add-form .form-input {
     width: 120px;
-    min-height: 28px;
-    padding: 4px 10px;
+    box-sizing: border-box;
+    height: var(--overlay-header-control-height);
+    min-height: var(--overlay-header-control-height);
+    padding: 0 10px;
     font-size: var(--font-size-sm);
     border-radius: var(--radius-control-sm);
     color: var(--color-text-body);

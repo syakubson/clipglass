@@ -90,7 +90,9 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 6px 10px 6px 12px;
+    box-sizing: border-box;
+    height: var(--overlay-header-control-height);
+    padding: 0 10px 0 12px;
     border-radius: var(--radius-control);
     width: 280px;
     flex: 0 0 280px;

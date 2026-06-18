@@ -38,6 +38,8 @@
   .content-kind-segment {
     display: inline-flex;
     align-items: stretch;
+    box-sizing: border-box;
+    height: var(--overlay-header-control-height);
     gap: 2px;
     padding: 2px;
     border-radius: var(--radius-control);
@@ -47,14 +49,14 @@
 
   .segment-btn {
     min-width: 72px;
-    height: 28px;
+    height: calc(var(--overlay-header-control-height) - 4px);
     padding: 0 12px;
     border: none;
     border-radius: var(--radius-control-sm);
     background: transparent;
     color: var(--color-text-secondary);
     font: inherit;
-    font-size: var(--font-size-md);
+    font-size: var(--font-size-sm);
     font-weight: 500;
     cursor: pointer;
     white-space: nowrap;

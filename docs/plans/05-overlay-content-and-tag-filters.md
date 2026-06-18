@@ -168,7 +168,7 @@ Base heights (filter rows only). Add **+28 px** when **Settings → Clipboard Pa
 
 - Height ~28–32px, grouped background, selected segment elevated
 - Padding: `12px 16px 8px`; font **13px**
-- `:focus-visible` ring; `role="tablist"` / `role="tab"` / `aria-selected`
+- `:focus-visible` ring; `role="group"` / `aria-pressed` (filter segment, not document tabs — see `ContentKindSegment.svelte`)
 - Labels: `All`, `Text`, `Images`
 - **Rendered only when `aiTaggingEnabled`**
 
@@ -229,13 +229,13 @@ const filteredEntries = overlay.entries; // from createOverlayEntriesStore()
 | item 11 Mono for code | font by `textKind`                  |
 | item 18 Empty state   | contentKind + format + AI modes     |
 
-**Out of scope:** item 8 History/Starred segmented, item 12 undo, item 19 hints, item 15 SF Symbols, Quick Look (remains in audit item 14 only, **not** in CHANGELOG).
+**Out of scope:** item 12 undo, item 15 SF Symbols, Quick Look (remains in audit item 14 only, **not** in CHANGELOG). Item 8 History/Starred segmented — **done** in [02-hig-audit.md](02-hig-audit.md) §8; item 19 hints — **done** there §19.
 
 ---
 
 ## 7. Tests
 
-**JS:** `npm test` (`node --test "src/**/*.test.ts"`) — part of `npm run check`. Covers `overlay-filters`, `overlay-display-query`, `overlay-pagination`, `overlay-entries-logic`, `entry-tagged` payload parsing. Pagination failures surface `loadMoreFailed` + retry banner; fetch failures use **Try again** on the empty state. **Not covered:** full `overlay-entries.svelte.ts` store (Svelte runes) and `+page.svelte` integration — see TEST-NOTE in those files. Vitest / Playwright are intentionally not installed.
+**JS:** `npm test` (`node --test "src/**/*.test.ts"`) — part of `npm run check`. Covers `overlay-filters`, `overlay-display-query`, `overlay-pagination`, `overlay-entries-logic`, `entry-tagged` payload parsing, `collection-tabs` scroll/selection helpers. Pagination failures surface `loadMoreFailed` + retry banner; fetch failures use **Try again** on the empty state. **Not covered:** full `overlay-entries.svelte.ts` store (Svelte runes), `CollectionTabs.svelte` markup, and `+page.svelte` integration — see TEST-NOTE in those files. Vitest / Playwright are intentionally not installed.
 
 ### Rust tests (extend `db.rs` / monitor tests)
 

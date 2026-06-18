@@ -59,7 +59,8 @@ flowchart TB
 
 - [x] `[Overlay]` `⌘F` / `/` → search; `←/→` reserved for cards (item 4)
 - [x] `[Overlay]` Keyboard hints — footer strip in `+page.svelte` (item 19)
-- [ ] `[Overlay]` Segmented control for History / Starred; tablist ARIA; simplify header (items 8–9)
+- [x] `[Overlay]` Segmented control for History / Starred; tablist ARIA (item 8)
+- [x] `[Overlay]` Simplify header — product decision, not doing (item 9)
 - [x] `[Overlay]` SF Pro for plain text, SF Mono only for code-like preview (item 11)
 - [x] `[Overlay]` Visually separate filter chip (toolbar) and metadata badge (card footer) (item 20)
 - [x] `[Settings]` Toggle / section patterns moved to `form-controls.css` (item 27)
@@ -107,7 +108,7 @@ flowchart TB
 
 ### ✅ 1. Global outline disabled `[Overlay]`
 
-Removed global `outline: none` in `+page.svelte`; `focus-visible` ring on cards (`ClipboardCard`) and collection div-tabs (`CollectionTabs`).
+Removed global `outline: none` in `+page.svelte`; `focus-visible` ring on cards (`ClipboardCard`) and collection tabs (`CollectionTabs`).
 
 ### ✅ 2. Card actions on keyboard selection `[Overlay]`
 
@@ -152,13 +153,20 @@ Removed global `outline: none` in `+page.svelte`; `focus-visible` ring on cards 
 
 No light tokens and no `prefers-color-scheme: light`.
 
-### 8. Tabs — not segmented control `[Overlay]`
+### ✅ 8. Tabs — segmented control `[Overlay]`
 
-`CollectionTabs.svelte`: no `aria-selected` / `role="tablist"`; collection tabs are `<div role="button">`; delete `×` only on hover.
+`CollectionTabs.svelte`: History / Starred — macOS segmented control (`role="tablist"` / `role="tab"` / `aria-selected`, `aria-label="Clipboard view"`); custom collections — `role="group"` + `aria-pressed` pills (same pattern as `ContentKindSegment`); delete `×` and add `+` live outside the tablist; horizontal scroll only on custom collections; delete `×` — subtle default opacity, full on hover / focus-within; 28px delete hit target; truncated names use `title`; labels shortened to History / Starred.
 
-### 9. Overloaded header `[Overlay]`
+### ❌ 9. Overloaded header `[Overlay]` — product decision
 
-Search + tabs + collections + Exclude + gear in one row. Exclude → overflow; search flex-grow.
+Originally: search `flex-grow`, Exclude → `⋯` overflow. **Intentionally not doing** after review (2026-06): current header kept as-is.
+
+| Declined change    | Rationale                                                                                                                                                          |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Exclude → overflow | Inline Exclude + subdued/caution hover is enough; status hint (`… excluded from history`) should stay visible without opening a menu — HIG status vs action split. |
+| Search `flex-grow` | Fixed-width search (`280px`) is acceptable; tabs/collections scroll independently (item 8 follow-up).                                                              |
+
+Revisit only if narrow overlay width or many collections make the header unusable in practice.
 
 ### ✅ 10. Tag filter bar `[Overlay]`
 
@@ -333,9 +341,9 @@ Card scroll container without `scroll-snap` for keyboard / trackpad navigation.
 
 `--card-width` / `--card-height` in rem (≈220×288 at 16px root) — intentionally fixed card size, not a layout bug. Entire overlay (preview, typography, actions, scroll, keyboard navigation) tuned to this width and height; horizontal scroll is expected UX with many entries. Adapting cards to panel width or items per screen not planned. Do not confuse with item 34 (typography and rem scale from root).
 
-### 39. Collections color dot 8px `[Overlay]`
+### 39. Collections color dot 7px `[Overlay]`
 
-Collection color dot 8×8 px — below comfortable minimum for distinguishability.
+Header pill dot is **7×7 px** (dense toolbar trade-off). Still below comfortable minimum for distinguishability at a glance; revisit if collections need stronger color coding outside the overlay header.
 
 ### ✅ 40. Test button `disabled` without `aria-describedby` `[Settings]`
 
