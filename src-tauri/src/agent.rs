@@ -47,6 +47,22 @@ fn normalize_base(url: &str) -> String {
     url.trim().trim_end_matches('/').to_string()
 }
 
+/// Parse an ISO-ish due date into seconds-from-now (None if past/unparseable).
+fn parse_due_offset_secs(iso: &str) -> Option<i64> {
+    use chrono::{DateTime, Local, NaiveDateTime, TimeZone};
+    let target_ts = if let Ok(dt) = DateTime::parse_from_rfc3339(iso) {
+        dt.timestamp()
+    } else {
+        let ndt = NaiveDateTime::parse_from_str(iso, "%Y-%m-%dT%H:%M:%S")
+            .or_else(|_| NaiveDateTime::parse_from_str(iso, "%Y-%m-%d %H:%M:%S"))
+            .or_else(|_| NaiveDateTime::parse_from_str(iso, "%Y-%m-%dT%H:%M"))
+            .ok()?;
+        Local.from_local_datetime(&ndt).single()?.timestamp()
+    };
+    let offset = target_ts - Local::now().timestamp();
+    (offset > 0).then_some(offset)
+}
+
 /// Run the agent loop to completion, emitting progress events on `app`.
 pub fn run(app: &tauri::AppHandle, base_url: &str, token: &str, query: &str) {
     if let Err(e) = run_inner(app, base_url, token, query) {
@@ -64,23 +80,75 @@ fn run_inner(app: &tauri::AppHandle, base_url: &str, token: &str, query: &str) -
         return Err("Empty question".to_string());
     }
 
-    let tools = json!([{
-        "type": "function",
-        "function": {
-            "name": "web_search",
-            "description": "Search the web for current/factual information. Use it whenever the question needs fresh facts, news, prices, docs or anything you are unsure about.",
-            "parameters": {
-                "type": "object",
-                "properties": { "query": { "type": "string", "description": "search query" } },
-                "required": ["query"]
+    let tools = json!([
+        {
+            "type": "function",
+            "function": {
+                "name": "web_search",
+                "description": "Search the web for current/factual information. Use it whenever the question needs fresh facts, news, prices, docs or anything you are unsure about.",
+                "parameters": {
+                    "type": "object",
+                    "properties": { "query": { "type": "string", "description": "search query" } },
+                    "required": ["query"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "create_note",
+                "description": "Create a note in the user's macOS Notes app.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "title": { "type": "string" },
+                        "body": { "type": "string" }
+                    },
+                    "required": ["title", "body"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "create_reminder",
+                "description": "Create a reminder in the user's macOS Reminders app.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "title": { "type": "string" },
+                        "due": { "type": "string", "description": "optional due date/time as ISO 8601 (e.g. 2026-06-20T10:00:00)" }
+                    },
+                    "required": ["title"]
+                }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "list_reminders",
+                "description": "List the user's open (incomplete) reminders.",
+                "parameters": { "type": "object", "properties": {} }
+            }
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "read_calendar",
+                "description": "Read the user's upcoming macOS Calendar events for the next N days.",
+                "parameters": {
+                    "type": "object",
+                    "properties": { "days": { "type": "integer", "description": "how many days ahead (1-60)" } },
+                    "required": ["days"]
+                }
             }
         }
-    }]);
+    ]);
 
     let mut messages: Vec<Value> = vec![
         json!({
             "role": "system",
-            "content": "You are a research agent. Break the user's question into web searches, call the web_search tool as many times as needed, then synthesize a concise, well-structured answer in the user's language. Cite source URLs inline. Do not invent facts — search instead."
+            "content": "You are a personal assistant agent on the user's Mac. You can search the web AND act on the user's apps: create notes (create_note), create/list reminders (create_reminder, list_reminders), and read their calendar (read_calendar). Use the right tool for the request — e.g. 'remind me tomorrow at 10 to call Bob' -> create_reminder; 'what's on my calendar this week' -> read_calendar; 'save this to notes' -> create_note. Call tools as needed, then give a concise confirmation/answer in the user's language. Do not invent facts — use web_search."
         }),
         json!({ "role": "user", "content": query }),
     ];
@@ -139,13 +207,39 @@ fn run_inner(app: &tauri::AppHandle, base_url: &str, token: &str, query: &str) -
             let args_raw = tc["function"]["arguments"].as_str().unwrap_or("{}");
             let args: Value = serde_json::from_str(args_raw).unwrap_or(json!({}));
 
-            let result = if name == "web_search" {
-                let q = args["query"].as_str().unwrap_or("").to_string();
-                let _ = app.emit("agent-progress", format!("🔎 Ищу: {}", q));
-                crate::hub::web_search(&base, token, &q, 5)
-                    .unwrap_or_else(|e| format!("(search failed: {})", e))
-            } else {
-                format!("(unknown tool: {})", name)
+            let result = match name {
+                "web_search" => {
+                    let q = args["query"].as_str().unwrap_or("").to_string();
+                    let _ = app.emit("agent-progress", format!("🔎 Ищу: {}", q));
+                    crate::hub::web_search(&base, token, &q, 5)
+                        .unwrap_or_else(|e| format!("(search failed: {})", e))
+                }
+                "create_note" => {
+                    let title = args["title"].as_str().unwrap_or("Note");
+                    let body = args["body"].as_str().unwrap_or("");
+                    let _ = app.emit("agent-progress", format!("📝 Заметка: {}", title));
+                    crate::mactools::create_note(title, body)
+                        .unwrap_or_else(|e| format!("(note failed: {})", e))
+                }
+                "create_reminder" => {
+                    let title = args["title"].as_str().unwrap_or("Reminder");
+                    let due_offset = args["due"].as_str().and_then(parse_due_offset_secs);
+                    let _ = app.emit("agent-progress", format!("⏰ Напоминание: {}", title));
+                    crate::mactools::create_reminder(title, due_offset)
+                        .unwrap_or_else(|e| format!("(reminder failed: {})", e))
+                }
+                "list_reminders" => {
+                    let _ = app.emit("agent-progress", "⏰ Читаю напоминания…".to_string());
+                    crate::mactools::list_reminders()
+                        .unwrap_or_else(|e| format!("(list failed: {})", e))
+                }
+                "read_calendar" => {
+                    let days = args["days"].as_i64().unwrap_or(7);
+                    let _ = app.emit("agent-progress", format!("📅 Календарь: {} дн.", days));
+                    crate::mactools::read_calendar(days)
+                        .unwrap_or_else(|e| format!("(calendar failed: {})", e))
+                }
+                other => format!("(unknown tool: {})", other),
             };
 
             messages.push(json!({

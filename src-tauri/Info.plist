@@ -4,5 +4,9 @@
 <dict>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Copyosity uses the microphone to record voice and transcribe it.</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Copyosity automates Notes, Reminders and Calendar to save and read your items.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>Copyosity reads your upcoming Calendar events to use as context.</string>
 </dict>
 </plist>

@@ -3,6 +3,7 @@ mod clipboard_monitor;
 mod commands;
 mod db;
 mod hub;
+mod mactools;
 mod ocr;
 mod ollama;
 mod tagging;
