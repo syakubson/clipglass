@@ -34,6 +34,9 @@ import type { ClipboardEntry, OverlayTagCounts } from "$lib/types";
  * Full store (runes + invoke) still needs Vitest/Playwright per TEST-NOTE in +page.svelte.
  */
 
+/** TEMP: Content Kind segment hidden in +page.svelte — keep false until product decision. */
+const CONTENT_KIND_ROW_UI_ENABLED = false;
+
 export interface OverlayEntriesDeps {
   getVisible: () => boolean;
   getIsRevealing: () => boolean;
@@ -80,7 +83,8 @@ export function createOverlayEntriesStore(deps: OverlayEntriesDeps) {
   let suppressReconcileEffect = false;
 
   const showContentKindRow = $derived(
-    aiTaggingEnabled &&
+    CONTENT_KIND_ROW_UI_ENABLED &&
+      aiTaggingEnabled &&
       (catalogTagCounts?.has_text ?? hasTextEntries(catalogEntries)) &&
       (catalogTagCounts?.has_images ?? hasImageEntries(catalogEntries)),
   );
@@ -654,7 +658,7 @@ export function createOverlayEntriesStore(deps: OverlayEntriesDeps) {
   }
 
   function restoreContentKindFromSession() {
-    if (!aiTaggingEnabled) {
+    if (!aiTaggingEnabled || !CONTENT_KIND_ROW_UI_ENABLED) {
       contentKind = "all";
       return;
     }

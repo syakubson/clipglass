@@ -118,7 +118,7 @@
 <style>
   .tag-filter-bar {
     flex-shrink: 0;
-    padding: 0 16px 10px;
+    padding: 0 16px;
   }
 
   .tag-filter-scroll {

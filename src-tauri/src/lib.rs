@@ -654,8 +654,8 @@ fn hide_voice_overlay(app: &tauri::AppHandle) {
     }
 }
 
-/// Default overlay height (compact tier) until the frontend applies layout.
-pub const OVERLAY_HEIGHT_COMPACT: f64 = 448.0;
+/// Default overlay height until the frontend applies layout (base + hints on).
+pub const OVERLAY_HEIGHT_COMPACT: f64 = 450.0;
 
 pub const OVERLAY_HEIGHT_MIN: f64 = 360.0;
 pub const OVERLAY_HEIGHT_MAX: f64 = 560.0;

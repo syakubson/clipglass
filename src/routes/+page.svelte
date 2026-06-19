@@ -21,7 +21,8 @@
   import KeyboardHints, { type KeyboardHint } from "$lib/components/KeyboardHints.svelte";
   import SearchBar from "$lib/components/SearchBar.svelte";
   import CollectionTabs from "$lib/components/CollectionTabs.svelte";
-  import ContentKindSegment from "$lib/components/ContentKindSegment.svelte";
+  // TEMP: re-enable with Content Kind segment block below.
+  // import ContentKindSegment from "$lib/components/ContentKindSegment.svelte";
   import TagFilterBar from "$lib/components/TagFilterBar.svelte";
   import {
     buildTagBarModel,
@@ -136,8 +137,6 @@
 
   const overlayLayoutHeight = $derived(
     overlayHeightForLayout({
-      tagBar: tagBarModel,
-      hasSettingsNotice: settingsSyncNotice !== null,
       showShortcutHints: overlay.overlayShortcutHintsEnabled,
     }),
   );
@@ -378,8 +377,6 @@
     const loaded = await overlay.prepareCatalogAndDisplay(() => seq === revealSeq);
     if (!loaded || seq !== revealSeq) return false;
     const height = overlayHeightForLayout({
-      tagBar: tagBarModel,
-      hasSettingsNotice: settingsSyncNotice !== null,
       showShortcutHints: overlay.overlayShortcutHintsEnabled,
     });
     await applyOverlayHeight(height, false);
@@ -925,7 +922,7 @@
     </div>
   </header>
 
-  {#if settingsSyncNotice || tagBarModel.showRowA || tagBarModel.showRowB}
+  {#if settingsSyncNotice || tagBarModel.showRowB}
     <div class="filter-zone">
       {#if settingsSyncNotice}
         <p
@@ -936,14 +933,15 @@
           {settingsSyncNotice}
         </p>
       {/if}
-      {#if tagBarModel.showRowA}
+      <!-- TEMP: Content Kind segment (All / Text / Images) hidden pending user feedback
+           on whether to keep, evolve, or remove. Re-enable filter-row-a block when decided.
         <div class="filter-row-a">
           <ContentKindSegment
             value={overlay.contentKind}
             onchange={overlay.handleContentKindChange}
           />
         </div>
-      {/if}
+      -->
       {#if tagBarModel.showRowB}
         <TagFilterBar
           resetLabel={tagBarModel.resetLabel}
@@ -1128,7 +1126,7 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
-    padding-top: 10px;
+    padding-top: var(--overlay-filter-pad-top);
     transition:
       opacity var(--duration-fast) var(--ease-interactive),
       transform var(--duration-fast) var(--ease-interactive);
@@ -1140,9 +1138,12 @@
     }
   }
 
+  /* TEMP: re-enable with Content Kind segment block above. */
+  /*
   .filter-row-a {
     padding: 0 16px;
   }
+  */
 
   .settings-sync-notice {
     margin: 0 16px;
@@ -1160,7 +1161,7 @@
   .exclude-app-btn {
     box-sizing: border-box;
     height: var(--overlay-header-control-height);
-    max-width: min(200px, 38vw);
+    flex-shrink: 0;
     padding: 0 10px;
     border-radius: var(--radius-control);
     border: 1px solid var(--border-soft);
@@ -1171,6 +1172,7 @@
     color: var(--color-text-secondary);
     opacity: 0.72;
     cursor: pointer;
+    white-space: nowrap;
   }
 
   .exclude-app-btn:hover:not(:disabled, [aria-busy="true"]) {
@@ -1191,9 +1193,6 @@
 
   .exclude-app-btn-text {
     display: block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 
   .exclude-notice {
@@ -1241,7 +1240,7 @@
     flex: 1;
     display: flex;
     gap: 12px;
-    padding: 14px 16px var(--space-section);
+    padding: var(--overlay-grid-pad-y) 16px;
     scroll-padding-inline: 16px;
     overflow: auto hidden;
     scroll-snap-type: x mandatory;

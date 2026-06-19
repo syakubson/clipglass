@@ -52,6 +52,9 @@
 
   /* Overlay header — single control height (search, segments, icon buttons) */
   --overlay-header-control-height: 32px;
+  /* Symmetric vertical rhythm — matches header padding (12px, HIG 8pt grid) */
+  --overlay-filter-pad-top: 12px;
+  --overlay-grid-pad-y: 12px;
 
   /* ── RGB channels (for alpha compositing) ──────────── */
   --rgb-white: 255 255 255;

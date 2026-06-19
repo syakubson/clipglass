@@ -1,41 +1,15 @@
-import type { TagBarModel } from "$lib/overlay-filters";
+/**
+ * Static overlay heights (CSS px, scaled in Rust).
+ *
+ * Measured from layout chrome — header, filter row, card grid, optional hints footer.
+ * Grid uses fixed padding (--overlay-grid-pad-y); it does not flex-grow.
+ */
+export const OVERLAY_HEIGHT_BASE = 415;
 
-/** Logical overlay height tiers (CSS px, scaled in Rust). */
-export type OverlayHeightTier = "compact" | "medium" | "full";
+/** Footer shortcut hints strip (Settings → Clipboard Panel → Keyboard shortcuts). */
+export const OVERLAY_HINTS_EXTRA_HEIGHT = 35;
 
-/** Base heights before optional footer shortcut strip. */
-export const OVERLAY_BASE_HEIGHT_BY_TIER: Record<OverlayHeightTier, number> = {
-  compact: 420,
-  medium: 440,
-  full: 480,
-};
-
-/** Extra px when footer shortcut hints are enabled (item 19). */
-export const OVERLAY_HINTS_EXTRA_HEIGHT = 28;
-
-export function computeOverlayHeightTier(options: {
-  showRowA: boolean;
-  showRowB: boolean;
-  hasSettingsNotice: boolean;
-}): OverlayHeightTier {
-  const filterRows = (options.showRowA ? 1 : 0) + (options.showRowB ? 1 : 0);
-
-  if (filterRows >= 2) return "full";
-  if (filterRows >= 1 || options.hasSettingsNotice) return "medium";
-  return "compact";
-}
-
-export function overlayHeightForLayout(options: {
-  tagBar: Pick<TagBarModel, "showRowA" | "showRowB">;
-  hasSettingsNotice: boolean;
-  showShortcutHints?: boolean;
-}): number {
-  const tier = computeOverlayHeightTier({
-    showRowA: options.tagBar.showRowA,
-    showRowB: options.tagBar.showRowB,
-    hasSettingsNotice: options.hasSettingsNotice,
-  });
-  const base = OVERLAY_BASE_HEIGHT_BY_TIER[tier];
+export function overlayHeightForLayout(options: { showShortcutHints?: boolean }): number {
   const showHints = options.showShortcutHints ?? true;
-  return base + (showHints ? OVERLAY_HINTS_EXTRA_HEIGHT : 0);
+  return OVERLAY_HEIGHT_BASE + (showHints ? OVERLAY_HINTS_EXTRA_HEIGHT : 0);
 }

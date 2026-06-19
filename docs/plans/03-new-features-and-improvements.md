@@ -32,8 +32,7 @@ Backlog and completed items formerly tracked in `AGENTS.md`.
 **Status: in progress — due in 0.4.0.**
 
 - [ ] **Overlay content & tag filters** — **WIP**; baseline landed, more ideas still to implement; details in [05-overlay-content-and-tag-filters.md](05-overlay-content-and-tag-filters.md)
-  - Two-level filtering: content kind (All / Text / Images) + tag chips (image format + AI tags)
-  - AI-off mode: format chips only; panel height tiers (420 / 440 / 480 px)
+  - Tag chip bar (format always; semantic when AI on); static panel height **415 / 450 px**; Row A (Content Kind) TEMP hidden in UI
   - Image card meta (dimensions, file size); filter vs metadata badge separation
   - Follow-up UX and filter behavior — open; extend the linked plan as ideas land
 

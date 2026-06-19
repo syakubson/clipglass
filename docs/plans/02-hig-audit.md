@@ -212,7 +212,7 @@ Contextual messages for search / tag filter; `role="status"`.
 
 ### ✅ 19. Paste model discoverability and keyboard shortcuts `[Overlay]`
 
-Paste button on card — explicit mouse affordance for paste without double-click. Footer shortcut strip in `+page.svelte` (`KeyboardHints.svelte`); optional via **Settings → Clipboard Panel → Keyboard shortcuts** (default on). Overlay height +28 px when hints are on (`OVERLAY_HINTS_EXTRA_HEIGHT`).
+Paste button on card — explicit mouse affordance for paste without double-click. Footer shortcut strip in `+page.svelte` (`KeyboardHints.svelte`); optional via **Settings → Clipboard Panel → Keyboard shortcuts** (default on). Overlay height +35 px when hints are on (`OVERLAY_HINTS_EXTRA_HEIGHT`; base **415** px).
 
 | Zone         | Hint                                                                                          |
 | ------------ | --------------------------------------------------------------------------------------------- |

@@ -23,7 +23,7 @@ Two levels of filtering over history cards + image card fixes. **Status: done** 
 
 **AI tagging disabled in Settings:** Row A hidden; Row B — image formats only; tags not shown on cards.
 
-**Additionally:** meta on image cards (`1920 × 1080 · 245 KB` instead of "Image preview"); panel height by tier — base compact 420 / medium 440 / full 480 px (+28 px when keyboard hints are on).
+**Additionally:** meta on image cards (`1920 × 1080 · 245 KB` instead of "Image preview"); static panel height **415 px** (+**35 px** when keyboard hints are on → **450 px**). Row A (Content Kind segment) **temporarily hidden** in UI — see CHANGELOG.
 
 ## Checklist
 
@@ -32,12 +32,12 @@ Two levels of filtering over history cards + image card fixes. **Status: done** 
 - [x] **`overlay-display-query.ts`** — `displayQueryKey`, `tagCountsQueryKey`
 - [x] **`overlay-pagination.ts`** — scroll prefetch helper
 - [x] **AI tagging sync** — `aiTaggingEnabled` from settings on reveal; separate from `retagAvailable` (`isTaggingReady`)
-- [x] **`ContentKindSegment.svelte`** — Row A (hidden when AI off)
+- [x] **`ContentKindSegment.svelte`** — Row A (TEMP hidden in UI; component retained)
 - [x] **`TagFilterBar.svelte`** — Row B: format/AI chips, photo icon, divider, scroll fade
 - [x] **`+page.svelte`** — filter pipeline, empty states, card footer gating
 - [x] **Image meta backend** — `image_width`, `image_height`, `image_byte_size` + Rust tests
 - [x] **Image meta frontend** — `image-meta.ts`, ClipboardCard; tags hidden when AI off; mono by textKind; remove `title`
-- [x] **Panel height tiers** — base compact 420 / medium 440 / full 480 (+28 px when keyboard hints on); `resize_main_window` + progressive filter rows
+- [x] **Panel height** — static **415 / 450 px** (hints toggle only); symmetric 12px filter/grid padding; `resize_main_window`
 - [x] **Docs** — CHANGELOG; mark items 10, 11, 14, 17 in `02-hig-audit.md`
 
 ---
@@ -127,9 +127,21 @@ Load `aiTaggingEnabled` on each overlay reveal (together with `syncRetagAvailabi
 
 Do **not** hide bars on empty filter result (sticky `activeTag` / segment).
 
-### Panel height tiers
+### Panel height (static)
 
-Base heights (filter rows only). Add **+28 px** when **Settings → Clipboard Panel → Keyboard shortcuts** is on (default).
+Fixed heights from **Settings → Keyboard shortcuts** only (default hints on).
+
+| Hints | Height px |
+| ----- | --------- |
+| off   | 415       |
+| on    | 450       |
+
+`resize_main_window` on reveal; smooth resize when hints toggle with overlay open (Reduce Motion → instant). Supersedes tier table below (historical).
+
+<details>
+<summary>Historical tier table (pre-0.4.0 static height)</summary>
+
+Base heights (filter rows only). Add **+28 px** when keyboard hints on.
 
 | Tier        | Base px | With hints | When                                    |
 | ----------- | ------- | ---------- | --------------------------------------- |
@@ -137,7 +149,7 @@ Base heights (filter rows only). Add **+28 px** when **Settings → Clipboard Pa
 | **medium**  | 440     | 468        | One bar (Row B or notice)               |
 | **full**    | 480     | 508        | Row A + Row B                           |
 
-`resize_main_window` on reveal; smooth resize on tier change with overlay open (Reduce Motion → instant).
+</details>
 
 ---
 
@@ -272,10 +284,10 @@ const filteredEntries = overlay.entries; // from createOverlayEntriesStore()
 
 ## 8. Overlay height
 
-- Base tiers: **420 / 440 / 480** — [`overlay-layout.ts`](../../src/lib/overlay-layout.ts) (`OVERLAY_BASE_HEIGHT_BY_TIER`)
-- Keyboard hints: **+28 px** when enabled (`OVERLAY_HINTS_EXTRA_HEIGHT`; **Settings → Clipboard Panel**)
+- Base: **415 px** — [`overlay-layout.ts`](../../src/lib/overlay-layout.ts) (`OVERLAY_HEIGHT_BASE`)
+- Keyboard hints: **+35 px** when enabled (`OVERLAY_HINTS_EXTRA_HEIGHT` → **450 px**; **Settings → Clipboard Panel**)
 - Resize: [`overlay-resize.ts`](../../src/lib/overlay-resize.ts), `resize_main_window` in Rust
-- Default window height in [`tauri.conf.json`](../../src-tauri/tauri.conf.json): compact with hints (**448**); frontend applies correct height on reveal when hints are off
+- Default window height in [`tauri.conf.json`](../../src-tauri/tauri.conf.json): **450** (hints on); frontend applies **415** on reveal when hints are off
 
 ---
 

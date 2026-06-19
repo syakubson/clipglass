@@ -15,7 +15,7 @@
         "label": "main",
         "title": "Copyosity",
         "width": 900,
-        "height": 448,
+        "height": 450,
         "resizable": true,
         "decorations": false,
         "transparent": true,
