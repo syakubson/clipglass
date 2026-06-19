@@ -670,9 +670,8 @@ fn toggle_command_palette(app: &tauri::AppHandle) {
                     PALETTE_TARGET_PID.store(pid, Ordering::Relaxed);
                 }
             }
-            if let Some(window) = app.get_webview_window("command_palette") {
-                let _ = window.center();
-            }
+            // Don't re-center on show — keep the window where the user last
+            // moved/resized it (it was centered once at creation).
             panel.show_and_make_key();
             let _ = app.emit("palette-show", ());
         }

@@ -11,6 +11,7 @@
     "global-shortcut:allow-is-registered",
     "core:event:default",
     "core:window:allow-start-dragging",
+    "core:window:allow-start-resize-dragging",
     "core:window:allow-set-size"
   ]
 }

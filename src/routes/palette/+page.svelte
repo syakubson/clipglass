@@ -28,6 +28,48 @@
   let elapsed = $state(0);
   let inputEl: HTMLInputElement | undefined = $state();
 
+  type Session = { q: string; a: string; mode: Mode; ts: number };
+  let sessions = $state<Session[]>([]);
+  let showHistory = $state(false);
+
+  function loadSessions() {
+    try {
+      sessions = JSON.parse(localStorage.getItem("agentSessions") || "[]");
+    } catch {
+      sessions = [];
+    }
+  }
+  function saveSession(q: string, a: string, m: Mode) {
+    if (!q.trim() || !a.trim()) return;
+    sessions = [{ q, a, mode: m, ts: Date.now() }, ...sessions].slice(0, 50);
+    localStorage.setItem("agentSessions", JSON.stringify(sessions));
+  }
+  function openSession(s: Session) {
+    query = s.q;
+    answer = s.a;
+    mode = s.mode;
+    progress = [];
+    error = "";
+    loading = false;
+    showHistory = false;
+    setTimeout(() => inputEl?.focus(), 30);
+  }
+  function timeAgo(ts: number): string {
+    const s = Math.floor((Date.now() - ts) / 1000);
+    if (s < 60) return "только что";
+    if (s < 3600) return `${Math.floor(s / 60)} мин назад`;
+    if (s < 86400) return `${Math.floor(s / 3600)} ч назад`;
+    return new Date(ts).toLocaleDateString();
+  }
+
+  // Drag bottom-right corner to resize (transparent rounded panel has no
+  // obvious OS resize edge, so we provide an explicit grip).
+  function startResize(e: MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    getCurrentWindow().startResizeDragging("SouthEast");
+  }
+
   // Live elapsed counter while the agent is working (qwen3.6 reasoning is slow,
   // so a moving timer makes it clear it's running, not frozen).
   $effect(() => {
@@ -59,6 +101,7 @@
       } else {
         answer = await invoke<string>("palette_search", { query: q });
         loading = false;
+        saveSession(q, answer, "search");
       }
     } catch (e) {
       error = String(e);
@@ -142,12 +185,14 @@
       listen<string>("agent-final", (e) => {
         answer = e.payload;
         loading = false;
+        saveSession(query, e.payload, "agent");
       }),
       listen<string>("agent-error", (e) => {
         error = e.payload;
         loading = false;
       }),
     ];
+    loadSessions();
     inputEl?.focus();
     return () => unlistens.forEach((u) => u.then((fn) => fn()));
   });
@@ -168,7 +213,8 @@
     </button>
     {#if loading}<span class="run-dot" title="Агент работает"></span><span class="run-label">работает… {elapsed}s</span>{/if}
     <div class="topbar-spacer"></div>
-    <button class="bar-btn" type="button" title="Новый запрос" onclick={reset}>＋</button>
+    <button class="bar-btn" class:active={showHistory} type="button" title="История сессий" onclick={() => { loadSessions(); showHistory = !showHistory; }}>🕘</button>
+    <button class="bar-btn" type="button" title="Новый запрос" onclick={() => { reset(); showHistory = false; }}>＋</button>
     <button class="bar-btn" type="button" title="Скрыть (Esc) — состояние сохранится" onclick={close}>✕</button>
   </div>
   <div class="search-row">
@@ -192,7 +238,21 @@
     {#if loading}<span class="spinner"></span>{/if}
   </div>
 
-  {#if error}
+  {#if showHistory}
+    <div class="history">
+      {#if sessions.length === 0}
+        <div class="hint" style="border:none;padding:0;">История пуста — задай вопрос, и он сохранится здесь.</div>
+      {:else}
+        {#each sessions as s}
+          <button class="history-item" type="button" onclick={() => openSession(s)}>
+            <span class="history-mode" class:agent={s.mode === "agent"}>{s.mode === "agent" ? "A" : "W"}</span>
+            <span class="history-q">{s.q}</span>
+            <span class="history-time">{timeAgo(s.ts)}</span>
+          </button>
+        {/each}
+      {/if}
+    </div>
+  {:else if error}
     <div class="result error">{error}</div>
   {:else if answer}
     <!-- eslint-disable-next-line svelte/no-at-html-tags -->
@@ -212,6 +272,15 @@
       🎤 — голос · ⌘↵ — вставить · Esc — закрыть
     </div>
   {/if}
+
+  <button
+    class="resize-grip"
+    type="button"
+    tabindex="-1"
+    aria-label="Resize"
+    title="Потяни, чтобы изменить размер"
+    onmousedown={startResize}
+  ></button>
 </div>
 
 <style>
@@ -263,6 +332,58 @@
     cursor: pointer;
   }
   .bar-btn:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+  .bar-btn.active { background: rgba(155, 120, 255, 0.25); color: #fff; border-color: rgba(155,120,255,0.4); }
+
+  .history {
+    flex: 1;
+    overflow-y: auto;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    padding-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .history-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    border: none;
+    color: #e6e6ea;
+    font: inherit;
+    font-size: 13px;
+    padding: 7px 8px;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .history-item:hover { background: rgba(255, 255, 255, 0.06); }
+  .history-mode {
+    flex-shrink: 0;
+    width: 18px; height: 18px;
+    border-radius: 5px;
+    font-size: 10px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(120, 160, 255, 0.2); color: #acc4ff;
+  }
+  .history-mode.agent { background: rgba(155, 120, 255, 0.25); color: #d2bcff; }
+  .history-q { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .history-time { flex-shrink: 0; font-size: 11px; color: #76767f; }
+
+  .resize-grip {
+    position: fixed;
+    right: 2px;
+    bottom: 2px;
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    border: none;
+    cursor: nwse-resize;
+    background:
+      linear-gradient(135deg, transparent 0 50%, rgba(255,255,255,0.35) 50% 60%, transparent 60% 70%, rgba(255,255,255,0.35) 70% 80%, transparent 80%);
+    z-index: 10;
+  }
 
   .run-dot {
     width: 8px; height: 8px; border-radius: 50%;
