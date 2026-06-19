@@ -141,7 +141,10 @@
 
   onMount(() => {
     // Load everything in parallel instead of sequentially
-    loadSettings();
+    loadSettings().then(() => {
+      // Auto-check hub connection so the auth status is visible on open.
+      if (settings.hub_token?.trim()) handleHubTest();
+    });
     loadModelCatalog();
     loadExcludedApps();
     refreshOllamaStatus();
@@ -244,9 +247,13 @@
   <section class="settings-section">
     <div class="settings-section-title">NeuralDeep Hub</div>
     <div class="settings-hint" style="margin-bottom: 10px;">
-      Connect your NeuralDeep account to tag and transcribe via the hub instead of
-      local models. Each user configures their own token.
-      <button class="link-btn" type="button" onclick={() => openUrl("https://hub.neuraldeep.ru/app")}>Get API key</button>
+      Connect to NeuralDeep to power tagging, transcription, web search and the
+      research agent. <strong>3 steps:</strong>
+      <ol style="margin: 6px 0 0; padding-left: 18px;">
+        <li><button class="link-btn" type="button" onclick={() => openUrl("https://hub.neuraldeep.ru/app")}>Open the hub</button> → copy your <code>sk-…</code> key</li>
+        <li>Paste it into <strong>API Token</strong> below</li>
+        <li>Click <strong>Test connection</strong> → then <strong>Save</strong></li>
+      </ol>
     </div>
 
     <label class="settings-field">

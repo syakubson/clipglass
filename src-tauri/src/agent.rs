@@ -18,8 +18,29 @@ const MAX_STEPS: usize = 6;
 fn agent_http() -> ureq::Agent {
     ureq::AgentBuilder::new()
         .timeout_connect(Duration::from_secs(5))
-        .timeout(Duration::from_secs(90))
+        // qwen3.6 is a reasoning model and can take a while per step.
+        .timeout(Duration::from_secs(180))
         .build()
+}
+
+/// Tool calls on an assistant turn (empty if none).
+fn tool_calls_of(message: &Value) -> Vec<Value> {
+    message["tool_calls"].as_array().cloned().unwrap_or_default()
+}
+
+/// Final text of an assistant turn. Reasoning models sometimes leave `content`
+/// null and put text in `reasoning_content`; fall back to it so we never show
+/// an empty answer when the model actually responded.
+fn final_content(message: &Value) -> String {
+    let c = message["content"].as_str().unwrap_or("").trim();
+    if !c.is_empty() {
+        return c.to_string();
+    }
+    message["reasoning_content"]
+        .as_str()
+        .unwrap_or("")
+        .trim()
+        .to_string()
 }
 
 fn normalize_base(url: &str) -> String {
@@ -91,11 +112,11 @@ fn run_inner(app: &tauri::AppHandle, base_url: &str, token: &str, query: &str) -
         let json: Value = resp.into_json().map_err(|e| format!("Bad hub response: {}", e))?;
         let message = &json["choices"][0]["message"];
 
-        let tool_calls = message["tool_calls"].as_array().cloned().unwrap_or_default();
+        let tool_calls = tool_calls_of(message);
 
         if tool_calls.is_empty() {
             // Final answer.
-            let content = message["content"].as_str().unwrap_or("").trim().to_string();
+            let content = final_content(message);
             if content.is_empty() {
                 return Err("Agent returned an empty answer".to_string());
             }
@@ -134,4 +155,54 @@ fn run_inner(app: &tauri::AppHandle, base_url: &str, token: &str, query: &str) -
         "Достигнут лимит шагов — попробуй переформулировать вопрос".to_string(),
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn final_content_uses_content_when_present() {
+        let m = json!({ "content": "  Париж  ", "reasoning_content": "thinking..." });
+        assert_eq!(final_content(&m), "Париж");
+    }
+
+    #[test]
+    fn final_content_falls_back_to_reasoning_when_content_null() {
+        // Reasoning models sometimes return content: null.
+        let m = json!({ "content": null, "reasoning_content": "  the answer is 42  " });
+        assert_eq!(final_content(&m), "the answer is 42");
+    }
+
+    #[test]
+    fn final_content_empty_when_both_missing() {
+        let m = json!({ "content": "", "reasoning_content": "" });
+        assert!(final_content(&m).is_empty());
+    }
+
+    #[test]
+    fn tool_calls_parsed_when_present() {
+        let m = json!({
+            "content": null,
+            "tool_calls": [{
+                "id": "call_1",
+                "function": { "name": "web_search", "arguments": "{\"query\":\"rust\"}" }
+            }]
+        });
+        let tcs = tool_calls_of(&m);
+        assert_eq!(tcs.len(), 1);
+        assert_eq!(tcs[0]["function"]["name"], "web_search");
+        // arguments arrive as a JSON string that we must parse.
+        let args: Value = serde_json::from_str(
+            tcs[0]["function"]["arguments"].as_str().unwrap(),
+        )
+        .unwrap();
+        assert_eq!(args["query"], "rust");
+    }
+
+    #[test]
+    fn tool_calls_empty_for_plain_answer() {
+        let m = json!({ "content": "hello" });
+        assert!(tool_calls_of(&m).is_empty());
+    }
 }

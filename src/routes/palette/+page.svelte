@@ -12,7 +12,17 @@
   let error = $state("");
   let loading = $state(false);
   let recording = $state(false);
+  let elapsed = $state(0);
   let inputEl: HTMLInputElement | undefined = $state();
+
+  // Live elapsed counter while the agent is working (qwen3.6 reasoning is slow,
+  // so a moving timer makes it clear it's running, not frozen).
+  $effect(() => {
+    if (!loading) return;
+    elapsed = 0;
+    const t = setInterval(() => (elapsed += 1), 1000);
+    return () => clearInterval(t);
+  });
 
   function reset() {
     query = "";
@@ -142,7 +152,7 @@
     >
       {mode === "agent" ? "Agent" : "Web"}
     </button>
-    {#if loading}<span class="run-dot" title="Агент работает"></span><span class="run-label">работает…</span>{/if}
+    {#if loading}<span class="run-dot" title="Агент работает"></span><span class="run-label">работает… {elapsed}s</span>{/if}
     <div class="topbar-spacer" data-tauri-drag-region></div>
     <button class="bar-btn" type="button" title="Новый запрос" onclick={reset}>＋</button>
     <button class="bar-btn" type="button" title="Скрыть (Esc)" onclick={close}>✕</button>
