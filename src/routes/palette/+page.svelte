@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
-  import { getCurrentWindow } from "@tauri-apps/api/window";
+  import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
   import { marked } from "marked";
 
   marked.setOptions({ breaks: true, gfm: true });
@@ -68,6 +68,25 @@
     e.preventDefault();
     e.stopPropagation();
     getCurrentWindow().startResizeDragging("SouthEast");
+  }
+
+  // Collapse the whole panel to a small pulsing dot and back.
+  let minimized = $state(false);
+  let restoreSize = { w: 640, h: 460 };
+  async function minimize() {
+    const win = getCurrentWindow();
+    try {
+      const sz = await win.innerSize();
+      const f = await win.scaleFactor();
+      restoreSize = { w: Math.round(sz.width / f), h: Math.round(sz.height / f) };
+    } catch {}
+    minimized = true;
+    await win.setSize(new LogicalSize(72, 72));
+  }
+  async function restoreWindow() {
+    minimized = false;
+    await getCurrentWindow().setSize(new LogicalSize(restoreSize.w, restoreSize.h));
+    setTimeout(() => inputEl?.focus(), 40);
   }
 
   // Live elapsed counter while the agent is working (qwen3.6 reasoning is slow,
@@ -200,6 +219,17 @@
 
 <svelte:window on:keydown={onKeydown} />
 
+{#if minimized}
+  <button
+    class="min-dot"
+    class:busy={loading}
+    class:done={!loading && !!answer}
+    type="button"
+    title="Развернуть Copyosity Agent"
+    onclick={restoreWindow}
+    aria-label="Expand"
+  ></button>
+{:else}
 <div class="palette">
   <div class="topbar" role="toolbar" tabindex="-1" onmousedown={startDrag}>
     <button
@@ -215,6 +245,7 @@
     <div class="topbar-spacer"></div>
     <button class="bar-btn" class:active={showHistory} type="button" title="История сессий" onclick={() => { loadSessions(); showHistory = !showHistory; }}>🕘</button>
     <button class="bar-btn" type="button" title="Новый запрос" onclick={() => { reset(); showHistory = false; }}>＋</button>
+    <button class="bar-btn" type="button" title="Свернуть в точку" onclick={minimize}>–</button>
     <button class="bar-btn" type="button" title="Скрыть (Esc) — состояние сохранится" onclick={close}>✕</button>
   </div>
   <div class="search-row">
@@ -282,6 +313,7 @@
     onmousedown={startResize}
   ></button>
 </div>
+{/if}
 
 <style>
   :global(body) {
@@ -529,6 +561,33 @@
     color: #b8b8c0;
   }
   .actions button:hover { filter: brightness(1.15); }
+
+  .min-dot {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    background: radial-gradient(circle at 35% 30%, #b69bff, #7b5cff 70%);
+    box-shadow: 0 4px 16px rgba(123, 92, 255, 0.5);
+    animation: dotpulse 1.6s ease-in-out infinite;
+  }
+  .min-dot.busy {
+    background: radial-gradient(circle at 35% 30%, #b69bff, #7b5cff 70%);
+    animation: dotpulse 0.9s ease-in-out infinite;
+  }
+  .min-dot.done {
+    background: radial-gradient(circle at 35% 30%, #6ee7a0, #2ecc71 70%);
+    box-shadow: 0 4px 16px rgba(46, 204, 113, 0.5);
+  }
+  @keyframes dotpulse {
+    0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+    50% { transform: translate(-50%, -50%) scale(0.82); opacity: 0.7; }
+  }
 
   .spinner {
     width: 14px; height: 14px;

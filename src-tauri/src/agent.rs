@@ -13,7 +13,7 @@ use tauri::Emitter;
 
 /// Model with the best native tool-calling on the hub.
 const AGENT_MODEL: &str = "qwen3.6-35b-a3b";
-const MAX_STEPS: usize = 6;
+const MAX_STEPS: usize = 12;
 
 fn agent_http() -> ureq::Agent {
     ureq::AgentBuilder::new()
@@ -88,13 +88,19 @@ fn run_inner(app: &tauri::AppHandle, base_url: &str, token: &str, query: &str) -
     let url = format!("{}/v1/chat/completions", base);
 
     for step in 0..MAX_STEPS {
-        let _ = app.emit("agent-progress", format!("🤔 Думаю… (шаг {}/{})", step + 1, MAX_STEPS));
+        // On the last step, force a final answer (no more tool calls) so the
+        // agent always responds instead of bailing with "step limit reached".
+        let force_final = step == MAX_STEPS - 1;
+        let _ = app.emit(
+            "agent-progress",
+            format!("🤔 Думаю… (шаг {}/{})", step + 1, MAX_STEPS),
+        );
 
         let body = json!({
             "model": AGENT_MODEL,
             "messages": messages,
             "tools": tools,
-            "tool_choice": "auto",
+            "tool_choice": if force_final { "none" } else { "auto" },
             "temperature": 0.2,
             "stream": false
         });
