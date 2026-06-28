@@ -401,8 +401,8 @@
   }
 
   .tag-group-chip.active {
-    background: rgba(94, 140, 255, 0.18);
-    border-color: rgba(120, 160, 255, 0.28);
+    background: rgba(16, 185, 129, 0.2);
+    border-color: rgba(52, 211, 153, 0.32);
     color: #eef3ff;
   }
 

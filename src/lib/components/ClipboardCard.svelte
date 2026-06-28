@@ -243,7 +243,7 @@
   }
 
   .card:hover {
-    border-color: rgba(120, 160, 255, 0.45);
+    border-color: rgba(52, 211, 153, 0.5);
     background: linear-gradient(180deg, rgba(66, 66, 76, 0.96), rgba(42, 42, 50, 0.92));
     transform: translateY(-2px);
     box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
@@ -417,7 +417,7 @@
     padding: 3px 7px;
     border-radius: 999px;
     background: rgba(90, 138, 255, 0.14);
-    border: 1px solid rgba(120, 160, 255, 0.18);
+    border: 1px solid rgba(52, 211, 153, 0.24);
     color: #cdddff;
     font-size: 10px;
     line-height: 1;

@@ -406,7 +406,7 @@
     border-radius: 5px;
     font-size: 10px; font-weight: 700;
     display: flex; align-items: center; justify-content: center;
-    background: rgba(120, 160, 255, 0.2); color: #acc4ff;
+    background: rgba(52, 211, 153, 0.26); color: #acc4ff;
   }
   .history-mode.agent { background: rgba(155, 120, 255, 0.25); color: #d2bcff; }
   .history-q { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -447,7 +447,7 @@
     padding: 4px 9px;
     border-radius: 7px;
     border: none;
-    background: rgba(120, 160, 255, 0.18);
+    background: rgba(52, 211, 153, 0.24);
     color: #acc4ff;
     text-transform: uppercase;
     letter-spacing: 0.04em;
@@ -559,8 +559,8 @@
     font-size: 12px;
     padding: 6px 12px;
     border-radius: 8px;
-    border: 1px solid rgba(120, 160, 255, 0.25);
-    background: rgba(96, 134, 230, 0.18);
+    border: 1px solid rgba(52, 211, 153, 0.3);
+    background: rgba(16, 185, 129, 0.18);
     color: #dce4ff;
     cursor: pointer;
   }

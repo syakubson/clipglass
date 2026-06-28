@@ -936,8 +936,8 @@
   }
 
   .nav-item.active {
-    background: rgba(96, 134, 230, 0.18);
-    border-color: rgba(120, 160, 255, 0.25);
+    background: rgba(16, 185, 129, 0.18);
+    border-color: rgba(52, 211, 153, 0.3);
     color: #eef2ff;
   }
 
@@ -966,8 +966,8 @@
   }
 
   .sidebar-dot.ok {
-    background: #4ade80;
-    box-shadow: 0 0 6px rgba(74, 222, 128, 0.4);
+    background: #00ff88;
+    box-shadow: 0 0 8px rgba(0, 255, 136, 0.55);
   }
 
   .sidebar-dot.fail {
@@ -1053,8 +1053,8 @@
   .dirty-save {
     min-height: 36px;
     padding: 0 18px;
-    background: linear-gradient(180deg, rgba(103, 145, 255, 0.95), rgba(75, 121, 244, 0.92));
-    border: 1px solid rgba(144, 177, 255, 0.35);
+    background: linear-gradient(180deg, rgba(16, 185, 129, 0.95), rgba(5, 150, 105, 0.95));
+    border: 1px solid rgba(52, 211, 153, 0.4);
     border-radius: 10px;
     color: #f7f9ff;
     font: inherit;
@@ -1158,8 +1158,8 @@
 
   .settings-input:focus,
   .settings-select:focus {
-    border-color: rgba(120, 160, 255, 0.4);
-    box-shadow: 0 0 0 3px rgba(94, 140, 255, 0.15);
+    border-color: rgba(52, 211, 153, 0.45);
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18);
     background: rgba(255, 255, 255, 0.08);
   }
 
@@ -1222,8 +1222,8 @@
 
   .settings-small-btn {
     padding: 0 14px;
-    background: rgba(96, 134, 230, 0.16);
-    border: 1px solid rgba(120, 160, 255, 0.22);
+    background: rgba(16, 185, 129, 0.16);
+    border: 1px solid rgba(52, 211, 153, 0.28);
     color: #edf1f8;
     white-space: nowrap;
   }
@@ -1366,9 +1366,9 @@
     padding: 4px 12px;
     min-height: 28px;
     border-radius: 8px;
-    background: rgba(96, 134, 230, 0.16);
-    border: 1px solid rgba(120, 160, 255, 0.22);
-    color: #c4d4ff;
+    background: rgba(16, 185, 129, 0.16);
+    border: 1px solid rgba(52, 211, 153, 0.28);
+    color: #a7f3d0;
     font: inherit;
     font-size: 11px;
     cursor: pointer;
@@ -1377,7 +1377,7 @@
   }
 
   .status-action:hover:not(:disabled) {
-    background: rgba(96, 134, 230, 0.28);
+    background: rgba(16, 185, 129, 0.3);
     transform: translateY(-1px);
   }
 
@@ -1428,7 +1428,7 @@
     background: none;
     border: none;
     padding: 0;
-    color: #7da4ff;
+    color: #34d399;
     cursor: pointer;
     font: inherit;
     font-size: 11px;
@@ -1437,7 +1437,7 @@
   }
 
   .link-btn:hover {
-    color: #a8c4ff;
+    color: #6ee7b7;
   }
 
   .spinner {
@@ -1445,7 +1445,7 @@
     width: 10px;
     height: 10px;
     border: 2px solid rgba(255, 255, 255, 0.2);
-    border-top-color: #c4d4ff;
+    border-top-color: #a7f3d0;
     border-radius: 50%;
     animation: spin 0.6s linear infinite;
     vertical-align: middle;
@@ -1459,7 +1459,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    color: #c4d4ff;
+    color: #a7f3d0;
     font-family: "SF Mono", Menlo, monospace;
     font-size: 10.5px;
     word-break: break-all;

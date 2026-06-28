@@ -19,17 +19,33 @@ pub fn capture_context_png() -> Option<Vec<u8>> {
         .arg("-t")
         .arg("png")
         .arg(&path)
-        .status()
-        .ok()?;
+        .status();
 
-    if !status.success() {
-        let _ = std::fs::remove_file(&path);
-        return None;
+    match &status {
+        Ok(s) if s.success() => {}
+        Ok(s) => {
+            eprintln!("[screen] screencapture exited with {:?}", s.code());
+            let _ = std::fs::remove_file(&path);
+            return None;
+        }
+        Err(e) => {
+            eprintln!("[screen] failed to run screencapture: {}", e);
+            return None;
+        }
     }
 
     let bytes = std::fs::read(&path).ok();
     let _ = std::fs::remove_file(&path);
-    downscale_png(&bytes?)
+    match &bytes {
+        Some(b) => eprintln!("[screen] captured {} bytes (pre-downscale)", b.len()),
+        None => eprintln!("[screen] screencapture produced no readable file"),
+    }
+    let out = downscale_png(&bytes?);
+    match &out {
+        Some(o) => eprintln!("[screen] downscaled to {} bytes PNG", o.len()),
+        None => eprintln!("[screen] downscale failed"),
+    }
+    out
 }
 
 #[cfg(not(target_os = "macos"))]
