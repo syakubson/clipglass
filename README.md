@@ -10,13 +10,14 @@ of your way until you need it.
 
 Built with Tauri 2, Svelte 5, Rust, and SQLite.
 
-## Screenshot
+## Screenshots
 
-<!-- Placeholder: docs/screenshot.png is not committed yet. Add a screenshot of
-     the floating panel / command palette here. CI or a teammate will drop the
-     image in at docs/screenshot.png. -->
+![Copyosity settings](docs/screenshot.png)
 
-![Copyosity](docs/screenshot.png)
+Context-aware voice polishing — speak, and the hub LLM cleans the transcription
+(punctuation, filler, lists) and adapts it to the app you're pasting into:
+
+![Voice polishing](docs/screenshot-voice.png)
 
 ## Features
 
