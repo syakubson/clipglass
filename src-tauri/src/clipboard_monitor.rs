@@ -256,11 +256,11 @@ pub fn get_frontmost_app() -> Option<String> {
 }
 
 #[cfg(target_os = "windows")]
-fn get_frontmost_app() -> Option<String> {
+pub fn get_frontmost_app() -> Option<String> {
     None
 }
 
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-fn get_frontmost_app() -> Option<String> {
+pub fn get_frontmost_app() -> Option<String> {
     None
 }
