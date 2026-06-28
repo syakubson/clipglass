@@ -40,6 +40,9 @@ pub struct AppSettings {
     pub voice_translate_lang: String,
     /// Newline-separated custom terms with exact spellings to preserve.
     pub voice_dictionary: String,
+    /// When text is selected in the target app, treat the spoken transcription as
+    /// an instruction to apply to that selection (summarize/fix/translate/rewrite).
+    pub voice_selected_text: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -273,6 +276,10 @@ impl Database {
         let voice_dictionary = self
             .get_setting("voice_dictionary")?
             .unwrap_or_default();
+        let voice_selected_text = self
+            .get_setting("voice_selected_text")?
+            .map(|v| v == "true")
+            .unwrap_or(false);
 
         Ok(AppSettings {
             ollama_model,
@@ -294,6 +301,7 @@ impl Database {
             voice_polish_prompt,
             voice_translate_lang,
             voice_dictionary,
+            voice_selected_text,
         })
     }
 
@@ -318,6 +326,7 @@ impl Database {
         voice_polish_prompt: Option<&str>,
         voice_translate_lang: Option<&str>,
         voice_dictionary: Option<&str>,
+        voice_selected_text: Option<bool>,
     ) -> Result<AppSettings, rusqlite::Error> {
         if let Some(model) = ollama_model {
             self.set_setting("ollama_model", model.trim())?;
@@ -375,6 +384,9 @@ impl Database {
         }
         if let Some(dict) = voice_dictionary {
             self.set_setting("voice_dictionary", dict.trim())?;
+        }
+        if let Some(enabled) = voice_selected_text {
+            self.set_setting("voice_selected_text", if enabled { "true" } else { "false" })?;
         }
 
         self.get_app_settings()
@@ -1015,6 +1027,7 @@ mod tests {
             None, None, None, None, None,
             None, None, None, None, None, None,
             None, None, None, None, None, None,
+            None,
         )
         .unwrap();
         let s = db.get_app_settings().unwrap();

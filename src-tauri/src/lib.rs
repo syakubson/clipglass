@@ -47,6 +47,10 @@ static VOICE_SCREENSHOT: std::sync::Mutex<Option<String>> = std::sync::Mutex::ne
 /// Detected kind of the target app ("email"/"chat"/"code"/"document"/"general").
 static VOICE_APP_KIND: std::sync::Mutex<String> = std::sync::Mutex::new(String::new());
 
+/// Text selected in the target app at hotkey-press time (selected-text command
+/// mode): the spoken transcription becomes an instruction applied to this text.
+static VOICE_SELECTION: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+
 /// PID of the app that was frontmost when the command palette was opened, so the
 /// agent answer can be inserted back into it.
 static PALETTE_TARGET_PID: AtomicI32 = AtomicI32::new(0);
@@ -442,6 +446,7 @@ fn build_tray_menu(app: &tauri::App) -> tauri::Result<Menu<tauri::Wry>> {
 fn maybe_polish(settings: &db::AppSettings, raw: &str) -> String {
     let screenshot = VOICE_SCREENSHOT.lock().unwrap().take();
     let app_kind = std::mem::take(&mut *VOICE_APP_KIND.lock().unwrap());
+    let selection = VOICE_SELECTION.lock().unwrap().take();
 
     if !settings.voice_polish_enabled
         || settings.hub_token.trim().is_empty()
@@ -458,6 +463,10 @@ fn maybe_polish(settings: &db::AppSettings, raw: &str) -> String {
         .filter(|l| !l.is_empty())
         .collect();
     let kind = if app_kind.is_empty() { "general" } else { app_kind.as_str() };
+    let selected = if settings.voice_selected_text { selection.as_deref() } else { None };
+    if selected.is_some() {
+        eprintln!("[voice] selected-text command mode");
+    }
 
     match hub::polish_text(
         &settings.hub_url,
@@ -469,7 +478,7 @@ fn maybe_polish(settings: &db::AppSettings, raw: &str) -> String {
         &dictionary,
         &settings.voice_polish_prompt,
         &settings.voice_translate_lang,
-        None,
+        selected,
     ) {
         Ok(polished) => {
             eprintln!("[voice] polished ({}): \"{}\"", kind, polished);
@@ -521,6 +530,14 @@ fn handle_voice_event(app: &tauri::AppHandle, state: ShortcutState) {
                                         );
                                         *VOICE_SCREENSHOT.lock().unwrap() = Some(b64);
                                     }
+                                });
+                            }
+                            // Selected-text command mode: copy the current selection
+                            // now (clipboard saved & restored) so the transcription
+                            // can be applied to it as an instruction.
+                            if s.voice_selected_text {
+                                std::thread::spawn(move || {
+                                    *VOICE_SELECTION.lock().unwrap() = capture_selection(pid);
                                 });
                             }
                         }
@@ -968,6 +985,79 @@ fn simulate_cmd_v(target_pid: i32) {
 
 #[cfg(not(target_os = "macos"))]
 fn simulate_cmd_v(_target_pid: i32) {}
+
+/// Synthesize Cmd+C, delivered to `target_pid` when valid. Used to read the
+/// current text selection of the target app (selected-text command mode).
+#[cfg(target_os = "macos")]
+fn simulate_cmd_c(target_pid: i32) {
+    unsafe {
+        type CGEventSourceRef = *mut std::ffi::c_void;
+        type CGEventRef = *mut std::ffi::c_void;
+        #[link(name = "CoreGraphics", kind = "framework")]
+        extern "C" {
+            fn CGEventCreateKeyboardEvent(source: CGEventSourceRef, keycode: u16, key_down: bool) -> CGEventRef;
+            fn CGEventSetFlags(event: CGEventRef, flags: u64);
+            fn CGEventPost(tap: u32, event: CGEventRef);
+            fn CGEventPostToPid(pid: i32, event: CGEventRef);
+            fn CFRelease(cf: *mut std::ffi::c_void);
+        }
+        let down = CGEventCreateKeyboardEvent(std::ptr::null_mut(), 8, true);
+        let up = CGEventCreateKeyboardEvent(std::ptr::null_mut(), 8, false);
+        if !down.is_null() && !up.is_null() {
+            CGEventSetFlags(down, 0x00100000);
+            CGEventSetFlags(up, 0x00100000);
+            if target_pid > 0 {
+                CGEventPostToPid(target_pid, down);
+                CGEventPostToPid(target_pid, up);
+            } else {
+                CGEventPost(0, down);
+                CGEventPost(0, up);
+            }
+        }
+        if !down.is_null() {
+            CFRelease(down);
+        }
+        if !up.is_null() {
+            CFRelease(up);
+        }
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+#[allow(dead_code)]
+fn simulate_cmd_c(_target_pid: i32) {}
+
+/// Read the target app's current text selection via Cmd+C, preserving the user's
+/// clipboard. Returns None when nothing is selected.
+#[cfg(target_os = "macos")]
+fn capture_selection(pid: i32) -> Option<String> {
+    let mut clipboard = arboard::Clipboard::new().ok()?;
+    let original = clipboard.get_text().ok();
+    // Sentinel lets us distinguish "copy did nothing" from "copied real text".
+    let sentinel = "\u{0}copyosity-sel\u{0}";
+    let _ = clipboard.set_text(sentinel);
+    drop(clipboard);
+
+    simulate_cmd_c(pid);
+    std::thread::sleep(std::time::Duration::from_millis(160));
+
+    let mut clipboard = arboard::Clipboard::new().ok()?;
+    let after = clipboard.get_text().ok();
+    if let Some(t) = &original {
+        let _ = clipboard.set_text(t);
+    }
+
+    match after {
+        Some(t) if t != sentinel && !t.trim().is_empty() => Some(t),
+        _ => None,
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+#[allow(dead_code)]
+fn capture_selection(_pid: i32) -> Option<String> {
+    None
+}
 
 pub(crate) fn position_window_bottom(window: &tauri::WebviewWindow) {
     use tauri::PhysicalPosition;

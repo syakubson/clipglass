@@ -45,6 +45,7 @@
     voice_polish_prompt: "",
     voice_translate_lang: "",
     voice_dictionary: "",
+    voice_selected_text: false,
   });
   let microphones: AudioInputDevice[] = $state([]);
   let modelCatalog = $state<ModelCatalog>({
@@ -218,6 +219,7 @@
         voice_polish_prompt: settings.voice_polish_prompt,
         voice_translate_lang: settings.voice_translate_lang,
         voice_dictionary: settings.voice_dictionary,
+        voice_selected_text: settings.voice_selected_text,
       });
       savedModel = settings.ollama_model;
       snapshot();
@@ -509,6 +511,10 @@
           <label class="settings-toggle" style="margin-top: 10px;">
             <input type="checkbox" bind:checked={settings.voice_polish_screenshot} />
             <span>Send a screenshot of the target window for context (needs Screen Recording permission)</span>
+          </label>
+          <label class="settings-toggle" style="margin-top: 10px;">
+            <input type="checkbox" bind:checked={settings.voice_selected_text} />
+            <span>Selected-text mode: if text is selected, your voice becomes an instruction (summarize / fix / translate / rewrite it)</span>
           </label>
 
           <label class="settings-field" style="margin-top: 12px;">

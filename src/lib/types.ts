@@ -42,6 +42,7 @@ export interface AppSettings {
   voice_polish_prompt: string;
   voice_translate_lang: string;
   voice_dictionary: string;
+  voice_selected_text: boolean;
 }
 
 export interface AudioInputDevice {

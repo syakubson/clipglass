@@ -73,6 +73,7 @@ export async function updateAppSettings(opts: {
   voice_polish_prompt?: string | null;
   voice_translate_lang?: string | null;
   voice_dictionary?: string | null;
+  voice_selected_text?: boolean | null;
 }): Promise<AppSettings> {
   return invoke("update_app_settings", {
     ollamaModel: opts.ollama_model ?? null,
@@ -94,6 +95,7 @@ export async function updateAppSettings(opts: {
     voicePolishPrompt: opts.voice_polish_prompt ?? null,
     voiceTranslateLang: opts.voice_translate_lang ?? null,
     voiceDictionary: opts.voice_dictionary ?? null,
+    voiceSelectedText: opts.voice_selected_text ?? null,
   });
 }
 
