@@ -180,6 +180,12 @@ pub fn update_app_settings(
     hub_tagging_enabled: Option<bool>,
     hub_transcribe_enabled: Option<bool>,
     hub_search_enabled: Option<bool>,
+    voice_polish_enabled: Option<bool>,
+    voice_polish_model: Option<String>,
+    voice_polish_screenshot: Option<bool>,
+    voice_polish_prompt: Option<String>,
+    voice_translate_lang: Option<String>,
+    voice_dictionary: Option<String>,
 ) -> Result<AppSettings, String> {
     let settings = db
         .update_app_settings(
@@ -196,6 +202,12 @@ pub fn update_app_settings(
             hub_tagging_enabled,
             hub_transcribe_enabled,
             hub_search_enabled,
+            voice_polish_enabled,
+            voice_polish_model.as_deref(),
+            voice_polish_screenshot,
+            voice_polish_prompt.as_deref(),
+            voice_translate_lang.as_deref(),
+            voice_dictionary.as_deref(),
         )
         .map_err(|e| e.to_string())?;
 

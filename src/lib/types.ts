@@ -36,6 +36,12 @@ export interface AppSettings {
   hub_tagging_enabled: boolean;
   hub_transcribe_enabled: boolean;
   hub_search_enabled: boolean;
+  voice_polish_enabled: boolean;
+  voice_polish_model: string;
+  voice_polish_screenshot: boolean;
+  voice_polish_prompt: string;
+  voice_translate_lang: string;
+  voice_dictionary: string;
 }
 
 export interface AudioInputDevice {

@@ -39,6 +39,12 @@
     hub_tagging_enabled: false,
     hub_transcribe_enabled: false,
     hub_search_enabled: false,
+    voice_polish_enabled: false,
+    voice_polish_model: "qwen3.6-35b-a3b",
+    voice_polish_screenshot: true,
+    voice_polish_prompt: "",
+    voice_translate_lang: "",
+    voice_dictionary: "",
   });
   let microphones: AudioInputDevice[] = $state([]);
   let modelCatalog = $state<ModelCatalog>({
@@ -77,6 +83,21 @@
       hubTesting = false;
     }
   }
+
+  const translateLangs = [
+    { code: "en", label: "English" },
+    { code: "ru", label: "Русский" },
+    { code: "zh", label: "中文" },
+    { code: "ja", label: "日本語" },
+    { code: "ko", label: "한국어" },
+    { code: "fr", label: "Français" },
+    { code: "de", label: "Deutsch" },
+    { code: "es", label: "Español" },
+    { code: "pt", label: "Português" },
+    { code: "it", label: "Italiano" },
+    { code: "tr", label: "Türkçe" },
+    { code: "uk", label: "Українська" },
+  ];
 
   const retentionOptions = [
     { label: "1 day", value: 1 },
@@ -191,6 +212,12 @@
         hub_tagging_enabled: settings.hub_tagging_enabled,
         hub_transcribe_enabled: settings.hub_transcribe_enabled,
         hub_search_enabled: settings.hub_search_enabled,
+        voice_polish_enabled: settings.voice_polish_enabled,
+        voice_polish_model: settings.voice_polish_model,
+        voice_polish_screenshot: settings.voice_polish_screenshot,
+        voice_polish_prompt: settings.voice_polish_prompt,
+        voice_translate_lang: settings.voice_translate_lang,
+        voice_dictionary: settings.voice_dictionary,
       });
       savedModel = settings.ollama_model;
       snapshot();
@@ -464,6 +491,72 @@
             placeholder="Bearer token (optional)"
           />
         </label>
+      </section>
+
+      <section class="settings-section">
+        <div class="settings-section-title">AI text polishing</div>
+        <div class="settings-hint" style="margin-bottom: 10px;">
+          After transcription, run the text through the hub LLM to add punctuation,
+          remove filler, format lists, and match the app you're pasting into.
+          Returns only the cleaned text. Requires the NeuralDeep hub.
+        </div>
+        <label class="settings-toggle">
+          <input type="checkbox" bind:checked={settings.voice_polish_enabled} />
+          <span>Polish transcription with the LLM before pasting</span>
+        </label>
+
+        {#if settings.voice_polish_enabled}
+          <label class="settings-toggle" style="margin-top: 10px;">
+            <input type="checkbox" bind:checked={settings.voice_polish_screenshot} />
+            <span>Send a screenshot of the target window for context (needs Screen Recording permission)</span>
+          </label>
+
+          <label class="settings-field" style="margin-top: 12px;">
+            <span class="settings-label">Polish model (multimodal for screenshots)</span>
+            <div class="settings-inline">
+              <select class="settings-select" bind:value={settings.voice_polish_model}>
+                {#each withCurrent(hubModels.length ? hubModels : ["qwen3.6-35b-a3b", "gemma-4-31b"], settings.voice_polish_model) as m}
+                  <option value={m}>{m}</option>
+                {/each}
+              </select>
+              <button class="settings-small-btn" type="button" disabled={modelsLoading} onclick={loadHubModels} title="Load live model list from the hub">
+                {modelsLoading ? "…" : "↻"}
+              </button>
+            </div>
+            <div class="settings-hint">Use a multimodal model (e.g. <code>qwen3.6-35b-a3b</code>) when screenshots are on.</div>
+          </label>
+
+          <label class="settings-field" style="margin-top: 10px;">
+            <span class="settings-label">Translate result to</span>
+            <select class="settings-select" bind:value={settings.voice_translate_lang}>
+              <option value="">Don't translate</option>
+              {#each translateLangs as l}
+                <option value={l.code}>{l.label}</option>
+              {/each}
+            </select>
+          </label>
+
+          <label class="settings-field" style="margin-top: 10px;">
+            <span class="settings-label">Custom polishing instructions (optional)</span>
+            <textarea
+              class="settings-input"
+              rows="2"
+              bind:value={settings.voice_polish_prompt}
+              placeholder="e.g. Always sign off with 'Спасибо!'; keep it formal."
+            ></textarea>
+          </label>
+
+          <label class="settings-field" style="margin-top: 10px;">
+            <span class="settings-label">Dictionary — exact spellings (one per line)</span>
+            <textarea
+              class="settings-input"
+              rows="3"
+              bind:value={settings.voice_dictionary}
+              placeholder={"NeuralDeep\nCopyosity\nKubernetes"}
+            ></textarea>
+            <div class="settings-hint">The model will keep these terms spelled exactly as written.</div>
+          </label>
+        {/if}
       </section>
     {:else if activePane === "permissions"}
       <div class="pane-head">
@@ -1066,6 +1159,12 @@
 
   .settings-input::placeholder {
     color: rgba(237, 240, 248, 0.35);
+  }
+
+  textarea.settings-input {
+    min-height: 56px;
+    line-height: 1.4;
+    resize: vertical;
   }
 
   .settings-info-card {

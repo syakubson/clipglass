@@ -6,6 +6,7 @@ mod hub;
 mod mactools;
 mod ocr;
 mod ollama;
+mod screen;
 mod tagging;
 mod whisper;
 
@@ -38,6 +39,13 @@ static LAST_SHOW_MS: AtomicU64 = AtomicU64::new(0);
 /// Used to deliver the synthesized Cmd+V directly to that app instead of
 /// whatever is frontmost at paste time (which may be Copyosity itself).
 static VOICE_TARGET_PID: AtomicI32 = AtomicI32::new(0);
+
+/// Base64 PNG screenshot of the target window captured at hotkey-press time,
+/// used as visual context when polishing the transcription.
+static VOICE_SCREENSHOT: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+
+/// Detected kind of the target app ("email"/"chat"/"code"/"document"/"general").
+static VOICE_APP_KIND: std::sync::Mutex<String> = std::sync::Mutex::new(String::new());
 
 /// PID of the app that was frontmost when the command palette was opened, so the
 /// agent answer can be inserted back into it.
@@ -428,6 +436,52 @@ fn build_tray_menu(app: &tauri::App) -> tauri::Result<Menu<tauri::Wry>> {
     Menu::with_items(app, &[&status, &search, &ver, &sep, &settings, &sep2, &quit])
 }
 
+/// Run the transcription through the hub polish step when enabled, falling back
+/// to the raw transcription on any error. Consumes the screenshot/app-kind
+/// context captured at press time.
+fn maybe_polish(settings: &db::AppSettings, raw: &str) -> String {
+    let screenshot = VOICE_SCREENSHOT.lock().unwrap().take();
+    let app_kind = std::mem::take(&mut *VOICE_APP_KIND.lock().unwrap());
+
+    if !settings.voice_polish_enabled
+        || settings.hub_token.trim().is_empty()
+        || settings.hub_url.trim().is_empty()
+        || settings.voice_polish_model.trim().is_empty()
+    {
+        return raw.to_string();
+    }
+
+    let dictionary: Vec<String> = settings
+        .voice_dictionary
+        .lines()
+        .map(|l| l.trim().to_string())
+        .filter(|l| !l.is_empty())
+        .collect();
+    let kind = if app_kind.is_empty() { "general" } else { app_kind.as_str() };
+
+    match hub::polish_text(
+        &settings.hub_url,
+        &settings.hub_token,
+        &settings.voice_polish_model,
+        raw,
+        kind,
+        screenshot.as_deref(),
+        &dictionary,
+        &settings.voice_polish_prompt,
+        &settings.voice_translate_lang,
+        None,
+    ) {
+        Ok(polished) => {
+            eprintln!("[voice] polished ({}): \"{}\"", kind, polished);
+            polished
+        }
+        Err(e) => {
+            eprintln!("[voice] polish failed ({}), using raw transcription", e);
+            raw.to_string()
+        }
+    }
+}
+
 fn handle_voice_event(app: &tauri::AppHandle, state: ShortcutState) {
     eprintln!("[voice] event: {:?}", match state {
         ShortcutState::Pressed => "PRESSED",
@@ -437,11 +491,40 @@ fn handle_voice_event(app: &tauri::AppHandle, state: ShortcutState) {
         ShortcutState::Pressed => {
             // Capture the app that is frontmost right now, before we touch any
             // of our own windows — that's where the transcript must be pasted.
+            // Reset any leftover context from a previous run.
+            *VOICE_SCREENSHOT.lock().unwrap() = None;
+            *VOICE_APP_KIND.lock().unwrap() = String::new();
+
             #[cfg(target_os = "macos")]
             if let Some(pid) = frontmost_app_pid() {
                 if pid != std::process::id() as i32 {
                     VOICE_TARGET_PID.store(pid, Ordering::Relaxed);
                     eprintln!("[voice] captured target pid={}", pid);
+
+                    // Context-aware polishing: classify the target app and grab a
+                    // screenshot now, while the target window is still frontmost.
+                    let polish = app
+                        .try_state::<std::sync::Arc<db::Database>>()
+                        .and_then(|db| db.get_app_settings().ok());
+                    if let Some(s) = polish {
+                        if s.voice_polish_enabled {
+                            if let Some(bundle) = app_bundle_id(pid) {
+                                *VOICE_APP_KIND.lock().unwrap() =
+                                    classify_app_kind(&bundle).to_string();
+                            }
+                            if s.voice_polish_screenshot {
+                                std::thread::spawn(|| {
+                                    if let Some(png) = screen::capture_context_png() {
+                                        let b64 = base64::Engine::encode(
+                                            &base64::engine::general_purpose::STANDARD,
+                                            &png,
+                                        );
+                                        *VOICE_SCREENSHOT.lock().unwrap() = Some(b64);
+                                    }
+                                });
+                            }
+                        }
+                    }
                 }
             }
             let mut rec = recording_mutex().lock().unwrap();
@@ -535,8 +618,9 @@ fn handle_voice_event(app: &tauri::AppHandle, state: ShortcutState) {
                     ) {
                         Ok(text) if !text.is_empty() => {
                             eprintln!("[voice] transcription: \"{}\"", text);
+                            let final_text = maybe_polish(&settings, &text);
                             if let Ok(mut clipboard) = arboard::Clipboard::new() {
-                                let _ = clipboard.set_text(&text);
+                                let _ = clipboard.set_text(&final_text);
                             }
                             std::thread::sleep(std::time::Duration::from_millis(100));
                             let target_pid = VOICE_TARGET_PID.swap(0, Ordering::Relaxed);
@@ -647,6 +731,54 @@ fn frontmost_app_pid() -> Option<i32> {
         } else {
             None
         }
+    }
+}
+
+/// Bundle identifier of the running application with the given pid, via
+/// NSRunningApplication.
+#[cfg(target_os = "macos")]
+fn app_bundle_id(pid: i32) -> Option<String> {
+    use objc::runtime::Object;
+    use objc::{msg_send, sel, sel_impl};
+    use std::ffi::CStr;
+    unsafe {
+        let cls = objc::runtime::Class::get("NSRunningApplication")?;
+        let app: *mut Object = msg_send![cls, runningApplicationWithProcessIdentifier: pid];
+        if app.is_null() {
+            return None;
+        }
+        let bundle: *mut Object = msg_send![app, bundleIdentifier];
+        if bundle.is_null() {
+            return None;
+        }
+        let utf8: *const std::os::raw::c_char = msg_send![bundle, UTF8String];
+        if utf8.is_null() {
+            return None;
+        }
+        Some(CStr::from_ptr(utf8).to_string_lossy().into_owned())
+    }
+}
+
+/// Classify the target app into a context bucket for polishing.
+fn classify_app_kind(bundle_id: &str) -> &'static str {
+    let b = bundle_id.to_lowercase();
+    let has = |needles: &[&str]| needles.iter().any(|n| b.contains(n));
+    if has(&["mail", "outlook", "spark", "airmail", "sparrow"]) {
+        "email"
+    } else if has(&[
+        "telegram", "slack", "discord", "whatsapp", "messages", "mobilesms", "signal",
+        "viber", "messenger", "rocket.chat",
+    ]) {
+        "chat"
+    } else if has(&[
+        "vscode", "xcode", "jetbrains", "intellij", "pycharm", "goland", "webstorm",
+        "iterm", "terminal", "sublime", "zed", "nova", "cursor", "warp",
+    ]) {
+        "code"
+    } else if has(&["pages", "word", "notion", "obsidian", "bear", "ulysses", "docs", "scrivener"]) {
+        "document"
+    } else {
+        "general"
     }
 }
 

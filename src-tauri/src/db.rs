@@ -27,6 +27,19 @@ pub struct AppSettings {
     pub hub_transcribe_enabled: bool,
     /// Enable the hub agent quick-search command palette.
     pub hub_search_enabled: bool,
+    // --- Context-aware voice polishing (stolen from opentypeless) ---
+    /// Run transcribed voice through the LLM to clean/format it before pasting.
+    pub voice_polish_enabled: bool,
+    /// Multimodal model used for polishing (must accept images for screenshot context).
+    pub voice_polish_model: String,
+    /// Send a screenshot of the target window so the model matches surrounding context.
+    pub voice_polish_screenshot: bool,
+    /// Extra user instructions appended to the polish prompt.
+    pub voice_polish_prompt: String,
+    /// If non-empty, translate the polished result into this language code (e.g. "en", "ru").
+    pub voice_translate_lang: String,
+    /// Newline-separated custom terms with exact spellings to preserve.
+    pub voice_dictionary: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -240,6 +253,27 @@ impl Database {
             .map(|v| v == "true")
             .unwrap_or(false);
 
+        let voice_polish_enabled = self
+            .get_setting("voice_polish_enabled")?
+            .map(|v| v == "true")
+            .unwrap_or(false);
+        let voice_polish_model = self
+            .get_setting("voice_polish_model")?
+            .unwrap_or_else(|| "qwen3.6-35b-a3b".to_string());
+        let voice_polish_screenshot = self
+            .get_setting("voice_polish_screenshot")?
+            .map(|v| v == "true")
+            .unwrap_or(true);
+        let voice_polish_prompt = self
+            .get_setting("voice_polish_prompt")?
+            .unwrap_or_default();
+        let voice_translate_lang = self
+            .get_setting("voice_translate_lang")?
+            .unwrap_or_default();
+        let voice_dictionary = self
+            .get_setting("voice_dictionary")?
+            .unwrap_or_default();
+
         Ok(AppSettings {
             ollama_model,
             retention_days,
@@ -254,6 +288,12 @@ impl Database {
             hub_tagging_enabled,
             hub_transcribe_enabled,
             hub_search_enabled,
+            voice_polish_enabled,
+            voice_polish_model,
+            voice_polish_screenshot,
+            voice_polish_prompt,
+            voice_translate_lang,
+            voice_dictionary,
         })
     }
 
@@ -272,6 +312,12 @@ impl Database {
         hub_tagging_enabled: Option<bool>,
         hub_transcribe_enabled: Option<bool>,
         hub_search_enabled: Option<bool>,
+        voice_polish_enabled: Option<bool>,
+        voice_polish_model: Option<&str>,
+        voice_polish_screenshot: Option<bool>,
+        voice_polish_prompt: Option<&str>,
+        voice_translate_lang: Option<&str>,
+        voice_dictionary: Option<&str>,
     ) -> Result<AppSettings, rusqlite::Error> {
         if let Some(model) = ollama_model {
             self.set_setting("ollama_model", model.trim())?;
@@ -311,6 +357,24 @@ impl Database {
         }
         if let Some(enabled) = hub_search_enabled {
             self.set_setting("hub_search_enabled", if enabled { "true" } else { "false" })?;
+        }
+        if let Some(enabled) = voice_polish_enabled {
+            self.set_setting("voice_polish_enabled", if enabled { "true" } else { "false" })?;
+        }
+        if let Some(model) = voice_polish_model {
+            self.set_setting("voice_polish_model", model.trim())?;
+        }
+        if let Some(enabled) = voice_polish_screenshot {
+            self.set_setting("voice_polish_screenshot", if enabled { "true" } else { "false" })?;
+        }
+        if let Some(p) = voice_polish_prompt {
+            self.set_setting("voice_polish_prompt", p.trim())?;
+        }
+        if let Some(lang) = voice_translate_lang {
+            self.set_setting("voice_translate_lang", lang.trim())?;
+        }
+        if let Some(dict) = voice_dictionary {
+            self.set_setting("voice_dictionary", dict.trim())?;
         }
 
         self.get_app_settings()
@@ -949,6 +1013,7 @@ mod tests {
             Some("custom-model"),
             Some(7),
             None, None, None, None, None,
+            None, None, None, None, None, None,
             None, None, None, None, None, None,
         )
         .unwrap();

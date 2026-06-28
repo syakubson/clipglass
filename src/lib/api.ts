@@ -67,6 +67,12 @@ export async function updateAppSettings(opts: {
   hub_tagging_enabled?: boolean | null;
   hub_transcribe_enabled?: boolean | null;
   hub_search_enabled?: boolean | null;
+  voice_polish_enabled?: boolean | null;
+  voice_polish_model?: string | null;
+  voice_polish_screenshot?: boolean | null;
+  voice_polish_prompt?: string | null;
+  voice_translate_lang?: string | null;
+  voice_dictionary?: string | null;
 }): Promise<AppSettings> {
   return invoke("update_app_settings", {
     ollamaModel: opts.ollama_model ?? null,
@@ -82,6 +88,12 @@ export async function updateAppSettings(opts: {
     hubTaggingEnabled: opts.hub_tagging_enabled ?? null,
     hubTranscribeEnabled: opts.hub_transcribe_enabled ?? null,
     hubSearchEnabled: opts.hub_search_enabled ?? null,
+    voicePolishEnabled: opts.voice_polish_enabled ?? null,
+    voicePolishModel: opts.voice_polish_model ?? null,
+    voicePolishScreenshot: opts.voice_polish_screenshot ?? null,
+    voicePolishPrompt: opts.voice_polish_prompt ?? null,
+    voiceTranslateLang: opts.voice_translate_lang ?? null,
+    voiceDictionary: opts.voice_dictionary ?? null,
   });
 }
 
