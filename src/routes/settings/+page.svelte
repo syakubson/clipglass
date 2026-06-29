@@ -39,6 +39,7 @@
   import ActionMenu from "$lib/components/ActionMenu.svelte";
   import ConfirmDialog from "$lib/components/ConfirmDialog.svelte";
   import SectionIcon from "$lib/components/SectionIcon.svelte";
+  import SfSymbol from "$lib/components/SfSymbol.svelte";
   import { confirmDestructive } from "$lib/confirm";
   import {
     clearAllConfirmBody,
@@ -1089,7 +1090,7 @@
                 onclick={() =>
                   handleRemoveExcludedApp(activeExcludedEntry.id, activeExcludedEntry.displayName)}
               >
-                <span class="excluded-list-action-icon" aria-hidden="true">−</span>
+                <SfSymbol name="minus" class="excluded-list-action-icon" />
                 <span>{excludeListRemoveLabel()}</span>
               </button>
             {:else if excludableCandidate.alreadyExcluded}
@@ -1104,7 +1105,7 @@
                 disabled={excludeActionBusy}
                 onclick={handleAddCandidateApp}
               >
-                <span class="excluded-list-action-icon" aria-hidden="true">+</span>
+                <SfSymbol name="plus" class="excluded-list-action-icon" />
                 <span>{excludeListAddLabel()}</span>
               </button>
             {/if}
@@ -1122,7 +1123,7 @@
               disabled={excludeActionBusy}
               onclick={() => handleRemoveExcludedApp(app.id, app.displayName)}
             >
-              <span class="excluded-list-action-icon" aria-hidden="true">−</span>
+              <SfSymbol name="minus" class="excluded-list-action-icon" />
               <span>{excludeListRemoveLabel()}</span>
             </button>
           </div>
@@ -1142,20 +1143,7 @@
         disabled={excludeActionBusy}
         onclick={handleChooseApp}
       >
-        <svg
-          class="form-btn-icon"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          aria-hidden="true"
-        >
-          <rect x="3" y="3" width="12" height="12" rx="2.5" />
-          <path d="M17 8v8" />
-          <path d="M13 12h8" />
-        </svg>
+        <SfSymbol name="plus.app" class="form-btn-icon" />
         <span class="app-btn-label">{chooseApplicationActionLabel}</span>
         {@render busySpinner()}
       </button>

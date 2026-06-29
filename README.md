@@ -109,6 +109,10 @@ npm run tauri dev
 
 See [docs/architecture/macos-paste-pipeline.md](docs/architecture/macos-paste-pipeline.md).
 
+### Icons (SF Symbols)
+
+UI icons use macOS SF Symbols via `SfSymbol` and a generated registry. To add or change icons: [docs/architecture/sf-symbols.md](docs/architecture/sf-symbols.md). Regenerate on macOS: `make export-sf-symbols`.
+
 ### Checks
 
 ```bash

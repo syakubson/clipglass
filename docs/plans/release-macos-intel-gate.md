@@ -1,7 +1,7 @@
 # macOS Intel — pre-release fix plan
 
 Fixes and project preparation for release with **Intel (x86_64) build** support and related macOS improvements (clipboard, paste, window permissions, tests).  
-Builds on work done in [01-macos-intel-build-improvements.md](01-macos-intel-build-improvements.md).
+Builds on work done in [build-macos-intel.md](build-macos-intel.md).
 
 ## Decisions
 

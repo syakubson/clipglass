@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import SfSymbol from "$lib/components/SfSymbol.svelte";
   import type { ClipboardEntry } from "$lib/types";
   import { copyEntry, activateEntry, deleteEntry, pinEntry, retagEntry } from "$lib/api";
   import { prepareBusyUi } from "$lib/run-with-busy-ui";
@@ -331,21 +332,12 @@
           <span class="app-btn-spinner" aria-hidden="true">
             <span class="app-btn-spinner-icon"></span>
           </span>
-          <svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <rect x="3" y="11" width="18" height="10" rx="2" />
-            <path d="M12 3v10" />
-            <polyline points="8 9 12 13 16 9" />
-          </svg>
+          <SfSymbol name="arrow.down.doc" class="card-action-icon" />
         </button>
       {/if}
       {#if entry.content_type === "text" && retagAvailable}
         <button class="action-btn app-btn" onclick={handleRetag} aria-label="Retag">
-          <svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
-            <path d="M21 3v5h-5" />
-            <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
-            <path d="M8 16H3v5" />
-          </svg>
+          <SfSymbol name="arrow.triangle.2.circlepath" class="card-action-icon" />
         </button>
       {/if}
       <button
@@ -354,15 +346,10 @@
         onclick={handlePin}
         aria-label={entry.is_pinned ? "Unpin" : "Pin"}
       >
-        <svg class="action-icon" viewBox="0 0 24 24" fill={entry.is_pinned ? "currentColor" : "none"} stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-        </svg>
+        <SfSymbol name={entry.is_pinned ? "star.fill" : "star"} class="card-action-icon" />
       </button>
       <button class="action-btn app-btn delete" onclick={handleDelete} aria-label="Delete">
-        <svg class="action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <line x1="18" y1="6" x2="6" y2="18" />
-          <line x1="6" y1="6" x2="18" y2="18" />
-        </svg>
+        <SfSymbol name="xmark" class="card-action-icon" />
       </button>
     </div>
   </div>
@@ -418,9 +405,7 @@
 
   {#if copied}
     <div class="copied-overlay">
-      <svg class="copied-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-        <polyline points="20 6 9 17 4 12" />
-      </svg>
+      <SfSymbol name="checkmark" class="card-copied-icon" />
       <span>Copied</span>
     </div>
   {/if}
@@ -649,9 +634,7 @@
     flex-shrink: 0;
   }
 
-  .action-icon {
-    width: 16px;
-    height: 16px;
+  .action-btn :global(.card-action-icon) {
     display: block;
   }
 
@@ -672,7 +655,7 @@
     color: var(--color-accent-text);
   }
 
-  .action-btn.is-busy .action-icon {
+  .action-btn.is-busy :global(.card-action-icon) {
     opacity: 0;
   }
 
@@ -895,10 +878,20 @@
     z-index: 5;
   }
 
-  .copied-icon {
-    width: 32px;
-    height: 32px;
-    animation: check-draw var(--duration-hud) var(--ease-interactive) forwards;
+  .copied-overlay :global(.card-copied-icon) {
+    animation: copied-icon-pop var(--duration-hud) var(--ease-interactive) forwards;
+  }
+
+  @keyframes copied-icon-pop {
+    from {
+      opacity: 0;
+      transform: scale(0.75);
+    }
+
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
   }
 
   @keyframes copied-pop {
@@ -909,17 +902,6 @@
     to {
       opacity: 1;
       transform: scale(1);
-    }
-  }
-
-  @keyframes check-draw {
-    from {
-      stroke-dasharray: 40;
-      stroke-dashoffset: 40;
-    }
-    to {
-      stroke-dasharray: 40;
-      stroke-dashoffset: 0;
     }
   }
 
@@ -935,10 +917,8 @@
       animation: copied-fade var(--duration-hud) var(--ease-interactive);
     }
 
-    .copied-icon {
+    .copied-overlay :global(.card-copied-icon) {
       animation: none;
-      stroke-dasharray: 40;
-      stroke-dashoffset: 0;
     }
   }
 

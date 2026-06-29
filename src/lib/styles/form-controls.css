@@ -88,7 +88,7 @@
 
 .form-section-title {
   margin-bottom: 10px;
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-section-title);
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -115,7 +115,7 @@
 }
 
 .form-subsection-title {
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-section-title);
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -126,13 +126,13 @@
 .form-section-title--with-icon {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
+  min-height: var(--icon-size-section);
+  line-height: 1;
 }
 
 .form-title-icon,
 .form-subsection-icon {
-  width: 13px;
-  height: 13px;
   flex-shrink: 0;
   color: var(--color-accent-icon);
 }
@@ -360,10 +360,11 @@
 
 .form-select {
   appearance: none;
-  padding-right: 2rem;
+  padding-right: calc(var(--control-chevron-inset) + var(--icon-size-chevron) + var(--space-stack));
+  /* Native <select> cannot host SfSymbol; chevron path synced by make export-sf-symbols. */
   background-image: var(--icon-chevron-down);
-  background-position: right var(--space-control-x) center;
-  background-size: 0.75rem 0.75rem;
+  background-position: right var(--control-chevron-inset) center;
+  background-size: var(--icon-size-chevron) var(--icon-size-chevron);
   background-repeat: no-repeat;
   cursor: pointer;
 }
@@ -458,7 +459,7 @@
 
 .form-btn {
   min-height: 32px;
-  padding: 0 12px;
+  padding: 0 var(--control-chevron-inset);
   border-radius: 8px;
   font-family: inherit;
   font-size: var(--font-size-md);
@@ -575,12 +576,7 @@
 }
 
 .excluded-list-action-icon {
-  width: 12px;
   flex-shrink: 0;
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  line-height: 1;
-  text-align: center;
 }
 
 /* Settings — excluded apps list + picker (macOS inset grouped list rhythm). */
@@ -660,8 +656,6 @@
 }
 
 .form-btn-icon {
-  width: 14px;
-  height: 14px;
   flex-shrink: 0;
 }
 

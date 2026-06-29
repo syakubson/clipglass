@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: npm check
+        env:
+          HUSKY: "0"
+        run: npm ci && npm run check
+
+  sf-symbols:
+    # Pin macOS major for export only — path geometry varies by OS (see SF_SYMBOL_EXPORT_MACOS_MAJOR).
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: SF Symbols registry in sync
+        run: make export-sf-symbols && git diff --exit-code src/lib/sf-symbols/registry.ts src/lib/styles/tokens.css

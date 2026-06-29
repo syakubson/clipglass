@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SfSymbol from "$lib/components/SfSymbol.svelte";
   import type { Collection } from "$lib/types";
   import { createCollection, deleteCollection } from "$lib/api";
   import {
@@ -93,7 +94,7 @@
           aria-label="Delete collection {col.name}"
           onclick={(e) => handleDelete(e, col.id)}
         >
-          ×
+          <SfSymbol name="xmark" class="collection-action-icon" />
         </button>
       </div>
     {/each}
@@ -117,7 +118,7 @@
         aria-label="Add collection"
         onclick={() => (showAdd = true)}
       >
-        +
+        <SfSymbol name="plus" class="collection-action-icon" />
       </button>
     {/if}
   </div>
@@ -285,8 +286,8 @@
   }
 
   .tab-dot {
-    width: 7px;
-    height: 7px;
+    width: var(--icon-size-collection-dot);
+    height: var(--icon-size-collection-dot);
     border-radius: 50%;
     flex-shrink: 0;
   }
@@ -296,6 +297,7 @@
     align-items: center;
     justify-content: center;
     align-self: stretch;
+    flex-shrink: 0;
     width: calc(var(--overlay-header-control-height) - 4px);
     min-width: calc(var(--overlay-header-control-height) - 4px);
     border: none;
@@ -303,8 +305,7 @@
     background: transparent;
     color: var(--color-text-subtle);
     cursor: pointer;
-    font-size: var(--font-size-md);
-    line-height: 1;
+    padding: 0;
     opacity: 0.45;
     transition:
       opacity var(--duration-fast) var(--ease-interactive),
@@ -316,6 +317,11 @@
   .collection-tab-item:focus-within .tab-delete,
   .tab-delete:focus-visible {
     opacity: 1;
+  }
+
+  .tab-delete :global(.collection-action-icon),
+  .add-tab :global(.collection-action-icon) {
+    display: block;
   }
 
   .tab-delete:hover:not(:disabled, [aria-busy="true"]) {
@@ -340,9 +346,6 @@
     border-radius: var(--radius-control-sm);
     background: var(--surface-3);
     color: var(--color-text-subtle);
-    font-size: var(--font-size-lg);
-    font-weight: 400;
-    line-height: 1;
     cursor: pointer;
     transition:
       background var(--duration-fast) var(--ease-interactive),

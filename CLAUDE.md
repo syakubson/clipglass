@@ -23,6 +23,10 @@ make fix && make check                   # full-stack or cross-cutting changes
 - Do not skip compilation checks after generating code.
 - Do not leave workflow changes undocumented.
 
+## Icons
+
+UI icons are macOS SF Symbols (`SfSymbol` + generated `registry.ts`). Adding or changing icons: [docs/architecture/sf-symbols.md](docs/architecture/sf-symbols.md). Regenerate on macOS: `make export-sf-symbols`.
+
 ## Local AI Onboarding
 
 When working on Ollama onboarding in the app, follow this product rule set:

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
 
-  import ChevronDown from "$lib/components/ChevronDown.svelte";
+  import SfSymbol from "$lib/components/SfSymbol.svelte";
 
   export type ActionMenuItem = {
     id: string;
@@ -325,7 +325,7 @@
     onkeydown={handleTriggerKeydown}
   >
     <span class="action-menu-label">{label}</span>
-    <ChevronDown />
+    <SfSymbol name="chevron.down" class="chevron-down" />
   </button>
 
   {#if open && !menuDisabled}
@@ -367,7 +367,13 @@
   }
 
   .action-menu-trigger {
-    gap: 0.5rem;
+    gap: var(--space-stack);
+    padding-right: var(--control-chevron-inset);
+    color: inherit;
+  }
+
+  .action-menu-trigger :global(.chevron-down) {
+    color: inherit;
   }
 
   .action-menu.block .action-menu-trigger {

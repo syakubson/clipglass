@@ -1,4 +1,6 @@
 <script lang="ts">
+  import SfSymbol from "$lib/components/SfSymbol.svelte";
+
   const {
     value = "",
     onchange,
@@ -35,19 +37,7 @@
 </script>
 
 <div class="search-bar text-control-host" role="search">
-  <svg
-    class="search-icon"
-    width="16"
-    height="16"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="2"
-    aria-hidden="true"
-  >
-    <circle cx="11" cy="11" r="8" />
-    <line x1="21" y1="21" x2="16.65" y2="16.65" />
-  </svg>
+  <SfSymbol name="magnifyingglass" class="search-icon" />
   <input
     bind:this={inputEl}
     type="search"
@@ -74,14 +64,7 @@
     disabled={!value}
     onclick={handleClear}
   >
-    <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
-      <path
-        d="M2.2 2.2 9.8 9.8M9.8 2.2 2.2 9.8"
-        stroke="currentColor"
-        stroke-width="1.5"
-        stroke-linecap="round"
-      />
-    </svg>
+    <SfSymbol name="xmark" class="search-clear-icon" />
   </button>
 </div>
 
@@ -107,7 +90,7 @@
     background-color: var(--surface-search-focus);
   }
 
-  .search-icon {
+  .search-bar :global(.search-icon) {
     color: var(--color-search-icon);
     flex-shrink: 0;
   }
@@ -171,7 +154,7 @@
     background: var(--surface-12);
   }
 
-  .clear-btn svg {
+  .clear-btn :global(svg) {
     position: relative;
     z-index: 1;
   }

@@ -1,6 +1,6 @@
 # Voice HUD — full accessibility lifecycle
 
-Full screen-reader lifecycle for Voice HUD: start → processing → terminal (success / empty / error / not configured). Baseline HUD (static live region) — in [02-hig-audit.md](02-hig-audit.md) item 32; **this plan is the source of truth** for the full cycle. Backlog 0.4.0 — [03-new-features-and-improvements.md](03-new-features-and-improvements.md).
+Full screen-reader lifecycle for Voice HUD: start → processing → terminal (success / empty / error / not configured). Baseline HUD (static live region) — in [audit-hig.md](audit-hig.md) item 32; **this plan is the source of truth** for the full cycle. Backlog — [features-backlog.md](features-backlog.md).
 
 **Decided:** HUD **stays visible** during transcription (do not hide immediately on shortcut release).
 
@@ -43,7 +43,7 @@ Web live regions work in the Copyosity webview. When all windows are hidden and 
 - [ ] `**VoiceA11yAnnouncer.svelte**` — global sr-only announcer
 - [ ] `**+layout.svelte**` — mount announcer (main + settings + overlay routes)
 - [ ] **Permissions** — description in `voice-overlay-commands.toml`
-- [x] **HIG audit** — item 32 baseline in [02-hig-audit.md](02-hig-audit.md); full cycle — this plan
+- [x] **HIG audit** — item 32 baseline in [audit-hig.md](audit-hig.md); full cycle — this plan
 - [ ] **CHANGELOG** — Unreleased: voice a11y lifecycle
 - [ ] **Verification** — `npm run check`, `cargo check`, manual VoiceOver pass
 
@@ -219,7 +219,7 @@ State: `phase`, `statusMessage`, `busy`.
 
 ## HIG audit
 
-Update [02-hig-audit.md](02-hig-audit.md) item 32:
+Update [audit-hig.md](audit-hig.md) item 32:
 
 - Full lifecycle recording → processing → terminal
 - HUD visible during processing

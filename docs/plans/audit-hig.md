@@ -2,18 +2,18 @@
 
 Global UI audit of Copyosity against [Apple Human Interface Guidelines](https://developer.apple.com/design/human-interface-guidelines/): clipboard overlay, voice HUD, settings, and shared design system. One file — shared items (motion, tokens, transparency) are fixed and checked off once.
 
-**Related plans:** overlay filters (items 10, 11, 14, 17, 20) — [05-overlay-content-and-tag-filters.md](05-overlay-content-and-tag-filters.md) · voice HUD a11y — [04-voice-hud-accessibility-full-cycle.md](04-voice-hud-accessibility-full-cycle.md) · backlog 0.4.0 — [03-new-features-and-improvements.md](03-new-features-and-improvements.md)
+**Related plans:** overlay filters (items 10, 11, 14, 17, 20) — [feature-overlay-content-tag-filters.md](feature-overlay-content-tag-filters.md) · voice HUD a11y — [feature-voice-hud-accessibility.md](feature-voice-hud-accessibility.md) · backlog — [features-backlog.md](features-backlog.md)
 
 **Progress:** checkboxes in the checklist and `✅` in detailed sections for shipped work. **`Done` comments** — only when one part is shipped and another is explicitly declined or deferred (link to follow-up plan if any). Fully closed items get no extra status text.
 
-**Scope labels:** `[Overlay]` clipboard panel · `[Settings]` settings window · `[Voice]` voice HUD · `[Shared]` tokens / form-controls / button-interaction / motion helper
+**Scope labels:** `[Overlay]` clipboard panel · `[Settings]` settings window · `[Voice]` voice HUD · `[Shared]` tokens / form-controls / button-interaction / sf-symbol / motion helper
 
-| Surface           | Files                                                                                                                                                                                                                                                                                                                                       |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Clipboard overlay | `[+page.svelte](../../src/routes/+page.svelte)`, `[ClipboardCard.svelte](../../src/lib/components/ClipboardCard.svelte)`, `[TagFilterBar.svelte](../../src/lib/components/TagFilterBar.svelte)`, `[SearchBar.svelte](../../src/lib/components/SearchBar.svelte)`, `[CollectionTabs.svelte](../../src/lib/components/CollectionTabs.svelte)` |
-| Voice HUD         | `[overlay/+page.svelte](../../src/routes/overlay/+page.svelte)`                                                                                                                                                                                                                                                                             |
-| Settings          | `[settings/+page.svelte](../../src/routes/settings/+page.svelte)`, `[SectionIcon.svelte](../../src/lib/components/SectionIcon.svelte)`                                                                                                                                                                                                      |
-| Shared            | `[tokens.css](../../src/lib/styles/tokens.css)`, `[form-controls.css](../../src/lib/styles/form-controls.css)`, `[button-interaction.css](../../src/lib/styles/button-interaction.css)`, `[motion.ts](../../src/lib/motion.ts)`                                                                                                             |
+| Surface           | Files                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Clipboard overlay | `[+page.svelte](../../src/routes/+page.svelte)`, `[ClipboardCard.svelte](../../src/lib/components/ClipboardCard.svelte)`, `[TagFilterBar.svelte](../../src/lib/components/TagFilterBar.svelte)`, `[SearchBar.svelte](../../src/lib/components/SearchBar.svelte)`, `[CollectionTabs.svelte](../../src/lib/components/CollectionTabs.svelte)`                                                                               |
+| Voice HUD         | `[overlay/+page.svelte](../../src/routes/overlay/+page.svelte)`                                                                                                                                                                                                                                                                                                                                                           |
+| Settings          | `[settings/+page.svelte](../../src/routes/settings/+page.svelte)`, `[SectionIcon.svelte](../../src/lib/components/SectionIcon.svelte)`                                                                                                                                                                                                                                                                                    |
+| Shared            | `[tokens.css](../../src/lib/styles/tokens.css)`, `[form-controls.css](../../src/lib/styles/form-controls.css)`, `[button-interaction.css](../../src/lib/styles/button-interaction.css)`, `[sf-symbol.css](../../src/lib/styles/sf-symbol.css)`, `[SfSymbol.svelte](../../src/lib/components/SfSymbol.svelte)`, `[export-sf-symbols.swift](../../scripts/export-sf-symbols.swift)`, `[motion.ts](../../src/lib/motion.ts)` |
 
 ```mermaid
 flowchart TB
@@ -53,7 +53,7 @@ flowchart TB
 - [x] `[Shared]` `form-input` / `form-select`: pointer vs keyboard focus rings via `input-modality` (item 24)
 - [x] `[Settings]` Custom model input without associated `<label>` when preset is `__custom__` (item 26)
 - [x] `[Voice]` Baseline live region on HUD while recording (item 32 — partial)
-- [ ] `[Voice]` Full SR lifecycle (recording → processing → result) → [04-voice-hud-accessibility-full-cycle.md](04-voice-hud-accessibility-full-cycle.md)
+- [ ] `[Voice]` Full SR lifecycle (recording → processing → result) → [feature-voice-hud-accessibility.md](feature-voice-hud-accessibility.md)
 
 ### P2 — Native feel
 
@@ -79,7 +79,7 @@ flowchart TB
 
 ### P4 — Native depth
 
-- [ ] `[Shared]` SF Symbols instead of custom stroke SVG (item 15)
+- [x] `[Shared]` SF Symbols instead of custom stroke SVG (item 15)
 - [ ] `[Shared]` Native vibrancy / light mode (`prefers-color-scheme: light`) (item 7)
 - [x] `[Overlay]` VoiceOver listbox — product decision, not doing (item 35)
 - [x] `[Overlay]` Scroll affordances on tag bar (item 10)
@@ -192,11 +192,11 @@ Selected — light accent fill (`--surface-card-selected`, ~5–7% opacity), rin
 
 **Done:** removed `title={entry.text_content}` from card.
 
-**Future:** Quick Look preview on `Space`.
+**Future:** Quick Look preview on `Space` — [feature-quick-look-preview.md](feature-quick-look-preview.md).
 
-### 15. Iconography — not SF Symbols `[Shared]`
+### ✅ 15. Iconography — SF Symbols `[Shared]`
 
-Custom stroke SVG in overlay and settings.
+Custom stroke SVG replaced with macOS SF Symbols: `SfSymbol.svelte` + generated `src/lib/sf-symbols/registry.ts` (export via `scripts/export-sf-symbols.swift` on macOS). Maintainer guide: [docs/architecture/sf-symbols.md](../architecture/sf-symbols.md). Overlay actions, search, settings section icons, voice HUD mic, and toolbar controls now use the system symbol set. Native `<select>` (`.form-select`) uses the same `chevron.down` path via a CSS data URI in `tokens.css` (fill hex from `--color-text-primary` at export time via `--icon-chevron-select-fill`; 85% opacity — WebKit cannot use `currentColor` in `background-image` SVG on `<select>`), auto-synced on export because the element cannot host `SfSymbol`.
 
 ### ✅ 16. Search field styling `[Overlay]`
 
@@ -307,7 +307,7 @@ Reduce Motion: mic without pulse; bars — uniform height by level, no wobble/st
 
 **Done (baseline):** `role="status"` + `aria-live="polite"` on overlay root; decorative content in `aria-hidden` wrapper; sr-only “Recording voice”.
 
-**Future:** full screen-reader lifecycle (repeat sessions, processing, terminal states) — [04-voice-hud-accessibility-full-cycle.md](04-voice-hud-accessibility-full-cycle.md).
+**Future:** full screen-reader lifecycle (repeat sessions, processing, terminal states) — [feature-voice-hud-accessibility.md](feature-voice-hud-accessibility.md).
 
 ### ✅ 33. Blur without transparency fallback `[Voice]`
 
@@ -378,7 +378,7 @@ flowchart LR
 | **P1**   | focus visible, card actions, contrast, form focus-visible, voice a11y baseline; hit targets; voice SR full cycle                      | overlay components, `form-controls.css`, `overlay/+page.svelte`                                                               |
 | **P2**   | keyboard hints, segmented tabs; font by type (item 11); filter vs metadata badges (item 20); toggle in form-controls (item 27)        | `TagFilterBar.svelte`, `ClipboardCard.svelte`, `tokens.css`, overlay components, `settings/+page.svelte`, `form-controls.css` |
 | **P3**   | settings clear confirm; empty state, card tooltip, image meta; reduce motion, reduce transparency; title + aria-label dedup (item 25) | multiple                                                                                                                      |
-| **P4**   | SF Symbols, light mode; scroll affordances on tag bar (item 10); VoiceOver listbox (item 35) — not doing                              | multiple                                                                                                                      |
+| **P4**   | light mode; scroll affordances on tag bar (item 10) — done; VoiceOver listbox (item 35) — not doing                                   | multiple                                                                                                                      |
 
 ---
 

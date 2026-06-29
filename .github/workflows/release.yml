@@ -43,3 +43,11 @@ jobs:
       - name: cargo test
         working-directory: src-tauri
         run: cargo test
+
+  sf-symbols:
+    # Pin macOS major for export only — path geometry varies by OS (see SF_SYMBOL_EXPORT_MACOS_MAJOR).
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: SF Symbols registry in sync
+        run: make export-sf-symbols && git diff --exit-code src/lib/sf-symbols/registry.ts src/lib/styles/tokens.css

@@ -36,8 +36,9 @@ Command contract: `make fix` auto-fixes, `make lint` checks lint/format only, an
 
 ## Load by task
 
-| Topic                                             | File                                                                                                 |
-| ------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| macOS paste automation (AXPaste, Cmd+V, Messages) | [docs/architecture/macos-paste-pipeline.md](docs/architecture/macos-paste-pipeline.md)               |
-| Next iteration backlog (0.4.0)                    | [docs/plans/03-new-features-and-improvements.md](docs/plans/03-new-features-and-improvements.md)     |
-| Overlay content & tag filters                     | [docs/plans/05-overlay-content-and-tag-filters.md](docs/plans/05-overlay-content-and-tag-filters.md) |
+| Topic                                             | File                                                                                                   |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| SF Symbols (icons, add symbol, sizing)            | [docs/architecture/sf-symbols.md](docs/architecture/sf-symbols.md)                                     |
+| macOS paste automation (AXPaste, Cmd+V, Messages) | [docs/architecture/macos-paste-pipeline.md](docs/architecture/macos-paste-pipeline.md)                 |
+| Features backlog                                  | [docs/plans/features-backlog.md](docs/plans/features-backlog.md)                                       |
+| Overlay content & tag filters                     | [docs/plans/feature-overlay-content-tag-filters.md](docs/plans/feature-overlay-content-tag-filters.md) |

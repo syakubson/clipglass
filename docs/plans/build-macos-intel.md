@@ -1,7 +1,7 @@
 # macOS Intel build and related improvements
 
 Brief: why code and infrastructure were changed in this set of changes.  
-Follow-up and pre-release refinements — in [06-macos-intel-pre-release.md](06-macos-intel-pre-release.md).
+Follow-up and pre-release refinements — in [release-macos-intel-gate.md](release-macos-intel-gate.md).
 
 ## Checklist
 

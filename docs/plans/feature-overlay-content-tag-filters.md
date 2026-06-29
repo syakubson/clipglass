@@ -1,6 +1,6 @@
 # Overlay — content-type and tag filters
 
-Two levels of filtering over history cards + image card fixes. **Status: done** — checklist below shipped; follow-ups live in [03-new-features-and-improvements.md](03-new-features-and-improvements.md). Related UI items — in [02-hig-audit.md](02-hig-audit.md).
+Two levels of filtering over history cards + image card fixes. **Status: done** — checklist below shipped. Related UI items — in [audit-hig.md](audit-hig.md).
 
 ## Two filter levels
 
@@ -38,7 +38,7 @@ Two levels of filtering over history cards + image card fixes. **Status: done** 
 - [x] **Image meta backend** — `image_width`, `image_height`, `image_byte_size` + Rust tests
 - [x] **Image meta frontend** — `image-meta.ts`, ClipboardCard; tags hidden when AI off; mono by textKind; remove `title`
 - [x] **Panel height** — static **415 / 450 px** (hints toggle only); symmetric 12px filter/grid padding; `resize_main_window`
-- [x] **Docs** — CHANGELOG; mark items 10, 11, 14, 17 in `02-hig-audit.md`
+- [x] **Docs** — CHANGELOG; mark items 10, 11, 14, 17 in `audit-hig.md`
 
 ---
 
@@ -189,7 +189,7 @@ Base heights (filter rows only). Add **+28 px** when keyboard hints on.
 ## 3. Row B — Tag chips
 
 - Font **12px**; scroll fade (mask gradient)
-- **Format chips**: muted + mono + 12×12 photo SVG icon
+- **Format chips**: muted + mono + `photo` SF Symbol (`format-icon`, 12px)
 - **AI chips**: accent (AI ON + relevant segment only)
 - **Divider `│`**: AI ON + All segment + both groups non-empty
 - Reset label: "All tags" (AI ON) / "All formats" (Images segment or AI OFF)
@@ -231,7 +231,7 @@ const filteredEntries = overlay.entries; // from createOverlayEntriesStore()
 
 ---
 
-## 6. Related audit items (02-hig-audit)
+## 6. Related audit items (audit-hig)
 
 | Audit                 | Action                              |
 | --------------------- | ----------------------------------- |
@@ -241,7 +241,7 @@ const filteredEntries = overlay.entries; // from createOverlayEntriesStore()
 | item 11 Mono for code | font by `textKind`                  |
 | item 18 Empty state   | contentKind + format + AI modes     |
 
-**Out of scope:** item 12 undo, item 15 SF Symbols, Quick Look (remains in audit item 14 only, **not** in CHANGELOG). Item 8 History/Starred segmented — **done** in [02-hig-audit.md](02-hig-audit.md) §8; item 19 hints — **done** there §19.
+**Out of scope:** item 12 undo, Quick Look (remains in audit item 14 only, **not** in CHANGELOG). Item 8 History/Starred segmented — **done** in [audit-hig.md](audit-hig.md) §8; item 15 SF Symbols — **done** there §15; item 19 hints — **done** there §19.
 
 ---
 
@@ -302,5 +302,5 @@ cd src-tauri && cargo test
 
 ## 10. Documentation
 
-- [02-hig-audit.md](02-hig-audit.md): mark items 10, 11, 14, 17 done
+- [audit-hig.md](audit-hig.md): mark items 10, 11, 14, 17 done
 - [CHANGELOG.md](../../CHANGELOG.md): overlay filters, AI-off mode, image meta, panel height (no Quick Look mention)

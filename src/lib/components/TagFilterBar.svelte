@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import SfSymbol from "$lib/components/SfSymbol.svelte";
   import type { TagChip } from "$lib/overlay-filters";
 
   const {
@@ -86,11 +87,7 @@
         aria-pressed={activeTag === tag}
         onclick={() => onselect?.(tag)}
       >
-        <svg class="format-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-          <circle cx="8.5" cy="8.5" r="1.5" />
-          <polyline points="21 15 16 10 5 21" />
-        </svg>
+        <SfSymbol name="photo" class="format-icon" />
         <span>{tag}</span>
         <span class="tag-count">{count}</span>
       </button>
@@ -199,7 +196,7 @@
     color: var(--color-text-body);
   }
 
-  .filter-chip-format.active .format-icon {
+  .filter-chip-format.active :global(.format-icon) {
     opacity: 1;
   }
 
@@ -212,13 +209,6 @@
   .filter-chip-semantic:hover:not(:disabled, [aria-busy="true"]) {
     background: var(--surface-7);
     border-color: var(--border-strong);
-  }
-
-  .format-icon {
-    width: 12px;
-    height: 12px;
-    flex-shrink: 0;
-    opacity: 0.85;
   }
 
   .tag-count {

@@ -8,6 +8,7 @@
   --font-size-2xs: 0.625rem;
   --font-size-2xs-sm: 0.6563rem;
   --font-size-xs: 0.6875rem;
+  --font-size-section-title: 0.75rem;
   --font-size-sm: 0.75rem;
   --font-size-md: 0.8125rem;
   --font-size-base: 0.875rem;
@@ -30,6 +31,8 @@
   --space-hint: var(--space-field);
   --space-control-y: 0.375rem;
   --space-control-x: 0.625rem;
+  /* Distance from control right border to chevron right edge (select + ActionMenu). */
+  --control-chevron-inset: 12px;
   /* Inset grouped lists (macOS Settings table-in-group rhythm) */
   --inset-list-pad-inline: 0.75rem;
   --inset-list-pad-block: 0.5rem;
@@ -52,6 +55,22 @@
 
   /* Overlay header — single control height (search, segments, icon buttons) */
   --overlay-header-control-height: 32px;
+  /* SF Symbol display sizes — one token per semantic icon block.
+   * card-action (14px) and card-copied (24px): visually verified after fill-glyph migration. */
+  --icon-size-overlay-header-settings: 16px;
+  --icon-size-overlay-header-close: 13px;
+  --icon-size-search: 16px;
+  --icon-size-search-clear: 10px;
+  --icon-size-card-action: 14px;
+  --icon-size-card-copied: 24px;
+  --icon-size-section: 16px;
+  --icon-size-form-btn: 14px;
+  --icon-size-form-inline: 12px;
+  --icon-size-chevron: 12px;
+  --icon-size-chip: 12px;
+  --icon-size-collection-dot: 7px;
+  --icon-size-collection-action: 11px;
+  --icon-size-voice-mic: 18px;
   /* Symmetric vertical rhythm — matches header padding (12px, HIG 8pt grid) */
   --overlay-filter-pad-top: 12px;
   --overlay-grid-pad-y: 12px;
@@ -299,7 +318,9 @@
     rgb(var(--rgb-accent) / 42%) 0%,
     rgb(var(--rgb-accent-deep) / 52%) 100%
   );
-  --icon-chevron-down: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23edf1f8' stroke-opacity='0.85' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  /* Semantic alias; baked hex for --icon-chevron-down comes from --color-text-primary at export time. */
+  --icon-chevron-select-fill: var(--color-text-primary);
+  --icon-chevron-down: url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2016%2016'%3E%3Cpath%20fill%3D'%23edf1f8'%20fill-opacity%3D'0.85'%20d%3D'M8.00%2011.66%20C8.19%2011.66%208.38%2011.58%208.51%2011.44%20L14.30%205.51%20C14.43%205.38%2014.50%205.22%2014.50%205.03%20C14.50%204.64%2014.21%204.34%2013.82%204.34%20C13.63%204.34%2013.46%204.42%2013.33%204.53%20L7.60%2010.39%20L8.40%2010.39%20L2.67%204.53%20C2.55%204.42%202.38%204.34%202.18%204.34%20C1.79%204.34%201.50%204.64%201.50%205.03%20C1.50%205.22%201.57%205.38%201.70%205.52%20L7.49%2011.44%20C7.64%2011.58%207.81%2011.66%208.00%2011.66%20Z'%2F%3E%3C%2Fsvg%3E");
   --gradient-voice-bar: linear-gradient(
     180deg,
     var(--color-danger-soft),
