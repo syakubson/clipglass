@@ -2,7 +2,7 @@
 
 Global UI audit of Copyosity against [Apple Human Interface Guidelines](https://developer.apple.com/design/human-interface-guidelines/): clipboard overlay, voice HUD, settings, and shared design system. One file — shared items (motion, tokens, transparency) are fixed and checked off once.
 
-**Related plans:** overlay filters (items 10, 11, 14, 17, 20) — [feature-overlay-content-tag-filters.md](feature-overlay-content-tag-filters.md) · voice HUD a11y — [feature-voice-hud-accessibility.md](feature-voice-hud-accessibility.md) · backlog — [features-backlog.md](features-backlog.md)
+**Related plans:** overlay filters (items 10, 11, 14, 17, 20) — [feature-overlay-content-tag-filters.md](feature-overlay-content-tag-filters.md) · voice HUD a11y — [feature-voice-hud-accessibility.md](feature-voice-hud-accessibility.md) · appearance / light mode (item 7) — [feature-appearance-theme.md](feature-appearance-theme.md) · backlog — [features-backlog.md](features-backlog.md)
 
 **Progress:** checkboxes in the checklist and `✅` in detailed sections for shipped work. **`Done` comments** — only when one part is shipped and another is explicitly declined or deferred (link to follow-up plan if any). Fully closed items get no extra status text.
 
@@ -80,7 +80,7 @@ flowchart TB
 ### P4 — Native depth
 
 - [x] `[Shared]` SF Symbols instead of custom stroke SVG (item 15)
-- [ ] `[Shared]` Native vibrancy / light mode (`prefers-color-scheme: light`) (item 7)
+- [ ] `[Shared]` Native vibrancy / light mode (`prefers-color-scheme: light`) (item 7) → [feature-appearance-theme.md](feature-appearance-theme.md)
 - [x] `[Overlay]` VoiceOver listbox — product decision, not doing (item 35)
 - [x] `[Overlay]` Scroll affordances on tag bar (item 10)
 
@@ -151,11 +151,11 @@ Redundant Copy replaced with primary **Paste** (`activateEntry`, accent styling,
 
 **Done:** blur layers per surface; `prefers-reduced-transparency` → opaque token fallback, blur off.
 
-**Future:** light mode / `prefers-color-scheme: light` — item 7. Settings (`--surface-page` 96% opaque) less critical for transparency.
+**Future:** light mode / `prefers-color-scheme: light` — item 7 → [feature-appearance-theme.md](feature-appearance-theme.md). Settings (`--surface-page` 96% opaque) less critical for transparency.
 
 ### 7. Dark only `[Shared]`
 
-No light tokens and no `prefers-color-scheme: light`.
+No light tokens and no `prefers-color-scheme: light`. Full spec: [feature-appearance-theme.md](feature-appearance-theme.md).
 
 ### ✅ 8. Tabs — segmented control `[Overlay]`
 
@@ -373,12 +373,12 @@ flowchart LR
   P3 --- C2b[Reduce transparency]
 ```
 
-| Priority | Tasks                                                                                                                                 | Files                                                                                                                         |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| **P1**   | focus visible, card actions, contrast, form focus-visible, voice a11y baseline; hit targets; voice SR full cycle                      | overlay components, `form-controls.css`, `overlay/+page.svelte`                                                               |
-| **P2**   | keyboard hints, segmented tabs; font by type (item 11); filter vs metadata badges (item 20); toggle in form-controls (item 27)        | `TagFilterBar.svelte`, `ClipboardCard.svelte`, `tokens.css`, overlay components, `settings/+page.svelte`, `form-controls.css` |
-| **P3**   | settings clear confirm; empty state, card tooltip, image meta; reduce motion, reduce transparency; title + aria-label dedup (item 25) | multiple                                                                                                                      |
-| **P4**   | light mode; scroll affordances on tag bar (item 10) — done; VoiceOver listbox (item 35) — not doing                                   | multiple                                                                                                                      |
+| Priority | Tasks                                                                                                                                                                     | Files                                                                                                                         |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| **P1**   | focus visible, card actions, contrast, form focus-visible, voice a11y baseline; hit targets; voice SR full cycle                                                          | overlay components, `form-controls.css`, `overlay/+page.svelte`                                                               |
+| **P2**   | keyboard hints, segmented tabs; font by type (item 11); filter vs metadata badges (item 20); toggle in form-controls (item 27)                                            | `TagFilterBar.svelte`, `ClipboardCard.svelte`, `tokens.css`, overlay components, `settings/+page.svelte`, `form-controls.css` |
+| **P3**   | settings clear confirm; empty state, card tooltip, image meta; reduce motion, reduce transparency; title + aria-label dedup (item 25)                                     | multiple                                                                                                                      |
+| **P4**   | light mode (item 7) — [feature-appearance-theme.md](feature-appearance-theme.md); scroll affordances on tag bar (item 10) — done; VoiceOver listbox (item 35) — not doing | multiple                                                                                                                      |
 
 ---
 

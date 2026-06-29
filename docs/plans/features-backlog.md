@@ -4,7 +4,7 @@ Living backlog for product features, fixes, and cross-cutting work. Shipped item
 
 Not a feature spec — items with a linked `feature-*.md` keep the full design there; open items without a spec stay detailed in this file.
 
-**Related plans:** [feature-overlay-content-tag-filters.md](feature-overlay-content-tag-filters.md) · [feature-voice-hud-accessibility.md](feature-voice-hud-accessibility.md) · [audit-hig.md](audit-hig.md) · [feature-quick-look-preview.md](feature-quick-look-preview.md)
+**Related plans:** [feature-overlay-content-tag-filters.md](feature-overlay-content-tag-filters.md) · [feature-voice-hud-accessibility.md](feature-voice-hud-accessibility.md) · [feature-appearance-theme.md](feature-appearance-theme.md) · [audit-hig.md](audit-hig.md) · [feature-quick-look-preview.md](feature-quick-look-preview.md)
 
 ---
 
@@ -55,6 +55,8 @@ Not a feature spec — items with a linked `feature-*.md` keep the full design t
   - Ship end-to-end grouping: assign/remove entries from cards (or equivalent UX) so collections are usable without manual data fixes
 
 - [ ] **Quick Look preview on Space** — Finder-style full entry preview on selected card (`Space`); deferred from [audit-hig.md](audit-hig.md) item 14. Spec: [feature-quick-look-preview.md](feature-quick-look-preview.md)
+
+- [ ] **Appearance — Light / Dark / Automatic** — native macOS theme switching with cool blue-gray light palette, Settings → Appearance segmented control (Light · Dark · Automatic), CSS token refactor (`--rgb-elevation-tint`, `data-theme`), persistence in `AppSettings`, live sync across overlay / voice HUD / settings. Deferred from [audit-hig.md](audit-hig.md) item 7. Spec: [feature-appearance-theme.md](feature-appearance-theme.md)
 
 ---
 
