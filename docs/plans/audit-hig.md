@@ -349,9 +349,9 @@ Cards in horizontal list without listbox semantics; no `aria-label` at entry lev
 
 `--card-width` / `--card-height` in rem (≈220×288 at 16px root) — intentionally fixed card size, not a layout bug. Entire overlay (preview, typography, actions, scroll, keyboard navigation) tuned to this width and height; horizontal scroll is expected UX with many entries. Adapting cards to panel width or items per screen not planned. Do not confuse with item 34 (typography and rem scale from root).
 
-### 39. Collections color dot 7px `[Overlay]`
+### ✅ 39. Collections color dot 7px `[Overlay]`
 
-Header pill dot is **7×7 px** (dense toolbar trade-off). Still below comfortable minimum for distinguishability at a glance; revisit if collections need stronger color coding outside the overlay header.
+**Done:** Custom collection tabs in the overlay header show a **7×7 px** color circle (`.tab-dot` in `CollectionTabs.svelte`) sized via `--icon-size-collection-dot` in `tokens.css`; `border-radius: 50%`, `flex-shrink: 0`. Fill from `col.color` with `var(--color-text-subtle)` fallback. Not an SF Symbol — see [sf-symbols.md](../architecture/sf-symbols.md) § Collection color dot. Intentional dense-toolbar trade-off (below HIG comfortable minimum for at-a-glance distinguishability); no change planned unless collections need stronger color coding outside the header.
 
 ### ✅ 40. Test button `disabled` without `aria-describedby` `[Settings]`
 
