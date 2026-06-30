@@ -161,6 +161,7 @@ fn push_entry_tag_filter(
     param_values: &mut Vec<Box<dyn rusqlite::types::ToSql>>,
     table_prefix: &str,
     tag: &str,
+    tag_variants: Option<&[String]>,
 ) {
     let id_col = format!("{table_prefix}id");
     if is_format_tag(tag) {
@@ -181,13 +182,33 @@ fn push_entry_tag_filter(
         param_values.push(Box::new(tag.to_owned()));
         param_values.push(Box::new(tag.to_owned()));
     } else {
-        sql.push_str(&format!(
-            " AND {table_prefix}content_type = 'text' AND EXISTS (
-                SELECT 1 FROM clipboard_tags ct
-                WHERE ct.entry_id = {id_col} AND ct.tag = ?
-              )"
-        ));
-        param_values.push(Box::new(tag.to_owned()));
+        let tags: Vec<String> = match tag_variants {
+            Some(variants) if !variants.is_empty() => variants.to_vec(),
+            _ => vec![tag.to_owned()],
+        };
+
+        if tags.len() == 1 {
+            sql.push_str(&format!(
+                " AND {table_prefix}content_type = 'text' AND EXISTS (
+                    SELECT 1 FROM clipboard_tags ct
+                    WHERE ct.entry_id = {id_col} AND ct.tag = ?
+                  )"
+            ));
+            param_values.push(Box::new(tags[0].clone()));
+        } else {
+            let placeholders = std::iter::repeat_n("?", tags.len())
+                .collect::<Vec<_>>()
+                .join(", ");
+            sql.push_str(&format!(
+                " AND {table_prefix}content_type = 'text' AND EXISTS (
+                    SELECT 1 FROM clipboard_tags ct
+                    WHERE ct.entry_id = {id_col} AND ct.tag IN ({placeholders})
+                  )"
+            ));
+            for variant in tags {
+                param_values.push(Box::new(variant));
+            }
+        }
     }
 }
 
@@ -605,6 +626,7 @@ impl Database {
         pinned_only: bool,
         search: Option<&str>,
         tag: Option<&str>,
+        tag_variants: Option<&[String]>,
         content_kind: Option<&str>,
     ) -> Result<Vec<ClipboardEntry>, rusqlite::Error> {
         let conn = self.conn.lock().unwrap();
@@ -630,7 +652,7 @@ impl Database {
             push_content_kind_filter(&mut sql, "", kind);
         }
         if let Some(tag) = tag {
-            push_entry_tag_filter(&mut sql, &mut param_values, "", tag);
+            push_entry_tag_filter(&mut sql, &mut param_values, "", tag, tag_variants);
         }
 
         sql.push_str(" ORDER BY created_at DESC LIMIT ? OFFSET ?");
@@ -1444,7 +1466,7 @@ mod tests {
         let (id, _) = db.insert_entry(&entry).unwrap();
 
         let entries = db
-            .get_entries(10, 0, None, false, None, None, None)
+            .get_entries(10, 0, None, false, None, None, None, None)
             .unwrap();
         let found = entries.iter().find(|e| e.id == id).unwrap();
         assert_eq!(found.image_format.as_deref(), Some("JPG"));
@@ -1461,7 +1483,7 @@ mod tests {
         assert_eq!(updated, 1);
 
         let entries = db
-            .get_entries(10, 0, None, false, None, None, None)
+            .get_entries(10, 0, None, false, None, None, None, None)
             .unwrap();
         assert_eq!(entries[0].image_format.as_deref(), Some("GIF"));
     }
@@ -1489,7 +1511,7 @@ mod tests {
         assert_eq!(fetched.image_byte_size, Some(12_345));
 
         let listed = db
-            .get_entries(10, 0, None, false, None, None, None)
+            .get_entries(10, 0, None, false, None, None, None, None)
             .unwrap();
         let found = listed.iter().find(|e| e.id == id).unwrap();
         assert_eq!(found.image_format.as_deref(), Some("PNG"));
@@ -1510,7 +1532,7 @@ mod tests {
         assert!(updated >= 1);
 
         let entries = db
-            .get_entries(10, 0, None, false, None, None, None)
+            .get_entries(10, 0, None, false, None, None, None, None)
             .unwrap();
         assert!(entries[0].image_width.is_some());
         assert!(entries[0].image_height.is_some());
@@ -1569,7 +1591,9 @@ mod tests {
             db.insert_entry(&make_entry(&format!("text {}", i), &format!("h{}", i)))
                 .unwrap();
         }
-        let entries = db.get_entries(3, 0, None, false, None, None, None).unwrap();
+        let entries = db
+            .get_entries(3, 0, None, false, None, None, None, None)
+            .unwrap();
         assert_eq!(entries.len(), 3);
     }
 
@@ -1582,12 +1606,12 @@ mod tests {
         db.insert_entry(&make_entry("rust cargo", "h3")).unwrap();
 
         let results = db
-            .get_entries(50, 0, None, false, Some("rust"), None, None)
+            .get_entries(50, 0, None, false, Some("rust"), None, None, None)
             .unwrap();
         assert_eq!(results.len(), 2);
 
         let upper = db
-            .get_entries(50, 0, None, false, Some("RUST"), None, None)
+            .get_entries(50, 0, None, false, Some("RUST"), None, None, None)
             .unwrap();
         assert_eq!(upper.len(), 2);
     }
@@ -1601,7 +1625,7 @@ mod tests {
             .unwrap();
 
         let results = db
-            .get_entries(50, 0, None, false, Some("что уч"), None, None)
+            .get_entries(50, 0, None, false, Some("что уч"), None, None, None)
             .unwrap();
         assert_eq!(results.len(), 1);
         assert_eq!(
@@ -1650,7 +1674,9 @@ mod tests {
         db.insert_entry(&make_entry("not pinned", "h2")).unwrap();
         db.pin_entry(id1, true).unwrap();
 
-        let pinned = db.get_entries(50, 0, None, true, None, None, None).unwrap();
+        let pinned = db
+            .get_entries(50, 0, None, true, None, None, None, None)
+            .unwrap();
         assert_eq!(pinned.len(), 1);
         assert_eq!(pinned[0].text_content.as_deref(), Some("pinned"));
     }
@@ -1704,7 +1730,7 @@ mod tests {
 
         db.clear_history().unwrap();
         let all = db
-            .get_entries(50, 0, None, false, None, None, None)
+            .get_entries(50, 0, None, false, None, None, None, None)
             .unwrap();
         assert_eq!(all.len(), 1);
         assert!(all[0].is_pinned);
@@ -1719,7 +1745,7 @@ mod tests {
 
         db.clear_all_history().unwrap();
         let all = db
-            .get_entries(50, 0, None, false, None, None, None)
+            .get_entries(50, 0, None, false, None, None, None, None)
             .unwrap();
         assert!(all.is_empty());
     }
@@ -1818,7 +1844,7 @@ mod tests {
         db.insert_entry(&entry).unwrap();
 
         let results = db
-            .get_entries(50, 0, None, false, None, Some("jpg"), None)
+            .get_entries(50, 0, None, false, None, Some("jpg"), None, None)
             .unwrap();
         assert_eq!(results.len(), 1);
         assert!(matches!(
@@ -1838,10 +1864,38 @@ mod tests {
         db.set_entry_tags(image_id, &["api".to_owned()]).unwrap();
 
         let results = db
-            .get_entries(50, 0, None, false, None, Some("api"), None)
+            .get_entries(50, 0, None, false, None, Some("api"), None, None)
             .unwrap();
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].content_type, "text");
+    }
+
+    #[test]
+    fn get_entries_filters_by_semantic_tag_variants() {
+        let db = test_db();
+        let (js_id, _) = db.insert_entry(&make_entry("js snippet", "h1")).unwrap();
+        db.set_entry_tags(js_id, &["js".to_owned()]).unwrap();
+        let (full_id, _) = db.insert_entry(&make_entry("js full", "h2")).unwrap();
+        db.set_entry_tags(full_id, &["javascript".to_owned()])
+            .unwrap();
+        let (other_id, _) = db.insert_entry(&make_entry("rust note", "h3")).unwrap();
+        db.set_entry_tags(other_id, &["rust".to_owned()]).unwrap();
+
+        let results = db
+            .get_entries(
+                50,
+                0,
+                None,
+                false,
+                None,
+                Some("js"),
+                Some(&["javascript".to_owned(), "js".to_owned()]),
+                None,
+            )
+            .unwrap();
+        assert_eq!(results.len(), 2);
+        assert!(results.iter().any(|entry| entry.id == js_id));
+        assert!(results.iter().any(|entry| entry.id == full_id));
     }
 
     #[test]
@@ -1854,7 +1908,7 @@ mod tests {
         db.insert_entry(&make_entry("other", "h3")).unwrap();
 
         let results = db
-            .get_entries(50, 0, None, false, None, Some("python"), None)
+            .get_entries(50, 0, None, false, None, Some("python"), None, None)
             .unwrap();
         assert_eq!(results.len(), 2);
         assert!(results
@@ -1871,7 +1925,7 @@ mod tests {
         db.insert_entry(&gif).unwrap();
 
         let results = db
-            .get_entries(50, 0, None, false, None, Some("png"), None)
+            .get_entries(50, 0, None, false, None, Some("png"), None, None)
             .unwrap();
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].image_format.as_deref(), Some("PNG"));
@@ -1886,13 +1940,13 @@ mod tests {
         db.insert_entry(&png).unwrap();
 
         let text_only = db
-            .get_entries(50, 0, None, false, None, None, Some("text"))
+            .get_entries(50, 0, None, false, None, None, None, Some("text"))
             .unwrap();
         assert_eq!(text_only.len(), 2);
         assert!(text_only.iter().all(|e| e.content_type == "text"));
 
         let images_only = db
-            .get_entries(50, 0, None, false, None, None, Some("image"))
+            .get_entries(50, 0, None, false, None, None, None, Some("image"))
             .unwrap();
         assert_eq!(images_only.len(), 1);
         assert_eq!(images_only[0].content_type, "image");
@@ -1918,6 +1972,7 @@ mod tests {
                 false,
                 Some("api"),
                 Some("python"),
+                None,
                 Some("text"),
             )
             .unwrap();

@@ -5,6 +5,7 @@ import {
   getOverlayTagCounts,
   isTaggingReady,
 } from "$lib/api";
+import { cardTagDbVariants } from "$lib/card-tag-label";
 import { invokeErrorMessage } from "$lib/exclusion-label";
 import {
   clearContentKindSession,
@@ -23,6 +24,7 @@ import {
   activeTagCompatibleWithKind,
   entryMatchesKind,
   entryMatchesTag,
+  isFormatTag,
   hasImageEntries,
   hasTextEntries,
   reconcileOverlayFilterState,
@@ -133,10 +135,17 @@ export function createOverlayEntriesStore(deps: OverlayEntriesDeps) {
   }
 
   function displayListQuery() {
+    const tag = activeTag;
+    let tagVariants: string[] | null = null;
+    if (tag && !isFormatTag(tag)) {
+      const variants = cardTagDbVariants(tag);
+      if (variants.length > 1) tagVariants = variants;
+    }
     return {
       ...entryQuery(),
       search: searchQuery || null,
-      tag: activeTag,
+      tag,
+      tag_variants: tagVariants,
       content_kind: showContentKindRow && contentKind !== "all" ? contentKind : null,
     };
   }

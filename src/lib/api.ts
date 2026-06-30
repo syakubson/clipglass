@@ -23,6 +23,8 @@ export async function getEntries(opts?: {
   pinned_only?: boolean;
   search?: string | null;
   tag?: string | null;
+  /** DB tag strings that share the UI label in `tag` (semantic filters only). */
+  tag_variants?: string[] | null;
   content_kind?: "text" | "image" | null;
 }): Promise<ClipboardEntry[]> {
   return invoke("get_entries", {
@@ -32,6 +34,7 @@ export async function getEntries(opts?: {
     pinnedOnly: opts?.pinned_only ?? false,
     search: opts?.search ?? null,
     tag: opts?.tag ?? null,
+    tagVariants: opts?.tag_variants ?? null,
     contentKind: opts?.content_kind ?? null,
   });
 }

@@ -30,6 +30,7 @@ pub fn get_entries(
     pinned_only: Option<bool>,
     search: Option<String>,
     tag: Option<String>,
+    tag_variants: Option<Vec<String>>,
     content_kind: Option<String>,
 ) -> Result<Vec<ClipboardEntry>, String> {
     db.get_entries(
@@ -39,6 +40,7 @@ pub fn get_entries(
         pinned_only.unwrap_or(false),
         search.as_deref(),
         tag.as_deref(),
+        tag_variants.as_deref(),
         content_kind.as_deref(),
     )
     .map_err(|e| e.to_string())

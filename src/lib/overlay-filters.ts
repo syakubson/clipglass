@@ -1,5 +1,7 @@
 import type { ClipboardEntry, OverlayTagCounts } from "$lib/types";
 
+import { cardTagDisplayLabel } from "./card-tag-label.ts";
+
 export type ContentKind = "all" | "text" | "image";
 
 export type TagChip = [tag: string, count: number];
@@ -44,8 +46,12 @@ export function entryMatchesKind(entry: ClipboardEntry, kind: ContentKind): bool
 }
 
 export function entryMatchesTag(entry: ClipboardEntry, tag: string): boolean {
+  if (!isFormatTag(tag)) {
+    const target = cardTagDisplayLabel(tag);
+    return (entry.tags ?? []).some((entryTag) => cardTagDisplayLabel(entryTag) === target);
+  }
   if ((entry.tags ?? []).includes(tag)) return true;
-  if (!isFormatTag(tag) || entry.content_type !== "image") return false;
+  if (entry.content_type !== "image") return false;
   return normalizeImageFormatForTagMatch(entry.image_format) === tag;
 }
 
@@ -70,6 +76,16 @@ function tagCountsToChips(counts: { tag: string; count: number }[]): TagChip[] {
   return counts.map((item) => [item.tag, item.count] as TagChip);
 }
 
+function mergeSemanticChipsByDisplayLabel(counts: { tag: string; count: number }[]): TagChip[] {
+  const merged = new Map<string, number>();
+  for (const { tag, count } of counts) {
+    if (HIDDEN_TOP_TAGS.has(tag) || isFormatTag(tag)) continue;
+    const label = cardTagDisplayLabel(tag);
+    merged.set(label, (merged.get(label) ?? 0) + count);
+  }
+  return sortTagsByCount([...merged.entries()]).slice(0, SEMANTIC_TAG_LIMIT);
+}
+
 function chipsFromServerCounts(
   counts: OverlayTagCounts,
   contentKind: ContentKind,
@@ -78,7 +94,7 @@ function chipsFromServerCounts(
 ): TagBarChips {
   const kindFilterActive = aiTaggingEnabled && showRowA;
   let formatChips = tagCountsToChips(counts.format);
-  let semanticChips = tagCountsToChips(counts.semantic);
+  let semanticChips = mergeSemanticChipsByDisplayLabel(counts.semantic);
   let resetLabel = "All tags";
 
   if (!aiTaggingEnabled) {
@@ -132,9 +148,13 @@ function countSemanticTags(pool: ClipboardEntry[], aiTaggingEnabled: boolean): T
   const counts = new Map<string, number>();
   for (const entry of pool) {
     if (entry.content_type !== "text") continue;
+    const seenLabels = new Set<string>();
     for (const tag of entry.tags ?? []) {
       if (HIDDEN_TOP_TAGS.has(tag) || isFormatTag(tag)) continue;
-      counts.set(tag, (counts.get(tag) ?? 0) + 1);
+      const label = cardTagDisplayLabel(tag);
+      if (seenLabels.has(label)) continue;
+      seenLabels.add(label);
+      counts.set(label, (counts.get(label) ?? 0) + 1);
     }
   }
   return sortTagsByCount([...counts.entries()]).slice(0, SEMANTIC_TAG_LIMIT);
@@ -284,11 +304,19 @@ export function buildTagBarModel(options: {
 
 export function cardDisplayTags(entry: ClipboardEntry, aiTaggingEnabled: boolean): string[] {
   if (!aiTaggingEnabled) return [];
-  const tags = entry.tags ?? [];
+  let tags = entry.tags ?? [];
   if (entry.content_type === "image") {
-    return tags.filter((tag) => !isFormatTag(tag));
+    tags = tags.filter((tag) => !isFormatTag(tag));
   }
-  return tags;
+  const seenLabels = new Set<string>();
+  const unique: string[] = [];
+  for (const tag of tags) {
+    const label = cardTagDisplayLabel(tag);
+    if (seenLabels.has(label)) continue;
+    seenLabels.add(label);
+    unique.push(tag);
+  }
+  return unique;
 }
 
 export function isSemanticTag(tag: string): boolean {

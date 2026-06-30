@@ -299,6 +299,34 @@ describe("buildTagBarModel with server tag counts", () => {
     assert.deepEqual(model.semanticChips, [["python", 125]]);
     assert.deepEqual(model.formatChips, [["png", 24]]);
   });
+
+  it("merges semantic chips that share a UI label", () => {
+    const model = buildTagBarModel({
+      entries: [makeEntry(1)],
+      contentKind: "all",
+      aiTaggingEnabled: true,
+      displayTagCounts: {
+        semantic: [
+          { tag: "javascript", count: 5 },
+          { tag: "js", count: 3 },
+        ],
+        format: [],
+        has_text: true,
+        has_images: false,
+      },
+      layoutTagCounts: {
+        semantic: [
+          { tag: "javascript", count: 5 },
+          { tag: "js", count: 3 },
+        ],
+        format: [],
+        has_text: true,
+        has_images: false,
+      },
+    });
+
+    assert.deepEqual(model.semanticChips, [["js", 8]]);
+  });
 });
 
 function makeImageEntry(id: number, imageFormat: string): ClipboardEntry {
@@ -320,5 +348,13 @@ describe("entryMatchesTag", () => {
   it("matches semantic tags from entry.tags", () => {
     const entry = { ...makeEntry(2), tags: ["api"] };
     assert.equal(entryMatchesTag(entry, "api"), true);
+  });
+
+  it("matches display labels against synonym DB tags", () => {
+    const jsEntry = { ...makeEntry(3), tags: ["js"] };
+    const fullEntry = { ...makeEntry(4), tags: ["javascript"] };
+    assert.equal(entryMatchesTag(jsEntry, "js"), true);
+    assert.equal(entryMatchesTag(fullEntry, "js"), true);
+    assert.equal(entryMatchesTag(fullEntry, "javascript"), true);
   });
 });

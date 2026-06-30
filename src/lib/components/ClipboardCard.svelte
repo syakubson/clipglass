@@ -4,6 +4,11 @@
   import type { ClipboardEntry } from "$lib/types";
   import { copyEntry, activateEntry, deleteEntry, pinEntry, retagEntry } from "$lib/api";
   import { prepareBusyUi } from "$lib/run-with-busy-ui";
+  import {
+    cardTagFooterTruncateFlags,
+    cardTagTitle,
+    formatCardTagLabel,
+  } from "$lib/card-tag-label";
   import { cardDisplayTags } from "$lib/overlay-filters";
   import { formatBytes, formatImageDimensions } from "$lib/image-meta";
 
@@ -296,6 +301,9 @@
   );
   const charLabel = $derived(entry.char_count ? `${entry.char_count.toLocaleString()} characters` : "");
   const tags = $derived(cardDisplayTags(entry, aiTaggingEnabled));
+  const visibleTags = $derived(tags.slice(0, 3));
+  const visibleTagLabels = $derived(visibleTags.map(formatCardTagLabel));
+  const visibleTagTruncates = $derived(cardTagFooterTruncateFlags(visibleTagLabels));
 
   let cardEl = $state<HTMLDivElement | null>(null);
 </script>
@@ -386,8 +394,16 @@
   <div class="card-footer">
     {#if tags.length > 0}
       <div class="entry-tags">
-        {#each tags.slice(0, 3) as tag (tag)}
-          <span class="entry-tag">{tag}</span>
+        {#each visibleTags as tag, index (tag)}
+          {@const label = visibleTagLabels[index]}
+          {@const truncates = visibleTagTruncates[index]}
+          <span
+            class="entry-tag"
+            class:entry-tag-truncates={truncates}
+            title={cardTagTitle(tag, label, truncates)}
+          >
+            <span class="entry-tag-label">{label}</span>
+          </span>
         {/each}
       </div>
     {/if}
@@ -810,6 +826,7 @@
   .entry-tags {
     display: flex;
     flex-wrap: nowrap;
+    justify-content: flex-start;
     gap: 4px;
     overflow: hidden;
     min-width: 0;
@@ -818,7 +835,7 @@
   .entry-tag {
     display: inline-flex;
     align-items: center;
-    flex-shrink: 0;
+    flex: 0 0 auto;
     max-width: 100%;
     padding: 2px 7px;
     border-radius: var(--radius-control-sm);
@@ -828,9 +845,22 @@
     font-size: var(--font-size-2xs);
     line-height: 1.3;
     font-weight: 500;
+  }
+
+  .entry-tag-truncates {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .entry-tag-label {
     letter-spacing: 0.01em;
     text-transform: lowercase;
     white-space: nowrap;
+  }
+
+  .entry-tag-truncates .entry-tag-label {
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
   }
