@@ -187,6 +187,7 @@ pub fn update_app_settings(
     voice_translate_lang: Option<String>,
     voice_dictionary: Option<String>,
     voice_selected_text: Option<bool>,
+    board_vertical: Option<bool>,
 ) -> Result<AppSettings, String> {
     let settings = db
         .update_app_settings(
@@ -210,6 +211,7 @@ pub fn update_app_settings(
             voice_translate_lang.as_deref(),
             voice_dictionary.as_deref(),
             voice_selected_text,
+            board_vertical,
         )
         .map_err(|e| e.to_string())?;
 

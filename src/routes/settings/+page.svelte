@@ -46,6 +46,7 @@
     voice_translate_lang: "",
     voice_dictionary: "",
     voice_selected_text: false,
+    board_vertical: false,
   });
   let microphones: AudioInputDevice[] = $state([]);
   let modelCatalog = $state<ModelCatalog>({
@@ -220,6 +221,7 @@
         voice_translate_lang: settings.voice_translate_lang,
         voice_dictionary: settings.voice_dictionary,
         voice_selected_text: settings.voice_selected_text,
+        board_vertical: settings.board_vertical,
       });
       savedModel = settings.ollama_model;
       snapshot();
@@ -784,8 +786,19 @@
     {:else if activePane === "history"}
       <div class="pane-head">
         <div class="pane-title">History</div>
-        <div class="pane-subtitle">How long clips are kept and which apps are ignored.</div>
+        <div class="pane-subtitle">Layout, how long clips are kept, and which apps are ignored.</div>
       </div>
+
+  <section class="settings-section">
+    <div class="settings-section-title">Board layout</div>
+    <label class="settings-toggle">
+      <input type="checkbox" bind:checked={settings.board_vertical} />
+      <span>Vertical mini-clipboard (tall panel docked to the screen edge) instead of the horizontal bottom bar</span>
+    </label>
+    <div class="settings-hint" style="margin-top: 8px;">
+      The board always opens on the screen where your cursor is. Applies next time you open it (⌘⇧V).
+    </div>
+  </section>
 
   <section class="settings-section">
     <div class="settings-section-title">Storage</div>

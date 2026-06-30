@@ -1075,22 +1075,71 @@ fn capture_selection(_pid: i32) -> Option<String> {
     None
 }
 
-pub(crate) fn position_window_bottom(window: &tauri::WebviewWindow) {
-    use tauri::PhysicalPosition;
+/// The monitor the user is currently working on — the one containing the mouse
+/// cursor. Falls back to the window's current monitor, then the primary monitor.
+fn active_monitor(window: &tauri::WebviewWindow) -> Option<tauri::Monitor> {
+    if let Ok(pos) = window.app_handle().cursor_position() {
+        if let Ok(monitors) = window.available_monitors() {
+            for m in monitors {
+                let mp = m.position();
+                let ms = m.size();
+                let left = mp.x as f64;
+                let top = mp.y as f64;
+                let right = left + ms.width as f64;
+                let bottom = top + ms.height as f64;
+                if pos.x >= left && pos.x < right && pos.y >= top && pos.y < bottom {
+                    return Some(m);
+                }
+            }
+        }
+    }
+    window
+        .current_monitor()
+        .ok()
+        .flatten()
+        .or_else(|| window.primary_monitor().ok().flatten())
+}
 
-    if let Ok(Some(monitor)) = window.current_monitor() {
-        let work_area = monitor.work_area();
-        let scale = monitor.scale_factor();
-        let bottom_padding = (28.0 * scale) as i32;
+/// Position + size the main board on the active screen. Horizontal = a wide bar
+/// docked to the bottom; vertical = a tall mini-clipboard docked to the right edge.
+pub(crate) fn position_window_bottom(window: &tauri::WebviewWindow) {
+    use tauri::{PhysicalPosition, PhysicalSize};
+
+    let vertical = window
+        .app_handle()
+        .try_state::<Arc<db::Database>>()
+        .and_then(|db| db.get_app_settings().ok())
+        .map(|s| s.board_vertical)
+        .unwrap_or(false);
+
+    let Some(monitor) = active_monitor(window) else {
+        return;
+    };
+    let work_area = monitor.work_area();
+    let scale = monitor.scale_factor();
+    let pad = (28.0 * scale) as i32;
+
+    let (win_width, win_height, x, y) = if vertical {
+        // Tall narrow panel docked to the right edge of the active screen.
+        let min_h = (520.0 * scale) as u32;
+        let preferred_h = (820.0 * scale) as u32;
+        let w = (360.0 * scale) as u32;
+        let win_width = w.min(work_area.size.width);
+        let win_height = preferred_h.min(work_area.size.height.saturating_sub(pad as u32 * 2)).max(min_h.min(work_area.size.height));
+        let x = work_area.position.x + work_area.size.width as i32 - win_width as i32 - pad;
+        let y = work_area.position.y + ((work_area.size.height as i32 - win_height as i32) / 2);
+        (win_width, win_height, x, y)
+    } else {
+        // Wide bar docked to the bottom-centre of the active screen.
         let min_width = (900.0 * scale) as u32;
         let preferred_width = (1180.0 * scale) as u32;
         let win_height = (410.0 * scale) as u32;
         let win_width = preferred_width.min(work_area.size.width).max(min_width);
-
         let x = work_area.position.x + ((work_area.size.width as i32 - win_width as i32) / 2);
-        let y = work_area.position.y + work_area.size.height as i32 - win_height as i32 - bottom_padding;
+        let y = work_area.position.y + work_area.size.height as i32 - win_height as i32 - pad;
+        (win_width, win_height, x, y)
+    };
 
-        let _ = window.set_size(tauri::PhysicalSize::new(win_width, win_height));
-        let _ = window.set_position(PhysicalPosition::new(x, y));
-    }
+    let _ = window.set_size(PhysicalSize::new(win_width, win_height));
+    let _ = window.set_position(PhysicalPosition::new(x, y));
 }

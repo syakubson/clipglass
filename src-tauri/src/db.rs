@@ -43,6 +43,9 @@ pub struct AppSettings {
     /// When text is selected in the target app, treat the spoken transcription as
     /// an instruction to apply to that selection (summarize/fix/translate/rewrite).
     pub voice_selected_text: bool,
+    /// Render the clipboard board vertically (a tall mini-clipboard docked to the
+    /// screen edge) instead of the default horizontal bottom bar.
+    pub board_vertical: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -280,6 +283,10 @@ impl Database {
             .get_setting("voice_selected_text")?
             .map(|v| v == "true")
             .unwrap_or(false);
+        let board_vertical = self
+            .get_setting("board_vertical")?
+            .map(|v| v == "true")
+            .unwrap_or(false);
 
         Ok(AppSettings {
             ollama_model,
@@ -302,6 +309,7 @@ impl Database {
             voice_translate_lang,
             voice_dictionary,
             voice_selected_text,
+            board_vertical,
         })
     }
 
@@ -327,6 +335,7 @@ impl Database {
         voice_translate_lang: Option<&str>,
         voice_dictionary: Option<&str>,
         voice_selected_text: Option<bool>,
+        board_vertical: Option<bool>,
     ) -> Result<AppSettings, rusqlite::Error> {
         if let Some(model) = ollama_model {
             self.set_setting("ollama_model", model.trim())?;
@@ -387,6 +396,9 @@ impl Database {
         }
         if let Some(enabled) = voice_selected_text {
             self.set_setting("voice_selected_text", if enabled { "true" } else { "false" })?;
+        }
+        if let Some(enabled) = board_vertical {
+            self.set_setting("board_vertical", if enabled { "true" } else { "false" })?;
         }
 
         self.get_app_settings()
@@ -1027,7 +1039,7 @@ mod tests {
             None, None, None, None, None,
             None, None, None, None, None, None,
             None, None, None, None, None, None,
-            None,
+            None, None,
         )
         .unwrap();
         let s = db.get_app_settings().unwrap();

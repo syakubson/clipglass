@@ -7,6 +7,7 @@
   import {
     getEntries,
     getCollections,
+    getAppSettings,
     hideMainWindow,
     openSettingsWindow,
   } from "$lib/api";
@@ -24,9 +25,18 @@
   let gridEl: HTMLDivElement | undefined = $state();
   let visible = $state(false);
   let revealCycle = $state(0);
+  let boardVertical = $state(false);
   const hiddenTopTags = new Set(["code", "otp", "token", "log"]);
 
   let loadSeq = 0;
+
+  async function loadLayout() {
+    try {
+      boardVertical = (await getAppSettings()).board_vertical;
+    } catch (e) {
+      console.error("Failed to load layout:", e);
+    }
+  }
 
   async function loadEntries() {
     // Guard against out-of-order responses: a slow earlier request must not
@@ -58,9 +68,13 @@
     activeTag = null;
     selectedIndex = -1;
     loadEntries();
+    loadLayout();
     revealCycle += 1;
     // Reset scroll to start
-    if (gridEl) gridEl.scrollLeft = 0;
+    if (gridEl) {
+      gridEl.scrollLeft = 0;
+      gridEl.scrollTop = 0;
+    }
     // Start hidden, then animate in next frame
     visible = false;
     requestAnimationFrame(() => {
@@ -87,6 +101,7 @@
   onMount(() => {
     loadEntries();
     loadCollections();
+    loadLayout();
 
     // Tell Rust we're loaded — it will hide the off-screen warmup window
     invoke("frontend_ready");
@@ -116,12 +131,13 @@
         forceHideWindow();
         return;
       }
-      if (e.key === "ArrowRight") {
+      // Down/Up mirror Right/Left so navigation feels natural in vertical mode.
+      if (e.key === "ArrowRight" || e.key === "ArrowDown") {
         e.preventDefault();
         selectedIndex = Math.min(selectedIndex + 1, filteredEntries.length - 1);
         scrollToSelected();
       }
-      if (e.key === "ArrowLeft") {
+      if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
         e.preventDefault();
         selectedIndex = Math.max(selectedIndex - 1, 0);
         scrollToSelected();
@@ -155,7 +171,11 @@
     if (!gridEl) return;
     const cards = gridEl.querySelectorAll(".card");
     if (cards[selectedIndex]) {
-      cards[selectedIndex].scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+      cards[selectedIndex].scrollIntoView({
+        behavior: "smooth",
+        block: boardVertical ? "center" : "nearest",
+        inline: boardVertical ? "nearest" : "center",
+      });
     }
   }
 
@@ -212,7 +232,7 @@
   });
 </script>
 
-<div class="app" class:visible>
+<div class="app" class:visible class:vertical={boardVertical}>
   <header class="header">
     <SearchBar value={searchQuery} onchange={debouncedSearch} />
     <CollectionTabs
@@ -282,7 +302,7 @@
     </div>
   {/if}
 
-  <div class="grid-container" bind:this={gridEl}>
+  <div class="grid-container" class:vertical={boardVertical} bind:this={gridEl}>
     {#if filteredEntries.length === 0}
       <div class="empty-state">
         {#if searchQuery || activeTag}
@@ -461,8 +481,33 @@
     scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
   }
 
+  /* Vertical mini-clipboard: stack cards in a scrolling column, full width. */
+  .grid-container.vertical {
+    flex-direction: column;
+    overflow-x: hidden;
+    overflow-y: auto;
+    align-items: stretch;
+  }
+
+  .grid-container.vertical .card-wrapper {
+    width: 100%;
+  }
+
+  .grid-container.vertical :global(.card) {
+    width: 100%;
+    min-width: 0;
+    height: auto;
+    min-height: 60px;
+    max-height: 190px;
+  }
+
   .grid-container::-webkit-scrollbar {
     height: 6px;
+  }
+
+  .grid-container.vertical::-webkit-scrollbar {
+    width: 6px;
+    height: auto;
   }
 
   .grid-container::-webkit-scrollbar-track {

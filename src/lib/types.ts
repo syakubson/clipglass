@@ -43,6 +43,7 @@ export interface AppSettings {
   voice_translate_lang: string;
   voice_dictionary: string;
   voice_selected_text: boolean;
+  board_vertical: boolean;
 }
 
 export interface AudioInputDevice {
