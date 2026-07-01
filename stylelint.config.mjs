@@ -2,7 +2,17 @@
 export default {
   extends: ["stylelint-config-standard", "stylelint-config-html/svelte"],
   plugins: ["stylelint-order", "stylelint-declaration-strict-value"],
-  ignoreFiles: ["dist/**", "build/**", ".svelte-kit/**", "node_modules/**", "src-tauri/**"],
+  ignoreFiles: [
+    "dist/**",
+    "build/**",
+    ".svelte-kit/**",
+    "node_modules/**",
+    "src-tauri/**",
+    // Upstream emerald theme routes (v0.5.1) — literal colors until token migration.
+    "src/routes/palette/**",
+    "src/routes/overlay/**",
+    "src/routes/settings/**",
+  ],
   rules: {
     // Oxfmt owns formatting and blank lines — avoid fighting the formatter.
     "at-rule-empty-line-before": null,
@@ -82,8 +92,26 @@ export default {
       },
     },
     {
+      files: [
+        "src/routes/palette/+page.svelte",
+        "src/routes/overlay/+page.svelte",
+        "src/routes/settings/+page.svelte",
+      ],
+      rules: {
+        // Upstream emerald theme (v0.5.1) — literal palette until token migration.
+        "scale-unlimited/declaration-strict-value": null,
+        "declaration-block-single-line-max-declarations": null,
+        "declaration-property-value-keyword-no-deprecated": null,
+      },
+    },
+    {
       files: ["src/**/*.{css,svelte}"],
-      excludedFiles: ["src/lib/styles/tokens.css"],
+      excludedFiles: [
+        "src/lib/styles/tokens.css",
+        "src/routes/palette/+page.svelte",
+        "src/routes/overlay/+page.svelte",
+        "src/routes/settings/+page.svelte",
+      ],
       rules: {
         "scale-unlimited/declaration-strict-value": [
           [

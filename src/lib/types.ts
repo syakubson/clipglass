@@ -12,10 +12,7 @@ export interface ClipboardEntry {
   is_pinned: boolean;
   collection_id: number | null;
   tags: string[];
-  image_format?: string | null;
-  image_width?: number | null;
-  image_height?: number | null;
-  image_byte_size?: number | null;
+  ocr_text?: string | null;
 }
 
 export interface Collection {
@@ -51,6 +48,20 @@ export interface AppSettings {
   whisper_server_model: string;
   voice_shortcut: string;
   selected_microphone: string;
+  hub_url: string;
+  hub_token: string;
+  hub_chat_model: string;
+  hub_tagging_enabled: boolean;
+  hub_transcribe_enabled: boolean;
+  hub_search_enabled: boolean;
+  voice_polish_enabled: boolean;
+  voice_polish_model: string;
+  voice_polish_screenshot: boolean;
+  voice_polish_prompt: string;
+  voice_translate_lang: string;
+  voice_dictionary: string;
+  voice_selected_text: boolean;
+  board_vertical: boolean;
   voice_transcription_enabled: boolean;
   ai_tagging_enabled: boolean;
   overlay_shortcut_hints_enabled: boolean;
@@ -74,8 +85,6 @@ export interface ModelCatalog {
   recommended_memory_gb: number;
   options: ModelOption[];
 }
-
-// Exclusion IPC types use camelCase (backend #[serde(rename_all = "camelCase")]).
 
 /** `entry-tagged` Tauri event payload (Rust: `db::EntryTaggedPayload`). */
 export interface EntryTaggedPayload {

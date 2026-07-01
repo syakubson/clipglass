@@ -329,18 +329,18 @@ describe("buildTagBarModel with server tag counts", () => {
   });
 });
 
-function makeImageEntry(id: number, imageFormat: string): ClipboardEntry {
+function makeImageEntry(id: number, formatTag: string): ClipboardEntry {
   return {
     ...makeEntry(id),
     content_type: "image",
     text_content: null,
-    image_format: imageFormat,
+    tags: [formatTag],
   };
 }
 
 describe("entryMatchesTag", () => {
-  it("treats JPEG image_format as the jpg format tag (matches Rust normalization)", () => {
-    const entry = makeImageEntry(1, "JPEG");
+  it("matches format tags from entry.tags", () => {
+    const entry = makeImageEntry(1, "jpg");
     assert.equal(entryMatchesTag(entry, "jpg"), true);
     assert.equal(entryMatchesTag(entry, "png"), false);
   });

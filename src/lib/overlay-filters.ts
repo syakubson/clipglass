@@ -23,14 +23,6 @@ export function isFormatTag(tag: string): boolean {
   return IMAGE_FORMAT_TAG_SET.has(tag);
 }
 
-/** Mirrors Rust `image_format` normalization (JPEG → jpg tag). */
-export function normalizeImageFormatForTagMatch(format: string | null | undefined): string | null {
-  if (!format) return null;
-  const lower = format.toLowerCase();
-  if (lower === "jpeg") return "jpg";
-  return lower;
-}
-
 export function entryMatchesKind(entry: ClipboardEntry, kind: ContentKind): boolean {
   switch (kind) {
     case "all":
@@ -51,8 +43,7 @@ export function entryMatchesTag(entry: ClipboardEntry, tag: string): boolean {
     return (entry.tags ?? []).some((entryTag) => cardTagDisplayLabel(entryTag) === target);
   }
   if ((entry.tags ?? []).includes(tag)) return true;
-  if (entry.content_type !== "image") return false;
-  return normalizeImageFormatForTagMatch(entry.image_format) === tag;
+  return false;
 }
 
 export function filterKindPool(

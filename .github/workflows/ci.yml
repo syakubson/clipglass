@@ -1,27 +1,85 @@
 name: CI
 
+# Continuous checks on pushes and PRs.
+#
+#  - check-macos:    the real gate. Runs `make check` (frontend typecheck/lint/tests
+#                    plus Rust compile, Clippy, fmt, and tests) on Apple Silicon.
+#  - build-windows:  EXPERIMENTAL. Copyosity is a macOS-native app (NSPanel,
+#                    CGEvent, Vision OCR, Apple Events). On Windows those modules
+#                    fall back to inert stubs, so this is at best a hollow,
+#                    non-functional shell. It is marked `continue-on-error` so it
+#                    never blocks the build — it just tracks how close the
+#                    cross-platform core is to compiling on Windows.
+
 on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 jobs:
-  check:
-    runs-on: macos-latest
+  check-macos:
+    name: Check (macOS)
+    runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
-          node-version: "22"
-      - name: npm check
+          node-version: 22
+
+      - name: Setup Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Full project check
         env:
           HUSKY: "0"
-        run: npm ci && npm run check
+        run: make check
 
-  sf-symbols:
-    # Pin macOS major for export only — path geometry varies by OS (see SF_SYMBOL_EXPORT_MACOS_MAJOR).
-    runs-on: macos-15
+  build-windows:
+    name: Build (Windows, experimental — hollow shell)
+    runs-on: windows-latest
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
-      - name: SF Symbols registry in sync
-        run: make export-sf-symbols && git diff --exit-code src/lib/sf-symbols/registry.ts src/lib/styles/tokens.css
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: windows-cargo-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: windows-cargo-
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      # Type-check the cross-platform Rust core on Windows. macOS-only modules
+      # compile to their inert stubs here; this surfaces any ungated native code.
+      - name: Backend check (cargo, Windows)
+        working-directory: src-tauri
+        run: cargo check

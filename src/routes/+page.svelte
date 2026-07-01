@@ -5,6 +5,7 @@
   import { parseEntryTaggedEvent, type Collection, type ExcludableAppCandidate } from "$lib/types";
   import {
     getCollections,
+    getAppSettings,
     hideMainWindow,
     openSettingsWindow,
     activateEntry,
@@ -24,7 +25,6 @@
   // TEMP: re-enable with Content Kind segment block below.
   // import ContentKindSegment from "$lib/components/ContentKindSegment.svelte";
   import TagFilterBar from "$lib/components/TagFilterBar.svelte";
-  import SfSymbol from "$lib/components/SfSymbol.svelte";
   import {
     buildTagBarModel,
     isFormatTag,
@@ -59,6 +59,7 @@
     shouldRunScrollToSelectedGeneration,
     shouldScheduleTrackpadLeadingSync,
   } from "$lib/overlay-browse-sync";
+  import { initPlatform, platformIsMacOS } from "$lib/platform.svelte";
 
   const overlayShortcutHints: KeyboardHint[] = [
     { prefix: "Click", action: "copy" },
@@ -68,6 +69,7 @@
     { keys: "Esc", action: "clear search / dismiss" },
   ];
 
+  let boardVertical = $state(false);
   let selectedIndex = $state(-1);
   let gridEl: HTMLDivElement | undefined = $state();
   let appEl: HTMLDivElement | undefined = $state();
@@ -105,6 +107,14 @@
 
   const SETTINGS_SYNC_USER_NOTICE =
     "Couldn't load app settings. Tags and filters may not work properly. Restart Copyosity.";
+
+  async function loadLayout() {
+    try {
+      boardVertical = (await getAppSettings()).board_vertical;
+    } catch (e) {
+      console.error("Failed to load layout:", e);
+    }
+  }
 
   const overlay = createOverlayEntriesStore({
     getVisible: () => visible,
@@ -398,7 +408,11 @@
     isRevealing = true;
     const hadPendingReload = pendingReload;
     pendingReload = false;
-    if (gridEl) gridEl.scrollLeft = 0;
+    if (gridEl) {
+      gridEl.scrollLeft = 0;
+      gridEl.scrollTop = 0;
+    }
+    void loadLayout();
     suppressSelectionSyncCount = 0;
     keyboardBrowseUntil = 0;
 
@@ -456,6 +470,7 @@
   }
 
   async function loadExcludeCandidate() {
+    if (!platformIsMacOS()) return;
     try {
       const candidate = await getExcludableAppCandidate();
       excludeCandidate = candidate;
@@ -496,8 +511,10 @@
   // panelMotionMode / settings instant-hide: manual QA — overlay → settings → reopen.
   // Manual QA: docs/plans/feature-overlay-content-tag-filters.md §7.
   onMount(() => {
+    void initPlatform();
     void overlay.syncOverlaySettings();
     void overlay.warmCatalog();
+    void loadLayout();
     loadCollections();
 
     invoke("frontend_ready");
@@ -532,6 +549,7 @@
     const unlistenClipboard = listen("clipboard-changed", scheduleReload);
     const unlistenHistory = listen("history-changed", () => {
       void overlay.syncOverlaySettings();
+      void loadLayout();
     });
     const unlistenTagged = listen("entry-tagged", handleEntryTagged);
 
@@ -590,22 +608,26 @@
         return;
       }
 
-      if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+      if (e.key === "ArrowRight" || e.key === "ArrowLeft" || e.key === "ArrowDown" || e.key === "ArrowUp") {
         if (typingInField && !searchFocused) return;
         if (overlay.displayListPending || overlay.displayFetchFailed) return;
         e.preventDefault();
         setInputModality("keyboard");
         touchKeyboardBrowseScroll();
         const scrollCtx = keyboardArrowScrollContext();
+        const direction =
+          e.key === "ArrowRight" || e.key === "ArrowDown"
+            ? "right"
+            : "left";
         selectedIndex = nextIndexAfterKeyboardArrow({
-          direction: e.key === "ArrowRight" ? "right" : "left",
+          direction,
           selectedIndex,
           leadingIndex: scrollCtx.leadingIndex,
           selectedOffScreen: scrollCtx.selectedOffScreen,
           wrapperMissing: scrollCtx.wrapperMissing,
           entryCount: filteredEntries.length,
         });
-        if (e.key === "ArrowRight" && selectedIndex === filteredEntries.length - 1) {
+        if (direction === "right" && selectedIndex === filteredEntries.length - 1) {
           void overlay.loadNextEntryPage();
         }
         scrollToSelected({ behavior: "auto", keyboardScroll: true });
@@ -841,9 +863,18 @@
       blurDeselectedCards(cards, targetIndex);
 
       const behavior = behaviorOverride ?? scrollBehavior();
-      const didScroll = snapCardIntoPaddedViewport(card, gridEl, behavior);
-      if (shouldIncrementSuppressOnProgrammaticScroll({ didScroll, suppressLeadingSync })) {
-        suppressSelectionSyncCount += 1;
+      if (boardVertical) {
+        const measureEl = scrollMeasureEl(card);
+        measureEl.scrollIntoView({
+          behavior,
+          block: "center",
+          inline: "nearest",
+        });
+      } else {
+        const didScroll = snapCardIntoPaddedViewport(card, gridEl, behavior);
+        if (shouldIncrementSuppressOnProgrammaticScroll({ didScroll, suppressLeadingSync })) {
+          suppressSelectionSyncCount += 1;
+        }
       }
 
       const keepSearchFocus = searchBar?.isFocused() ?? false;
@@ -858,6 +889,7 @@
 <div
   class="app"
   class:visible
+  class:vertical={boardVertical}
   data-panel-motion={panelMotionMode}
   bind:this={appEl}
 >
@@ -871,7 +903,7 @@
       onupdate={loadCollections}
     />
     <div class="header-actions">
-      {#if excludeCandidate && !excludeCandidate.alreadyExcluded}
+      {#if platformIsMacOS() && excludeCandidate && !excludeCandidate.alreadyExcluded}
         {@const excludeLabel = excludeFromClipboardHistoryAriaLabel(
           excludeCandidate.displayName,
         )}
@@ -888,7 +920,7 @@
           >
         </button>
       {/if}
-      {#if excludeNotice}
+      {#if platformIsMacOS() && excludeNotice}
         <span
           class="status-hint exclude-notice"
           class:neutral={excludeNoticeTone === "neutral"}
@@ -901,10 +933,27 @@
       <button
         class="settings-btn app-btn"
         type="button"
+        aria-label="Web search (Cmd+Shift+Space)"
+        title="Web search · ⌘⇧Space"
+        onclick={() => invoke("open_command_palette")}
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"
+          />
+        </svg>
+      </button>
+      <button
+        class="settings-btn app-btn"
+        type="button"
         aria-label="Open settings"
         onclick={() => openSettingsWindow()}
       >
-        <SfSymbol name="gearshape" class="overlay-header-settings-icon" />
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            d="M19.14 12.94c.04-.31.06-.62.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.03 7.03 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.58.22-1.13.53-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.71 8.84a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.62-.06.94s.02.63.06.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32a.5.5 0 0 0 .6.22l2.39.96c.5.41 1.05.72 1.63.94l.36 2.54a.5.5 0 0 0 .5.42h3.84a.5.5 0 0 0 .5-.42l.36-2.54c.58-.22 1.13-.53 1.63-.94l2.39.96a.5.5 0 0 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64zM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7z"
+          />
+        </svg>
       </button>
       <button
         class="close-btn app-btn"
@@ -912,7 +961,9 @@
         aria-label="Close overlay"
         onclick={() => forceHideWindow()}
       >
-        <SfSymbol name="xmark" class="overlay-header-close-icon" />
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M18.3 5.7a1 1 0 0 0-1.4-1.4L12 9.17 7.1 4.3a1 1 0 0 0-1.4 1.4L10.6 11 5.7 15.9a1 1 0 1 0 1.4 1.4L12 12.83l4.9 4.87a1 1 0 0 0 1.4-1.4L13.4 11z" />
+        </svg>
       </button>
     </div>
   </header>
@@ -953,6 +1004,7 @@
 
   <div
     class="grid-container"
+    class:vertical={boardVertical}
     bind:this={gridEl}
     onscroll={handleGridScroll}
     onscrollend={handleGridScrollEnd}
@@ -1216,8 +1268,10 @@
     border-color: var(--border-emphasis);
   }
 
-  .settings-btn :global(svg),
-  .close-btn :global(svg) {
+  .settings-btn svg,
+  .close-btn svg {
+    width: 18px;
+    height: 18px;
     fill: currentcolor;
   }
 
@@ -1231,6 +1285,27 @@
     scroll-snap-type: x mandatory;
     align-items: flex-start;
     min-height: 0;
+  }
+
+  .grid-container.vertical {
+    flex-direction: column;
+    overflow: hidden auto;
+    scroll-snap-type: y proximity;
+    align-items: stretch;
+    scroll-padding-inline: 0;
+  }
+
+  .grid-container.vertical .card-wrapper {
+    width: 100%;
+    scroll-snap-align: center;
+  }
+
+  .grid-container.vertical :global(.card) {
+    width: 100%;
+    min-width: 0;
+    height: auto;
+    min-height: 60px;
+    max-height: 190px;
   }
 
   .card-wrapper {

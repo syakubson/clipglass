@@ -33,9 +33,12 @@ pub fn get_entries(
     tag_variants: Option<Vec<String>>,
     content_kind: Option<String>,
 ) -> Result<Vec<ClipboardEntry>, String> {
+    let limit = limit.unwrap_or(50).clamp(1, 200);
+    let offset = offset.unwrap_or(0).max(0);
+
     db.get_entries(
-        limit.unwrap_or(50),
-        offset.unwrap_or(0),
+        limit,
+        offset,
         collection_id,
         pinned_only.unwrap_or(false),
         search.as_deref(),
@@ -232,6 +235,20 @@ pub fn update_app_settings(
     voice_transcription_enabled: Option<bool>,
     ai_tagging_enabled: Option<bool>,
     overlay_shortcut_hints_enabled: Option<bool>,
+    hub_url: Option<String>,
+    hub_token: Option<String>,
+    hub_chat_model: Option<String>,
+    hub_tagging_enabled: Option<bool>,
+    hub_transcribe_enabled: Option<bool>,
+    hub_search_enabled: Option<bool>,
+    voice_polish_enabled: Option<bool>,
+    voice_polish_model: Option<String>,
+    voice_polish_screenshot: Option<bool>,
+    voice_polish_prompt: Option<String>,
+    voice_translate_lang: Option<String>,
+    voice_dictionary: Option<String>,
+    voice_selected_text: Option<bool>,
+    board_vertical: Option<bool>,
 ) -> Result<AppSettings, String> {
     if let Some(model) = ollama_model.as_deref() {
         ollama::validate_model_name(model)?;
@@ -251,6 +268,20 @@ pub fn update_app_settings(
             voice_transcription_enabled,
             ai_tagging_enabled,
             overlay_shortcut_hints_enabled,
+            hub_url.as_deref(),
+            hub_token.as_deref(),
+            hub_chat_model.as_deref(),
+            hub_tagging_enabled,
+            hub_transcribe_enabled,
+            hub_search_enabled,
+            voice_polish_enabled,
+            voice_polish_model.as_deref(),
+            voice_polish_screenshot,
+            voice_polish_prompt.as_deref(),
+            voice_translate_lang.as_deref(),
+            voice_dictionary.as_deref(),
+            voice_selected_text,
+            board_vertical,
         )
         .map_err(|e| e.to_string())?;
 
@@ -387,7 +418,7 @@ pub fn retag_entry(
         return Ok(Vec::new());
     };
 
-    let tags = match ollama::tag_text(&text) {
+    let tags = match crate::tagging::tag(db.inner(), &text) {
         Some(tags) => {
             db.set_entry_tags(entry_id, &tags)
                 .map_err(|e| e.to_string())?;
@@ -588,6 +619,52 @@ pub fn rebind_voice_shortcut(app: tauri::AppHandle) -> Result<String, String> {
 #[tauri::command]
 pub fn list_microphones() -> Result<Vec<crate::whisper::AudioInputDevice>, String> {
     Ok(crate::whisper::list_input_devices())
+}
+
+/// Test connectivity to the NeuralDeep hub. Uses provided url/token when given,
+/// otherwise falls back to the saved settings. Returns the number of models.
+#[tauri::command]
+pub fn hub_test_connection(
+    db: State<'_, Arc<Database>>,
+    url: Option<String>,
+    token: Option<String>,
+) -> Result<usize, String> {
+    let settings = db.get_app_settings().map_err(|e| e.to_string())?;
+    let url = url
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or(settings.hub_url);
+    let token = token
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or(settings.hub_token);
+    crate::hub::test_connection(&url, &token)
+}
+
+/// List available hub model ids (uses saved url/token unless overridden).
+#[tauri::command]
+pub fn hub_list_models(
+    db: State<'_, Arc<Database>>,
+    url: Option<String>,
+    token: Option<String>,
+) -> Result<Vec<String>, String> {
+    let settings = db.get_app_settings().map_err(|e| e.to_string())?;
+    let url = url
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or(settings.hub_url);
+    let token = token
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or(settings.hub_token);
+    crate::hub::list_models(&url, &token)
+}
+
+#[tauri::command]
+pub fn get_platform() -> &'static str {
+    if cfg!(target_os = "macos") {
+        "macos"
+    } else if cfg!(target_os = "windows") {
+        "windows"
+    } else {
+        "linux"
+    }
 }
 
 #[cfg(test)]

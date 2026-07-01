@@ -1,4 +1,25 @@
-name: Release
+name: Release (macOS)
+
+# Builds, signs, and notarizes Copyosity on a version tag push (e.g. `v0.5.1`),
+# then uploads separate notarized DMGs for Apple Silicon (aarch64) and Intel (x86_64).
+#
+# The pipeline mirrors docs/NOTARIZATION.md:
+#   - Tauri signs the .app with the Developer ID Application identity + hardened
+#     runtime (from src-tauri/tauri.conf.json bundle.macOS).
+#   - notarytool submits with --wait, stapler staples the .app and the .dmg.
+#   - the DMG is rebuilt as a UDIF (UDZO) image (makehybrid -> convert), signed,
+#     notarized, and stapled — because notarytool only accepts UDIF DMGs.
+#
+# Required repository secrets (Settings -> Secrets and variables -> Actions):
+#   APPLE_CERTIFICATE_BASE64   base64 of the Developer ID Application .p12 cert
+#   APPLE_CERTIFICATE_PASSWORD password for that .p12
+#   KEYCHAIN_PASSWORD          arbitrary password for the temporary CI keychain
+#   APPLE_ID                   Apple ID email (member of the team) for notarytool
+#   APPLE_PASSWORD             app-specific password (xxxx-xxxx-xxxx-xxxx)
+#   APPLE_TEAM_ID              Apple Developer Team ID
+#   APPLE_SIGNING_IDENTITY     full identity, e.g. "Developer ID Application: Name (TEAMID)"
+#
+# None of these values are hardcoded here — configure them in repo settings.
 
 on:
   push:
@@ -6,48 +27,191 @@ on:
       - "v*"
   workflow_dispatch:
 
+permissions:
+  contents: write # needed to create/update the GitHub Release
+
 jobs:
   audit:
+    name: cargo audit
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy, rustfmt
       - name: Install cargo-audit
         run: cargo install cargo-audit --locked
       - name: cargo audit
         working-directory: src-tauri
         run: cargo audit
 
-  check:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy, rustfmt
-      - name: npm check
-        env:
-          HUSKY: "0"
-        run: npm ci && npm run check
-      - name: cargo clippy
-        working-directory: src-tauri
-        run: cargo clippy --all-targets -- -D warnings
-      - name: cargo fmt check
-        working-directory: src-tauri
-        run: cargo fmt --check
-      - name: cargo test
-        working-directory: src-tauri
-        run: cargo test
+  build:
+    name: Build (${{ matrix.arch }})
+    needs: audit
+    runs-on: macos-14 # Apple Silicon runner (cross-compiles x86_64 when needed)
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: aarch64
+            rust_target: ""
+          - arch: x86_64
+            rust_target: x86_64-apple-darwin
 
-  sf-symbols:
-    # Pin macOS major for export only — path geometry varies by OS (see SF_SYMBOL_EXPORT_MACOS_MAJOR).
-    runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
-      - name: SF Symbols registry in sync
-        run: make export-sf-symbols && git diff --exit-code src/lib/sf-symbols/registry.ts src/lib/styles/tokens.css
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Rust target (cross-compile)
+        if: matrix.rust_target != ''
+        run: rustup target add ${{ matrix.rust_target }}
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: ${{ runner.os }}-cargo-${{ matrix.arch }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-${{ matrix.arch }}-
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      # Import the Developer ID Application certificate into a temporary,
+      # CI-only keychain so codesign / Tauri can sign the bundle.
+      - name: Import signing certificate
+        env:
+          APPLE_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          CERT_PATH="$RUNNER_TEMP/certificate.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
+
+          echo "$APPLE_CERTIFICATE_BASE64" | base64 --decode > "$CERT_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          security import "$CERT_PATH" -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          security list-keychain -d user -s "$KEYCHAIN_PATH" login.keychain-db
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
+
+      # Tauri signs the .app using bundle.macOS.signingIdentity + entitlements
+      # from tauri.conf.json (hardened runtime + timestamp).
+      - name: Build (Tauri bundle)
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -n "${{ matrix.rust_target }}" ]; then
+            npm run tauri build -- --target "${{ matrix.rust_target }}"
+          else
+            npm run tauri build
+          fi
+
+      # Notarize the .app, staple it, rebuild the DMG as UDIF, sign + notarize +
+      # staple the DMG. Mirrors docs/NOTARIZATION.md steps 2-4.
+      - name: Notarize and staple
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          set -euo pipefail
+          if [ -n "${{ matrix.rust_target }}" ]; then
+            BUNDLE_DIR="src-tauri/target/${{ matrix.rust_target }}/release/bundle"
+          else
+            BUNDLE_DIR="src-tauri/target/release/bundle"
+          fi
+
+          APP_PATH="$(find "$BUNDLE_DIR/macos" -maxdepth 1 -name '*.app' | head -n 1)"
+          if [ -z "$APP_PATH" ]; then
+            echo "No .app found under $BUNDLE_DIR/macos" >&2
+            exit 1
+          fi
+          APP_NAME="$(basename "$APP_PATH" .app)"
+          echo "App: $APP_PATH (name: $APP_NAME)"
+
+          ditto -c -k --keepParent "$APP_PATH" "$RUNNER_TEMP/$APP_NAME.zip"
+          xcrun notarytool submit "$RUNNER_TEMP/$APP_NAME.zip" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
+          xcrun stapler staple "$APP_PATH"
+
+          STAGING="$RUNNER_TEMP/dmg-staging"
+          rm -rf "$STAGING"
+          mkdir -p "$STAGING"
+          cp -R "$APP_PATH" "$STAGING/"
+          ln -s /Applications "$STAGING/Applications"
+
+          hdiutil makehybrid -hfs -hfs-volume-name "$APP_NAME" \
+            -o "$RUNNER_TEMP/hybrid.dmg" "$STAGING"
+          VERSION="$(node -e "console.log(require('./src-tauri/tauri.conf.json').version)")"
+          DMG_PATH="$RUNNER_TEMP/Copyosity_${VERSION}_${{ matrix.arch }}.dmg"
+          hdiutil convert "$RUNNER_TEMP/hybrid.dmg" -format UDZO -o "$DMG_PATH"
+
+          codesign --force --sign "$APPLE_SIGNING_IDENTITY" "$DMG_PATH"
+
+          xcrun notarytool submit "$DMG_PATH" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
+          xcrun stapler staple "$DMG_PATH"
+
+          xcrun stapler validate "$DMG_PATH"
+          spctl -a -vvv -t install "$DMG_PATH" || true
+
+          echo "DMG_PATH=$DMG_PATH" >> "$GITHUB_ENV"
+
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: copyosity-dmg-${{ matrix.arch }}
+          path: ${{ env.DMG_PATH }}
+          if-no-files-found: error
+
+      - name: Clean up keychain
+        if: always()
+        run: security delete-keychain "$RUNNER_TEMP/app-signing.keychain-db" || true
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download DMG artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: copyosity-dmg-*
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.dmg
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

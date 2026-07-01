@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import SfSymbol from "$lib/components/SfSymbol.svelte";
   import type { ClipboardEntry } from "$lib/types";
   import { copyEntry, activateEntry, deleteEntry, pinEntry, retagEntry } from "$lib/api";
   import { prepareBusyUi } from "$lib/run-with-busy-ui";
@@ -10,7 +9,6 @@
     formatCardTagLabel,
   } from "$lib/card-tag-label";
   import { cardDisplayTags } from "$lib/overlay-filters";
-  import { formatBytes, formatImageDimensions } from "$lib/image-meta";
 
   const {
     entry,
@@ -290,15 +288,6 @@
   const typeLabel = $derived(
     entry.content_type === "text" ? "Text" : entry.content_type === "image" ? "Image" : "File",
   );
-  const imageFormat = $derived(entry.content_type === "image" ? entry.image_format : null);
-  const imageDimensions = $derived(
-    formatImageDimensions(entry.image_width, entry.image_height),
-  );
-  const imageByteSize = $derived(
-    entry.image_byte_size != null && entry.image_byte_size > 0
-      ? formatBytes(entry.image_byte_size)
-      : null,
-  );
   const charLabel = $derived(entry.char_count ? `${entry.char_count.toLocaleString()} characters` : "");
   const tags = $derived(cardDisplayTags(entry, aiTaggingEnabled));
   const visibleTags = $derived(tags.slice(0, 3));
@@ -324,7 +313,6 @@
     <div class="card-type">
       <span class="type-label">
         <span>{typeLabel}</span>
-        {#if imageFormat}<span class="format-suffix">{imageFormat}</span>{/if}
       </span>
       <span class="time">{timeAgo(entry.created_at)}</span>
     </div>
@@ -336,16 +324,17 @@
           onclick={handlePaste}
           aria-label="Paste into active app"
           aria-busy={pasting ? "true" : undefined}
+          title="Paste"
         >
           <span class="app-btn-spinner" aria-hidden="true">
             <span class="app-btn-spinner-icon"></span>
           </span>
-          <SfSymbol name="arrow.down.doc" class="card-action-icon" />
+          ↵
         </button>
       {/if}
       {#if entry.content_type === "text" && retagAvailable}
-        <button class="action-btn app-btn" onclick={handleRetag} aria-label="Retag">
-          <SfSymbol name="arrow.triangle.2.circlepath" class="card-action-icon" />
+        <button class="action-btn app-btn" onclick={handleRetag} aria-label="Retag" title="Retag">
+          ↻
         </button>
       {/if}
       <button
@@ -354,10 +343,10 @@
         onclick={handlePin}
         aria-label={entry.is_pinned ? "Unpin" : "Pin"}
       >
-        <SfSymbol name={entry.is_pinned ? "star.fill" : "star"} class="card-action-icon" />
+        {entry.is_pinned ? "★" : "☆"}
       </button>
-      <button class="action-btn app-btn delete" onclick={handleDelete} aria-label="Delete">
-        <SfSymbol name="xmark" class="card-action-icon" />
+      <button class="action-btn app-btn delete" onclick={handleDelete} aria-label="Delete" title="Delete">
+        ×
       </button>
     </div>
   </div>
@@ -373,19 +362,6 @@
           <img src={imageThumbSrc(entry.image_thumb)} alt="Copied content" loading="lazy" decoding="async" />
         {:else}
           <div class="image-placeholder">Image</div>
-        {/if}
-        {#if imageDimensions || imageByteSize}
-          <div class="image-meta">
-            {#if imageDimensions}
-              <span class="image-meta-dimensions">{imageDimensions}</span>
-            {/if}
-            {#if imageDimensions && imageByteSize}
-              <span class="image-meta-sep" aria-hidden="true"> · </span>
-            {/if}
-            {#if imageByteSize}
-              <span class="image-meta-size">{imageByteSize}</span>
-            {/if}
-          </div>
         {/if}
       </div>
     {/if}
@@ -421,7 +397,9 @@
 
   {#if copied}
     <div class="copied-overlay">
-      <SfSymbol name="checkmark" class="card-copied-icon" />
+      <svg class="copied-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="20 6 9 17 4 12" />
+      </svg>
       <span>Copied</span>
     </div>
   {/if}
@@ -600,14 +578,6 @@
     color: var(--color-text-body);
   }
 
-  .format-suffix {
-    font-weight: 700;
-    font-size: var(--font-size-2xs);
-    letter-spacing: 0.08em;
-    color: var(--color-accent-text-soft);
-    text-transform: uppercase;
-  }
-
   .time {
     font-size: var(--font-size-xs);
     color: var(--color-text-muted);
@@ -671,8 +641,8 @@
     color: var(--color-accent-text);
   }
 
-  .action-btn.is-busy :global(.card-action-icon) {
-    opacity: 0;
+  .action-btn.is-busy {
+    opacity: 0.7;
   }
 
   .action-btn.pinned {
@@ -771,27 +741,6 @@
     justify-content: center;
     color: var(--color-text-subtle);
     font-size: var(--font-size-md);
-  }
-
-  .image-meta {
-    padding: 7px 10px;
-    background: var(--surface-3);
-    border-radius: var(--radius-inset);
-    font-size: var(--font-size-sm);
-    line-height: 1.5;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .image-meta-dimensions {
-    color: var(--color-text-label-strong);
-  }
-
-  .image-meta-sep {
-    color: var(--color-text-faint);
-  }
-
-  .image-meta-size {
-    color: var(--color-text-subtle);
   }
 
   .card-footer {
@@ -908,7 +857,7 @@
     z-index: 5;
   }
 
-  .copied-overlay :global(.card-copied-icon) {
+  .copied-overlay .copied-icon {
     animation: copied-icon-pop var(--duration-hud) var(--ease-interactive) forwards;
   }
 
@@ -947,7 +896,7 @@
       animation: copied-fade var(--duration-hud) var(--ease-interactive);
     }
 
-    .copied-overlay :global(.card-copied-icon) {
+    .copied-overlay .copied-icon {
       animation: none;
     }
   }

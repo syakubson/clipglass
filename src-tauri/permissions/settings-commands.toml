@@ -5,7 +5,10 @@ identifier = "settings-window-commands"
 description = "Settings: app config, excluded apps, Ollama, accessibility, history"
 commands.allow = [
   "get_app_settings",
+  "get_platform",
   "update_app_settings",
+  "hub_test_connection",
+  "hub_list_models",
   "get_model_catalog",
   "get_excluded_apps",
   "add_excluded_app",

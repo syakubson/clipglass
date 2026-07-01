@@ -5,6 +5,32 @@ All notable changes to Copyosity are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - Unreleased
+
+### Added (upstream merge)
+
+- **NeuralDeep Hub** — settings pane, hub tagging/transcription/search, model list from `/v1/models`.
+- **Command palette / Agent** — `Cmd+Shift+Space`, ReAct agent, session history, draggable palette window.
+- **On-device OCR** (macOS Vision) and **hub multimodal image tagging**.
+- **Voice overlay capsule** — pulse dot, scrolling waveform, duration timer.
+- **Emerald theme** (neuraldeep accent).
+- **Active-screen board** + **vertical mini-clipboard** mode.
+- **Voice polishing** — context-aware LLM cleanup, selected-text command mode.
+- **Windows experimental CI** — hollow shell build (`build-windows` job).
+- **Platform gating** — `get_platform` IPC; macOS-only UI (Accessibility, app exclusion) hidden on Windows.
+
+### Added (fork preserved)
+
+- Per-window Tauri capabilities (`main`, `settings`, `voice_overlay`, `palette`).
+- macOS paste pipeline (`clipboard_macos/`), overlay DB filters, infinite scroll, scroll-snap, keyboard hints.
+- Intel DMG release matrix, `cargo audit`, Lefthook/Oxlint toolchain.
+- Settings toggles: `voice_transcription_enabled`, `ai_tagging_enabled`, `overlay_shortcut_hints_enabled`.
+
+### Changed
+
+- Merged upstream v0.5.1 into fork `main`; image pipeline deferred (backup: `fork-image-pipeline` / `main-backup`).
+- Settings UI: upstream sidebar layout; upstream cross-platform icons (no SF Symbols in panel).
+
 ## [0.4.0] - Unreleased
 
 ### Added

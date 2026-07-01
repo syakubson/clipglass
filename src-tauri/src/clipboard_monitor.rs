@@ -16,8 +16,29 @@ pub fn notify_history_cleared() {
 }
 
 use crate::db::{ClipboardEntry, Database, EntryTaggedPayload};
-use crate::image_format;
-use crate::ollama;
+
+fn format_tag_from_hint(hint: &str) -> &'static str {
+    match hint.to_ascii_lowercase().as_str() {
+        "gif" => "gif",
+        "jpg" | "jpeg" => "jpg",
+        "png" => "png",
+        _ => "png",
+    }
+}
+
+fn format_tag_from_path(path: &Path) -> &'static str {
+    match path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|s| s.to_ascii_lowercase())
+        .as_deref()
+    {
+        Some("gif") => "gif",
+        Some("jpg" | "jpeg") => "jpg",
+        Some("png") => "png",
+        _ => "png",
+    }
+}
 
 const IMAGE_EXTENSIONS: &[&str] = &["png", "jpg", "jpeg", "gif"];
 
@@ -31,8 +52,8 @@ pub fn is_gif_bytes(data: &[u8]) -> bool {
 struct EncodedImage {
     full_b64: String,
     thumb_b64: String,
-    width: i64,
-    height: i64,
+    _width: i64,
+    _height: i64,
     byte_size: i64,
 }
 
@@ -64,8 +85,8 @@ fn encode_stored_gif(raw: &[u8]) -> Option<EncodedImage> {
     Some(EncodedImage {
         full_b64,
         thumb_b64,
-        width,
-        height,
+        _width: width,
+        _height: height,
         byte_size: raw.len() as i64,
     })
 }
@@ -121,8 +142,8 @@ fn encode_image_from_dynamic(image: &DynamicImage) -> Option<EncodedImage> {
     Some(EncodedImage {
         full_b64,
         thumb_b64,
-        width: width as i64,
-        height: height as i64,
+        _width: width as i64,
+        _height: height as i64,
         byte_size: full_bytes.len() as i64,
     })
 }
@@ -250,17 +271,17 @@ impl CaptureContext {
         }
 
         let content_hash = entry_content_hash(&base_hash);
-        let image_format = format_hint
-            .map(|hint| image_format::normalize(hint).to_owned())
-            .unwrap_or_else(|| image_format::detect_from_b64(&encoded.full_b64).to_owned());
-        let format_tag = image_format::tag_from_format(&image_format);
+        let format_tag = format_hint
+            .map(format_tag_from_hint)
+            .unwrap_or("png")
+            .to_owned();
 
         let entry = ClipboardEntry {
             id: 0,
             content_type: "image".to_owned(),
             text_content: None,
-            image_data: Some(encoded.full_b64),
-            image_thumb: Some(encoded.thumb_b64),
+            image_data: Some(encoded.full_b64.clone()),
+            image_thumb: Some(encoded.thumb_b64.clone()),
             source_app,
             source_app_icon: None,
             content_hash: content_hash.clone(),
@@ -269,10 +290,7 @@ impl CaptureContext {
             is_pinned: false,
             collection_id: None,
             tags: vec![format_tag.clone()],
-            image_format: Some(image_format),
-            image_width: Some(encoded.width),
-            image_height: Some(encoded.height),
-            image_byte_size: Some(encoded.byte_size),
+            ocr_text: None,
         };
 
         match self.db.insert_entry(&entry) {
@@ -283,6 +301,54 @@ impl CaptureContext {
                     saved.id = id;
                     saved.image_data = None;
                     let _ = self.app.emit("clipboard-changed", &saved);
+
+                    let db = self.db.clone();
+                    let app = self.app.clone();
+                    let png_b64_for_ocr = encoded.full_b64;
+                    let thumb_b64_for_tag = encoded.thumb_b64;
+                    std::thread::spawn(move || {
+                        let ocr_text = base64::Engine::decode(
+                            &base64::engine::general_purpose::STANDARD,
+                            &png_b64_for_ocr,
+                        )
+                        .ok()
+                        .and_then(|bytes| crate::ocr::ocr_image_png(&bytes))
+                        .map(|t| t.trim().to_string())
+                        .filter(|t| !t.is_empty());
+
+                        if let Some(text) = &ocr_text {
+                            if db.set_ocr_text(id, text).is_ok() {
+                                let _ = app.emit("entry-ocr", id);
+                            }
+                        }
+
+                        let settings = db.get_app_settings().ok();
+                        let use_hub = settings
+                            .as_ref()
+                            .map(|s| s.hub_tagging_enabled && !s.hub_token.is_empty())
+                            .unwrap_or(false);
+
+                        let tags = if use_hub {
+                            let s = settings.as_ref().unwrap();
+                            crate::hub::tag_image(
+                                &s.hub_url,
+                                &s.hub_token,
+                                "qwen3.6-35b-a3b",
+                                &thumb_b64_for_tag,
+                            )
+                            .or_else(|| ocr_text.as_ref().and_then(|t| crate::tagging::tag(&db, t)))
+                        } else if db.is_ai_tagging_enabled() {
+                            ocr_text.as_ref().and_then(|t| crate::tagging::tag(&db, t))
+                        } else {
+                            None
+                        };
+
+                        if let Some(tags) = tags {
+                            if db.set_entry_tags(id, &tags).is_ok() {
+                                let _ = app.emit("entry-tagged", id);
+                            }
+                        }
+                    });
                 }
                 Some(content_hash)
             }
@@ -317,10 +383,7 @@ impl CaptureContext {
             is_pinned: false,
             collection_id: None,
             tags: Vec::new(),
-            image_format: None,
-            image_width: None,
-            image_height: None,
-            image_byte_size: None,
+            ocr_text: None,
         };
 
         match self.db.insert_entry(&entry) {
@@ -336,7 +399,7 @@ impl CaptureContext {
                         if !db.is_ai_tagging_enabled() {
                             return;
                         }
-                        if let Some(tags) = ollama::tag_text(&text) {
+                        if let Some(tags) = crate::tagging::tag(&db, &text) {
                             if db.set_entry_tags(id, &tags).is_ok() {
                                 let _ = app.emit(
                                     "entry-tagged",
@@ -386,7 +449,7 @@ fn try_capture_from_clipboard(clipboard: &mut Clipboard, ctx: &CaptureContext) -
             let Some(encoded) = encode_image_file(&path) else {
                 continue;
             };
-            let format = image_format::detect_from_path(&path);
+            let format = format_tag_from_path(&path);
             if let Some(hash) = ctx.try_image(
                 encoded,
                 base_hash,
@@ -486,7 +549,15 @@ pub fn start_clipboard_monitor(app: AppHandle) {
     let db = app.state::<Arc<Database>>().inner().clone();
 
     std::thread::spawn(move || {
-        let mut clipboard = Clipboard::new().expect("Failed to access clipboard");
+        let mut clipboard = loop {
+            match Clipboard::new() {
+                Ok(cb) => break cb,
+                Err(e) => {
+                    eprintln!("[clipboard] init failed, retrying in 1s: {}", e);
+                    std::thread::sleep(std::time::Duration::from_secs(1));
+                }
+            }
+        };
         #[cfg(target_os = "macos")]
         let mut last_change_count = crate::clipboard_macos::change_count();
         let mut state = CaptureRetryState::new();

@@ -106,6 +106,20 @@ export async function updateAppSettings(opts: {
   whisper_server_model?: string | null;
   voice_shortcut?: string | null;
   selected_microphone?: string | null;
+  hub_url?: string | null;
+  hub_token?: string | null;
+  hub_chat_model?: string | null;
+  hub_tagging_enabled?: boolean | null;
+  hub_transcribe_enabled?: boolean | null;
+  hub_search_enabled?: boolean | null;
+  voice_polish_enabled?: boolean | null;
+  voice_polish_model?: string | null;
+  voice_polish_screenshot?: boolean | null;
+  voice_polish_prompt?: string | null;
+  voice_translate_lang?: string | null;
+  voice_dictionary?: string | null;
+  voice_selected_text?: boolean | null;
+  board_vertical?: boolean | null;
   voice_transcription_enabled?: boolean | null;
   ai_tagging_enabled?: boolean | null;
   overlay_shortcut_hints_enabled?: boolean | null;
@@ -118,10 +132,34 @@ export async function updateAppSettings(opts: {
     whisperServerModel: opts.whisper_server_model ?? null,
     voiceShortcut: opts.voice_shortcut ?? null,
     selectedMicrophone: opts.selected_microphone ?? null,
+    hubUrl: opts.hub_url ?? null,
+    hubToken: opts.hub_token ?? null,
+    hubChatModel: opts.hub_chat_model ?? null,
+    hubTaggingEnabled: opts.hub_tagging_enabled ?? null,
+    hubTranscribeEnabled: opts.hub_transcribe_enabled ?? null,
+    hubSearchEnabled: opts.hub_search_enabled ?? null,
+    voicePolishEnabled: opts.voice_polish_enabled ?? null,
+    voicePolishModel: opts.voice_polish_model ?? null,
+    voicePolishScreenshot: opts.voice_polish_screenshot ?? null,
+    voicePolishPrompt: opts.voice_polish_prompt ?? null,
+    voiceTranslateLang: opts.voice_translate_lang ?? null,
+    voiceDictionary: opts.voice_dictionary ?? null,
+    voiceSelectedText: opts.voice_selected_text ?? null,
+    boardVertical: opts.board_vertical ?? null,
     voiceTranscriptionEnabled: opts.voice_transcription_enabled ?? null,
     aiTaggingEnabled: opts.ai_tagging_enabled ?? null,
     overlayShortcutHintsEnabled: opts.overlay_shortcut_hints_enabled ?? null,
   });
+}
+
+/** Test the NeuralDeep hub connection. Returns the number of available models. */
+export async function hubTestConnection(url?: string, token?: string): Promise<number> {
+  return invoke("hub_test_connection", { url: url ?? null, token: token ?? null });
+}
+
+/** List available hub model ids (from /v1/models). */
+export async function hubListModels(url?: string, token?: string): Promise<string[]> {
+  return invoke("hub_list_models", { url: url ?? null, token: token ?? null });
 }
 
 export async function listMicrophones(): Promise<AudioInputDevice[]> {
@@ -146,6 +184,10 @@ export async function addExcludedApp(appNameOrBundleId: string): Promise<Exclude
 
 export async function removeExcludedApp(id: number): Promise<void> {
   return invoke("remove_excluded_app", { id });
+}
+
+export async function addFrontmostAppToExcluded(): Promise<string | null> {
+  return invoke("add_frontmost_app_to_excluded");
 }
 
 export async function getExcludableAppCandidate(): Promise<ExcludableAppCandidate | null> {
