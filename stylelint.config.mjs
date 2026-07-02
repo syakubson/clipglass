@@ -83,6 +83,18 @@ export default {
   },
   overrides: [
     {
+      // :global() is Svelte-only; plain .css imports must use normal selectors.
+      files: ["**/*.css"],
+      rules: {
+        "selector-pseudo-class-no-unknown": [
+          true,
+          {
+            ignorePseudoClasses: ["deep"],
+          },
+        ],
+      },
+    },
+    {
       files: ["src/lib/styles/tokens.css"],
       rules: {
         "color-hex-length": null,

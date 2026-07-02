@@ -3,7 +3,7 @@
  * Colors: tokens.css; shared buttons: overlay-chrome.css
  */
 
-:global(body) {
+body {
   background: transparent;
   overflow: hidden;
   user-select: none;
@@ -255,34 +255,34 @@
   white-space: normal;
 }
 
-.markdown :global(h1),
-.markdown :global(h2),
-.markdown :global(h3) {
+.markdown h1,
+.markdown h2,
+.markdown h3 {
   font-size: var(--font-size-palette-markdown-heading);
   margin: var(--space-gap-md) 0 var(--space-row);
   font-weight: 700;
 }
 
-.markdown :global(p) {
+.markdown p {
   margin: var(--space-chip-gap) 0;
 }
 
-.markdown :global(ul),
-.markdown :global(ol) {
+.markdown ul,
+.markdown ol {
   margin: var(--space-chip-gap) 0;
   padding-left: var(--overlay-header-pad-block);
 }
 
-.markdown :global(li) {
+.markdown li {
   margin: var(--space-segment-inset) 0;
 }
 
-.markdown :global(a) {
+.markdown a {
   color: var(--color-palette-link);
   text-decoration: underline;
 }
 
-.markdown :global(code) {
+.markdown code {
   background: var(--border-soft);
   padding: 1px 5px;
   border-radius: var(--radius-control-sm);
@@ -290,24 +290,24 @@
   font-family: var(--font-family-mono);
 }
 
-.markdown :global(pre) {
+.markdown pre {
   background: var(--surface-code-block);
   padding: var(--space-gap-md);
   border-radius: var(--radius-control);
   overflow-x: auto;
 }
 
-.markdown :global(pre code) {
+.markdown pre code {
   background: none;
   padding: 0;
 }
 
-.markdown :global(strong) {
+.markdown strong {
   font-weight: 700;
   color: var(--color-text-bright);
 }
 
-.markdown :global(blockquote) {
+.markdown blockquote {
   border-left: 3px solid var(--border-emphasis);
   margin: var(--space-chip-gap) 0;
   padding-left: var(--space-gap-md);
