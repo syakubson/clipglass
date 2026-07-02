@@ -310,7 +310,9 @@
         : (entry.text_content ?? "")
       : "",
   );
-  const ocrPreview = $derived(imageOcrPreviewText(entry.content_type, entry.ocr_text));
+  const ocrPreview = $derived(
+    compactVertical ? "" : imageOcrPreviewText(entry.content_type, entry.ocr_text),
+  );
   const imageFormatBadge = $derived(
     entry.content_type === "image"
       ? resolveImageFormatBadge(entry.image_format, entry.image_thumb)
