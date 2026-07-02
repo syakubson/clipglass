@@ -24,6 +24,7 @@
     type OllamaStatus,
   } from "$lib/api";
   import { openUrl } from "@tauri-apps/plugin-opener";
+  import { checkForUpdate, currentVersion, relaunch, type Update } from "$lib/updater";
 
   let settings = $state<AppSettings>({
     ollama_model: "qwen3:4b-instruct-2507-q4_K_M",
@@ -179,6 +180,8 @@
     refreshOllamaStatus();
     listMicrophones().then((m) => (microphones = m));
     checkAccessibility().then((v) => (accessibilityGranted = v));
+    currentVersion().then((v) => (appVersion = v));
+    checkUpdates();
 
     const unlistenPull = listen<string>("ollama-pull-progress", (event) => {
       pullProgress = event.payload;
@@ -276,7 +279,7 @@
   let modelDirty = $derived(settings.ollama_model !== savedModel);
 
   // ---- Sidebar navigation ----
-  type Pane = "hub" | "voice" | "ai" | "history" | "permissions";
+  type Pane = "hub" | "voice" | "ai" | "history" | "permissions" | "updates";
   let activePane = $state<Pane>("hub");
   const panes: { id: Pane; label: string; icon: string }[] = [
     { id: "hub", label: "NeuralDeep", icon: "✦" },
@@ -284,7 +287,61 @@
     { id: "ai", label: "Local AI", icon: "🧠" },
     { id: "history", label: "History", icon: "🗂" },
     { id: "permissions", label: "Permissions", icon: "🔑" },
+    { id: "updates", label: "Updates", icon: "⬆" },
   ];
+
+  // ---- Auto-updates ----
+  let appVersion = $state("");
+  let updateChecking = $state(false);
+  let update = $state<Update | null>(null);
+  let updateMessage = $state("");
+  let updateInstalling = $state(false);
+  let updateProgress = $state(0); // 0..100, -1 = indeterminate
+
+  async function checkUpdates() {
+    updateChecking = true;
+    updateMessage = "";
+    update = null;
+    try {
+      const u = await checkForUpdate();
+      if (u) {
+        update = u;
+        updateMessage = `Update available: ${u.version}`;
+      } else {
+        updateMessage = "You're on the latest version.";
+      }
+    } catch (e) {
+      updateMessage = `Check failed: ${e}`;
+    } finally {
+      updateChecking = false;
+    }
+  }
+
+  async function installUpdate() {
+    if (!update) return;
+    updateInstalling = true;
+    updateProgress = -1;
+    let total = 0;
+    let downloaded = 0;
+    try {
+      await update.downloadAndInstall((event) => {
+        if (event.event === "Started") {
+          total = event.data.contentLength ?? 0;
+          updateProgress = total ? 0 : -1;
+        } else if (event.event === "Progress") {
+          downloaded += event.data.chunkLength;
+          updateProgress = total ? Math.round((downloaded / total) * 100) : -1;
+        } else if (event.event === "Finished") {
+          updateProgress = 100;
+        }
+      });
+      updateMessage = "Installed — restarting…";
+      await relaunch();
+    } catch (e) {
+      updateMessage = `Install failed: ${e}`;
+      updateInstalling = false;
+    }
+  }
 
   // ---- Hub model list (from /v1/models) ----
   let hubModels = $state<string[]>([]);
@@ -598,6 +655,47 @@
       {/if}
     </div>
   </section>
+    {:else if activePane === "updates"}
+      <div class="pane-head">
+        <div class="pane-title">Updates</div>
+        <div class="pane-subtitle">Copyosity updates itself from GitHub Releases — signed and verified.</div>
+      </div>
+
+      <section class="settings-section">
+        <div class="settings-section-title">Version</div>
+        <div class="status-row">
+          <span class="status-dot" class:ok={!!update === false && !!updateMessage} class:checking={updateChecking}></span>
+          <span class="status-text">
+            Current: <code>{appVersion || "…"}</code>
+            {#if update}— new version <code>{update.version}</code> available{/if}
+          </span>
+          <button class="status-action" type="button" disabled={updateChecking || updateInstalling} onclick={checkUpdates}>
+            {#if updateChecking}<span class="spinner"></span> Checking…{:else}Check now{/if}
+          </button>
+        </div>
+        {#if updateMessage && !update}
+          <div class="settings-hint" style="margin-top: 6px;">{updateMessage}</div>
+        {/if}
+      </section>
+
+      {#if update}
+        <section class="settings-section">
+          <div class="settings-section-title">Update {update.version}</div>
+          {#if update.body}
+            <div class="settings-hint" style="white-space: pre-wrap; margin-bottom: 10px;">{update.body}</div>
+          {/if}
+          <button class="settings-ghost-btn" type="button" disabled={updateInstalling} onclick={installUpdate}>
+            {#if updateInstalling}
+              {updateProgress >= 0 ? `Installing… ${updateProgress}%` : "Installing…"}
+            {:else}
+              Download &amp; install, then restart
+            {/if}
+          </button>
+          {#if updateInstalling && updateProgress >= 0}
+            <div class="update-progress"><div class="update-progress-fill" style="width: {updateProgress}%"></div></div>
+          {/if}
+        </section>
+      {/if}
     {:else if activePane === "ai"}
       <div class="pane-head">
         <div class="pane-title">Local AI</div>
@@ -1435,6 +1533,21 @@
     font-family: "SF Mono", Menlo, monospace;
     font-size: 10.5px;
     color: #c8cee0;
+  }
+
+  .update-progress {
+    margin-top: 10px;
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+  }
+
+  .update-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #10b981, #34d399);
+    border-radius: 999px;
+    transition: width 0.2s ease;
   }
 
   .link-btn {
