@@ -114,7 +114,7 @@
   color: var(--color-text-body);
 }
 
-.filter-chip-format.active :global(.format-icon) {
+.filter-chip-format.active .format-icon {
   opacity: 1;
 }
 
