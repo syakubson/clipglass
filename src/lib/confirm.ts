@@ -14,7 +14,7 @@ export type ConfirmRequest = {
   messageBody?: ConfirmMessageBody;
   confirmLabel?: string;
   cancelLabel?: string;
-  /** When false (default), confirm uses neutral styling — user already chose a deliberate action. */
+  /** When true, confirm button uses destructive (red) styling per HIG. */
   destructiveConfirm?: boolean;
 };
 
@@ -85,7 +85,7 @@ export function getConfirmRequest(): ConfirmRequest | null {
 
 export function confirmDestructive(request: ConfirmRequest): Promise<boolean> {
   return new Promise((resolve) => {
-    queue.push({ request, resolve });
+    queue.push({ request: { destructiveConfirm: true, ...request }, resolve });
     showNextConfirm();
   });
 }

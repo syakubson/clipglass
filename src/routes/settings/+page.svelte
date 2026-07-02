@@ -617,7 +617,7 @@
   const clearHistoryMenuItems = $derived([
     {
       id: "unpinned",
-      label: "Clear unpinned history",
+      label: "Clear unpinned history…",
       disabled: historyCounts.unpinned === 0,
     },
     {
@@ -1556,9 +1556,9 @@
                 stroke-linejoin="round"
                 aria-hidden="true"
               >
-                <rect x="3" y="3" width="12" height="12" rx="2.5" />
-                <path d="M17 8v8" />
-                <path d="M13 12h8" />
+                <rect x="3" y="5.5" width="12" height="12" rx="2.5" />
+                <path d="M17 10.5v8" />
+                <path d="M13 14.5h8" />
               </svg>
               <span class="app-btn-label">{chooseApplicationActionLabel}</span>
               {@render busySpinner()}
