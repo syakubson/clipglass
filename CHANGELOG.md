@@ -7,31 +7,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.6.0] - Unreleased
 
+Fork merge release: upstream **v0.5.1** plus macOS clipboard/paste pipeline, overlay filters, security hardening, and HIG polish from the fork.
+
 ### Added
 
-- **Overlay filters** — server-side search, tag, and format filters with DB-wide chip counts; tag bar with PNG / GIF / JPG chips and semantic AI tags when tagging is on; infinite scroll with **Try again** on failed pages.
-- **Overlay search** — `⌘F` and `/`; Unicode case-insensitive search including OCR text on images; horizontal scroll-snap; optional keyboard-hints footer (**Settings → History**).
-- **History / Starred tabs** — macOS segmented control for pinned vs unpinned; custom collection pills with compact remove control.
-- **Image clipboard** — PNG / JPG / GIF from pasteboard and Finder (~20 MB); animated GIFs; format badges; dimensions and file size on cards; OCR preview under thumbnails.
-- **Primary Paste on cards** — accent **Paste** button; Enter, Space, and double-click paste the selected entry.
-- **macOS paste target** — overlay, command palette, and voice paste into the app that was frontmost when opened; improved paste into Messages and Electron apps.
-- **Clipboard capture** — Finder image files store pixels (not the file icon); ignore concealed clipboard content; suppress duplicate entries and Copyosity's own copy/paste from history.
+- **Overlay filters** — server-side search, tag, and format filters with DB-wide chip counts; tag bar with PNG / GIF / JPG chips and semantic AI tags when tagging is on; infinite scroll with **Try again** on failed pages; stale tag filters auto-clear when the grid is empty but history still has entries.
+- **Overlay search** — `⌘F` and `/`; two-step Escape (clear query, then dismiss); Unicode case-insensitive search including OCR text on images; horizontal scroll-snap; optional keyboard-hints footer (**Settings → History**); 28×28 pt clear-button hit target.
+- **History / Starred tabs** — macOS segmented control for pinned vs unpinned; custom collection pills with 7 px color dot and compact remove control.
+- **Image clipboard** — PNG / JPG / GIF from pasteboard and Finder (~20 MB); animated GIFs; format badges; dimensions and file size on cards; OCR preview under thumbnails; format tags always visible in the filter bar.
+- **Primary Paste on cards** — accent **Paste** button; Enter, Space, and double-click paste the selected entry; card actions on hover or keyboard focus (not bare selection).
+- **macOS paste pipeline** (`clipboard_macos/` on **objc2**) — paste-target remember/restore, AX tree walk, synthetic Cmd+V, concealed-pasteboard detection; overlay, command palette, and voice paste into the app that was frontmost when opened; improved paste into Messages and Electron apps.
+- **Unified clipboard writes** (`clipboard_write.rs`) — **Copy** / **Paste** modes shared by copy, activate, paste, and voice flows.
+- **Clipboard capture** — Finder image files store pixels (not the file icon); ignore concealed clipboard content; suppress duplicate entries and Copyosity's own copy/paste from history; hash reset on history clear.
 - **NeuralDeep Hub master switch** — one toggle for command palette, hub transcription/polish, and tray Agent Search.
-- **Privacy** — native app picker for excluded apps; **Exclude [App]** from the overlay; clear unpinned or all history with confirmation.
-- **Settings toggles** — AI tagging and voice transcription (off by default); overlay keyboard hints; Ollama onboarding states and model validation before download.
-- **Intel Mac builds** — x86_64 DMG alongside Apple Silicon.
+- **Privacy** — native app picker for excluded apps; bundle IDs as stable keys; **Exclude [App]** from the overlay; clear unpinned or all history with confirmation and live count sync.
+- **Settings toggles** — AI tagging and voice transcription (off by default); overlay keyboard hints; Ollama onboarding states and model validation before download; `is_tagging_ready` IPC for gated **Retag**.
+- **Intel Mac builds** — x86_64 DMG alongside Apple Silicon (`make build-macos-intel`, arch-specific artifacts in `dist/macos/`).
+- **Per-window Tauri capabilities** — scoped IPC for `main`, `settings`, `voice_overlay`, and `palette` (`paste_entry` / `activate_entry` on main only; `clear_history` and Ollama on settings only).
+- **Design system** — `tokens.css`, `form-controls.css`, `button-interaction.css`, `.inset-list` grouped rows; input-modality tracking for pointer vs keyboard focus rings; rem-based typography scale.
+- **Developer toolchain** — Oxlint, Oxfmt, Stylelint, Lefthook pre-commit, `make fix` / `make lint` / `make check`; Vite 8; optional `sccache` for Rust dev builds.
 - **Tray menu** — **Open Clipboard `⌘⇧V`**; Agent Search disabled when hub is off.
-- **Command palette** — HIG hover/focus on mode badge, history, actions, and toolbar.
-- **Accessibility** — focus-visible rings on cards, tabs, and search; search in Tab order; `prefers-reduced-motion`, `prefers-reduced-transparency`, and `prefers-contrast: more` support.
+- **Command palette** — Agent/Web mode switch; session history; streaming agent progress and markdown answers; draggable top bar, resize grip, minimize-to-dot; voice input; Insert / Copy / Close actions; HIG hover/focus on mode badge, history, actions, and toolbar.
+- **Accessibility** — focus-visible rings on cards, tabs, and search; search in Tab order; roving `tabindex` and selection chrome separated from keyboard focus; voice HUD `aria-live` baseline; `prefers-reduced-motion`, `prefers-reduced-transparency`, and `prefers-contrast: more` support.
 
 ### Changed
 
-- **Overlay** — sparkles icon opens command palette; semantic tag chips when NeuralDeep Hub tagging is configured; abbreviated tag labels; synonym merge in filter counts (e.g. `javascript` / `js`); format chips sorted by count; fixed panel height **415 / 450 px**; vertical board shows tag chips in the header strip.
-- **Tagging** — auto-tag and **Retag** work with NeuralDeep Hub or local Ollama; with AI tagging off, semantic tags are hidden in the UI.
-- **Cards** — single-click copies; SF Pro for plain text previews, SF Mono for code-like content; improved search-field readability on vibrancy.
+- **Merge** — integrated upstream **v0.5.1** with fork overlay, ACL, and platform gating; image-pipeline reconciliation deferred to a follow-up backlog item.
+- **Overlay** — Raycast-style open/close motion; sparkles icon opens command palette; outside-click dismiss; semantic tag chips when NeuralDeep Hub tagging is configured; abbreviated tag labels; synonym merge in filter counts (e.g. `javascript` / `js`); format chips sorted by count; fixed panel height **415 / 450 px**; **All / Text / Images** content-kind segment temporarily hidden; vertical board shows tag chips in the header strip; contextual empty states per filter.
+- **Tagging** — auto-tag and **Retag** work with NeuralDeep Hub or local Ollama; with AI tagging off, semantic tags are hidden in the UI; tag backfill when tagging is enabled.
+- **Cards** — fixed-height preview and footer layout; single-click copies; SF Pro for plain text previews, SF Mono for code-like content; filter chips visually distinct from card metadata badges; improved search-field readability on vibrancy.
+- **Iconography** — macOS SF Symbols in overlay actions, settings section icons, and voice HUD mic (upstream stroke SVG layout preserved elsewhere).
 - **Command palette & Settings** — visible over fullscreen apps on all Spaces.
-- **Settings** — inset-list HIG layout; boolean toggles apply immediately without losing unsaved edits; hub switch updates shortcuts and tray; unified form controls and multi-line field sizing.
+- **Settings** — inset-list HIG layout; native title bar; boolean toggles apply immediately without losing unsaved edits; hub switch updates shortcuts and tray; unified form controls and multi-line field sizing; Ollama actions on background threads with visible busy states; app display names from installed bundle metadata.
+- **Clipboard monitor** — captures only on real pasteboard changes; ignores Copyosity's own writes and when Copyosity is frontmost.
 - **Tray** — left-click opens menu only; open the overlay via **Open Clipboard** or `⌘⇧V`.
+
+### Fixed
+
+- Paste into Cursor, Messages, and other Electron/native targets (no double paste, compose-field focus, background-thread timing).
+- Voice and command palette paste into the stale overlay target instead of the app active at hotkey/open time.
+- Finder image capture via `public.file-url` pasteboard type (no filename-only text cards); re-copy after clear/delete.
+- History clear and last-card delete no longer re-insert stale clipboard content.
+- Image backfill for legacy rows (full-size data, format, dimensions, `jpg` normalization).
+- Settings partial updates no longer wipe Whisper or voice settings; accessibility enable hint persists until granted; Ollama unload and tagging test reliability; Save button layout jump.
+- Overlay dismissal on Space switch; invisible cards on panel open; selection/focus desync during search; card scroll clipping at grid edges; mouse pin no longer leaves the action toolbar stuck open; pinned star hover distinct from unpinned.
+- Excluded-app add-by-name errors and bundle-ID resolution; clear-history menu counts, notices, and confirm-dialog keyboard leak.
+- Settings Storage/Privacy spacing and clear-notice layout.
+
+### Security
+
+- Per-window IPC command scoping via Tauri capabilities (`main` / `settings` / `voice_overlay` / `palette`).
+- Ollama model name validation before `ollama pull` and settings persistence.
+- `cargo audit` in the release workflow before artifacts ship.
+- Tauri 2.11 upstream IPC ACL hardening.
 
 ## [0.5.1] - 2026-06-30
 

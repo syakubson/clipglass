@@ -356,7 +356,6 @@ pub fn run() {
                 .tooltip("Copyosity")
                 .menu(&build_tray_menu(app.handle())?)
                 .on_menu_event(|app, event| match event.id().as_ref() {
-                    "open" => toggle_window(app.app_handle()),
                     "search" => toggle_command_palette(app.app_handle()),
                     "overlay" => toggle_window(app.app_handle()),
                     "settings" => {
@@ -628,7 +627,6 @@ fn build_tray_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
         .map(|s| s.hub_enabled)
         .unwrap_or(false);
 
-    let status = MenuItem::with_id(app, "open", "Open Copyosity", true, None::<&str>)?;
     let search = MenuItem::with_id(
         app,
         "search",
@@ -648,9 +646,7 @@ fn build_tray_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
     let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
     Menu::with_items(
         app,
-        &[
-            &status, &search, &overlay, &ver, &sep, &settings, &sep2, &quit,
-        ],
+        &[&search, &overlay, &ver, &sep, &settings, &sep2, &quit],
     )
 }
 
