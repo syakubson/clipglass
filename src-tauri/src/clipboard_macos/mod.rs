@@ -9,7 +9,6 @@ pub use accessibility::{accessibility_trusted, open_accessibility_settings};
 #[allow(unused_imports)]
 pub use paste::{paste_into_target, simulate_cmd_v, spawn_automated_paste};
 
-#[cfg(target_os = "macos")]
 pub(crate) use accessibility::{
     capture_focus_for_pid, has_paste_focus, prefers_keyboard_paste, refresh_paste_focus_if_needed,
     restore_focused_ui_element, store_focused_ui_element, try_ax_paste_for_pid,
