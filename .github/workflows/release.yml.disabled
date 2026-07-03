@@ -1,6 +1,10 @@
+# DISABLED in the Clipglass fork: this pipeline requires an Apple Developer
+# signing identity which this project does not use. A signing-free release
+# pipeline will replace it. Rename back to release.yml to re-enable.
+
 name: Release (macOS)
 
-# Builds, signs, and notarizes Copyosity on a version tag push (e.g. `v0.6.0`),
+# Builds, signs, and notarizes Clipglass on a version tag push (e.g. `v0.6.0`),
 # then uploads separate notarized DMGs for Apple Silicon (aarch64) and Intel (x86_64).
 #
 # The pipeline mirrors docs/NOTARIZATION.md:
@@ -171,7 +175,7 @@ jobs:
           hdiutil makehybrid -hfs -hfs-volume-name "$APP_NAME" \
             -o "$RUNNER_TEMP/hybrid.dmg" "$STAGING"
           VERSION="$(node -e "console.log(require('./src-tauri/tauri.conf.json').version)")"
-          DMG_PATH="$RUNNER_TEMP/Copyosity_${VERSION}_${{ matrix.arch }}.dmg"
+          DMG_PATH="$RUNNER_TEMP/Clipglass_${VERSION}_${{ matrix.arch }}.dmg"
           hdiutil convert "$RUNNER_TEMP/hybrid.dmg" -format UDZO -o "$DMG_PATH"
 
           codesign --force --sign "$APPLE_SIGNING_IDENTITY" "$DMG_PATH"
