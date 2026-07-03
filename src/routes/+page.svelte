@@ -546,7 +546,7 @@
   // TEST-NOTE (+page integration): reveal/hide, keyboard, scroll prefetch, and Tauri
   // events are not automated. Playwright + running app would be needed (not installed).
   // panelMotionMode / settings instant-hide: manual QA — overlay → settings → reopen.
-  // Manual QA: docs/plans/feature-overlay-content-tag-filters.md §7.
+  // Manual QA: tag-filter overlay scenarios (see prior git history for the original checklist).
   onMount(() => {
     void initPlatform();
     void overlay.syncOverlaySettings();

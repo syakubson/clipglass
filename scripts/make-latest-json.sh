@@ -10,7 +10,7 @@ cd "$(dirname "$0")/.."
 
 VERSION=$(python3 -c "import json;print(json.load(open('src-tauri/tauri.conf.json'))['version'])")
 NOTES="${1:-Clipglass $VERSION}"
-BASE="https://github.com/vakovalskii/clipglass/releases/download/v$VERSION"
+BASE="https://github.com/syakubson/clipglass/releases/download/v$VERSION"
 MAC_DIR="src-tauri/target/release/bundle/macos"
 
 SIG_FILE=$(ls "$MAC_DIR"/*.app.tar.gz.sig 2>/dev/null | head -n1 || true)

@@ -4,7 +4,7 @@ Clipglass uses `tauri-plugin-updater`. On launch (and via **Settings → Updates
 the app fetches a manifest from GitHub Releases, and if a newer, **signed**
 version exists it downloads and installs it, then relaunches.
 
-- **Update source:** `https://github.com/vakovalskii/clipglass/releases/latest/download/latest.json`
+- **Update source:** `https://github.com/syakubson/clipglass/releases/latest/download/latest.json`
   (configured in `src-tauri/tauri.conf.json → plugins.updater.endpoints`).
 - **Signature:** every update artifact is signed with the updater private key;
   the app verifies it against the public key in `tauri.conf.json → plugins.updater.pubkey`.
@@ -31,7 +31,7 @@ export TAURI_SIGNING_PRIVATE_KEY="$(cat .tauri/clipglass-updater.key)"
 export TAURI_SIGNING_PRIVATE_KEY_PASSWORD=""
 npm run tauri build            # DMG bundling may fail (known) — the .app + .app.tar.gz are still made
 
-# 3. notarize the .app + build/notarize the DMG (see docs/NOTARIZATION.md)
+# 3. (optional) notarize the .app + DMG with your own Apple Developer ID
 # 4. generate the manifest
 ./scripts/make-latest-json.sh "Release notes here"
 
