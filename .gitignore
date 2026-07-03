@@ -36,7 +36,6 @@ tauri
 *.app
 *.mov
 *.mp4
-.last_notarization_id
 
 # --- Misc build leftovers ---
 clipglass@0.1.0

@@ -16,11 +16,11 @@ version exists it downloads and installs it, then relaunches.
   If lost, you can never ship another auto-update (users must reinstall manually).
 - Public key: `.tauri/clipglass-updater.key.pub` — embedded in `tauri.conf.json`.
 - For CI, add the private key contents as the repo secret **`TAURI_SIGNING_PRIVATE_KEY`**
-  (the key has an empty password). Both `release.yml` and `windows-build.yml` already
-  reference it.
+  (the key has an empty password). The parked `release.yml.disabled` workflow
+  references it; re-enable and adapt it when the signing-free release pipeline lands.
 
-> Auto-update only works **from** a version that already ships the updater plugin
-> (0.5.2+). Older installs (0.5.1 and earlier) must be updated manually once.
+> Auto-update works from Clipglass's first release onward (the updater plugin
+> ships in every version).
 
 ## Releasing an update (macOS, local)
 
@@ -44,4 +44,5 @@ gh release create vX.Y.Z \
 ```
 
 `latest.json` must be a release asset so the `latest/download/latest.json` URL
-resolves. Adding a `windows-x86_64` entry (from the CI `.sig`) is optional.
+resolves. Clipglass is macOS-only for now, so `latest.json` only needs a
+`darwin-*` entry.

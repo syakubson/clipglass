@@ -13,8 +13,7 @@ RUST_RUN = bash "$(APP_DIR)/scripts/run-rust.sh"
 	fix fix-frontend fix-backend \
 	_verify-rust-env _compile-backend _test-backend \
 	clean-cache clean-cache-aggressive clean-all \
-	build-macos build-macos-intel build-macos-arm \
-	release-macos release-macos-intel release-macos-arm notarize-wait notarize-info
+	build-macos build-macos-intel build-macos-arm
 
 # --- Public command contract ---
 
@@ -120,18 +119,3 @@ build-macos-intel:
 
 build-macos-arm:
 	cd $(APP_DIR) && MACOS_ARCH=aarch64 ./scripts/build-macos.sh
-
-release-macos:
-	cd $(APP_DIR) && MACOS_ARCH=auto KEYCHAIN_PROFILE='AC_PASSWORD' WAIT_FOR_NOTARIZATION=0 ./scripts/release-macos.sh
-
-release-macos-intel:
-	cd $(APP_DIR) && MACOS_ARCH=x86_64 KEYCHAIN_PROFILE='AC_PASSWORD' WAIT_FOR_NOTARIZATION=0 ./scripts/release-macos.sh
-
-release-macos-arm:
-	cd $(APP_DIR) && MACOS_ARCH=aarch64 KEYCHAIN_PROFILE='AC_PASSWORD' WAIT_FOR_NOTARIZATION=0 ./scripts/release-macos.sh
-
-notarize-info:
-	cd $(APP_DIR) && xcrun notarytool info "$$(cat .last_notarization_id)" --keychain-profile AC_PASSWORD
-
-notarize-wait:
-	cd $(APP_DIR) && xcrun notarytool wait "$$(cat .last_notarization_id)" --keychain-profile AC_PASSWORD
