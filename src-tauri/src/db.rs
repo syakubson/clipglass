@@ -572,9 +572,7 @@ impl Database {
             .map(|v| matches!(v.to_lowercase().as_str(), "true" | "1" | "yes"))
             .unwrap_or(false);
 
-        let hub_url = self
-            .get_setting("hub_url")?
-            .unwrap_or_else(|| "https://api.neuraldeep.ru".to_string());
+        let hub_url = self.get_setting("hub_url")?.unwrap_or_default();
         let hub_token = self.get_setting("hub_token")?.unwrap_or_default();
         let hub_chat_model = self
             .get_setting("hub_chat_model")?

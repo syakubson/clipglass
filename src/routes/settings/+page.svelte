@@ -77,7 +77,7 @@
     voice_shortcut: "option+space",
     selected_microphone: "",
     hub_enabled: false,
-    hub_url: "https://api.neuraldeep.ru",
+    hub_url: "",
     hub_token: "",
     hub_chat_model: "gpt-oss-120b",
     hub_tagging_enabled: false,
@@ -893,7 +893,7 @@
               <div class="form-field">
                 <span class="form-label">3 steps</span>
                 <ol class="form-instruction-list">
-                  <li><button class="link-btn app-btn" type="button" onclick={() => openUrl("https://hub.neuraldeep.ru/app")}>Open the hub</button> → copy your <code>sk-…</code> key</li>
+                  <li>Get a key from your OpenAI-compatible API provider</li>
                   <li>Paste it into <strong>API Token</strong> below</li>
                   <li>Click <strong>Test connection</strong> → then <strong>Save</strong></li>
                 </ol>
@@ -905,7 +905,7 @@
                   class="form-input"
                   type="text"
                   bind:value={settings.hub_url}
-                  placeholder="https://api.neuraldeep.ru"
+                  placeholder="https://api.example.com/"
                 />
               </label>
               <label class="form-field">
