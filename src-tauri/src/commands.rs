@@ -221,7 +221,7 @@ pub fn open_settings_window(app: tauri::AppHandle) -> Result<(), String> {
         "settings",
         tauri::WebviewUrl::App("/settings".into()),
     )
-    .title("Copyosity Settings")
+    .title("Clipglass Settings")
     .inner_size(SETTINGS_WINDOW_WIDTH, SETTINGS_WINDOW_HEIGHT)
     .min_inner_size(SETTINGS_WINDOW_MIN_WIDTH, SETTINGS_WINDOW_MIN_HEIGHT)
     .resizable(true)

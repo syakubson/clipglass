@@ -13,7 +13,7 @@ static REMEMBERED_BUNDLE_ID: Mutex<Option<String>> = Mutex::new(None);
 
 #[cfg(any(target_os = "macos", test))]
 pub fn remember_app_identity(identity: &AppIdentity) {
-    if macos_app::is_copyosity_bundle(&identity.bundle_id) {
+    if macos_app::is_clipglass_bundle(&identity.bundle_id) {
         return;
     }
     *REMEMBERED_BUNDLE_ID.lock().unwrap() = Some(identity.bundle_id.clone());
@@ -30,14 +30,14 @@ pub fn remember_from_pid(pid: i32) {
     }
 }
 
-/// Live frontmost when it is not Copyosity; otherwise paste-target or remembered app.
+/// Live frontmost when it is not Clipglass; otherwise paste-target or remembered app.
 pub fn resolve_excludable_app_identity() -> Option<(AppIdentity, ExcludableAppSource)> {
     let frontmost = macos_app::frontmost_app_identity();
     if let Some(resolved) = resolve_excludable_from(frontmost, remembered_bundle_id()) {
         return Some(resolved);
     }
     #[cfg(target_os = "macos")]
-    if macos_app::is_copyosity_frontmost() {
+    if macos_app::is_clipglass_frontmost() {
         if let Some(pid) = crate::clipboard_macos::paste_target_pid() {
             if let Some(identity) = macos_app::app_identity_for_pid(pid) {
                 return Some((identity, ExcludableAppSource::Remembered));
@@ -52,7 +52,7 @@ fn resolve_excludable_from(
     remembered_bundle_id: Option<String>,
 ) -> Option<(AppIdentity, ExcludableAppSource)> {
     if let Some(identity) = frontmost {
-        if !macos_app::is_copyosity_bundle(&identity.bundle_id) {
+        if !macos_app::is_clipglass_bundle(&identity.bundle_id) {
             return Some((identity, ExcludableAppSource::Frontmost));
         }
     }
@@ -119,10 +119,10 @@ mod tests {
     }
 
     #[test]
-    fn remembered_used_when_frontmost_is_copyosity() {
+    fn remembered_used_when_frontmost_is_clipglass() {
         clear_remembered_for_test();
         let resolved = resolve_excludable_from(
-            Some(identity(macos_app::COPYOSITY_BUNDLE_ID, "Copyosity")),
+            Some(identity(macos_app::CLIPGLASS_BUNDLE_ID, "Clipglass")),
             Some("com.apple.Safari".into()),
         );
         let (app, source) = resolved.expect("candidate");
@@ -144,17 +144,17 @@ mod tests {
     }
 
     #[test]
-    fn ignores_copyosity_bundle_id() {
+    fn ignores_clipglass_bundle_id() {
         clear_remembered_for_test();
-        remember_app_identity(&identity(macos_app::COPYOSITY_BUNDLE_ID, "Copyosity"));
+        remember_app_identity(&identity(macos_app::CLIPGLASS_BUNDLE_ID, "Clipglass"));
         assert!(remembered_bundle_id().is_none());
     }
 
     #[test]
-    fn no_candidate_when_frontmost_is_copyosity_and_nothing_remembered() {
+    fn no_candidate_when_frontmost_is_clipglass_and_nothing_remembered() {
         clear_remembered_for_test();
         assert!(resolve_excludable_from(
-            Some(identity(macos_app::COPYOSITY_BUNDLE_ID, "Copyosity")),
+            Some(identity(macos_app::CLIPGLASS_BUNDLE_ID, "Clipglass")),
             None,
         )
         .is_none());
@@ -170,10 +170,10 @@ mod tests {
     }
 
     #[test]
-    fn copyosity_frontmost_with_remembered_still_resolves() {
+    fn clipglass_frontmost_with_remembered_still_resolves() {
         clear_remembered_for_test();
         let resolved = resolve_excludable_from(
-            Some(identity(macos_app::COPYOSITY_BUNDLE_ID, "Copyosity")),
+            Some(identity(macos_app::CLIPGLASS_BUNDLE_ID, "Clipglass")),
             Some("com.apple.Safari".into()),
         );
         let (app, source) = resolved.expect("candidate");

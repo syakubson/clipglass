@@ -21,7 +21,7 @@ const GIF_TEMP_MAX_AGE: Duration = Duration::from_secs(24 * 60 * 60);
 
 #[cfg(target_os = "macos")]
 pub fn gif_temp_dir() -> PathBuf {
-    std::env::temp_dir().join("copyosity-gif-paste")
+    std::env::temp_dir().join("clipglass-gif-paste")
 }
 
 /// How a clipboard write should be treated for history and pasteboard semantics.
@@ -96,7 +96,7 @@ pub fn write_image(
     Ok(())
 }
 
-/// Write text to the system clipboard without recording it in Copyosity history.
+/// Write text to the system clipboard without recording it in Clipglass history.
 pub fn set_text<'a>(
     clipboard: &mut Clipboard,
     text: impl Into<Cow<'a, str>>,
@@ -104,7 +104,7 @@ pub fn set_text<'a>(
     write_text(clipboard, text, ClipboardWriteMode::Copy)
 }
 
-/// Write image pixels to the system clipboard without recording it in Copyosity history.
+/// Write image pixels to the system clipboard without recording it in Clipglass history.
 pub fn set_image(clipboard: &mut Clipboard, image: ImageData<'static>) -> Result<(), String> {
     write_image(clipboard, image, ClipboardWriteMode::Copy)
 }
@@ -222,7 +222,7 @@ mod tests {
         use std::fs::OpenOptions;
 
         let base_dir =
-            std::env::temp_dir().join(format!("copyosity-gif-paste-test-{}", std::process::id()));
+            std::env::temp_dir().join(format!("clipglass-gif-paste-test-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&base_dir);
         std::fs::create_dir_all(&base_dir).unwrap();
 

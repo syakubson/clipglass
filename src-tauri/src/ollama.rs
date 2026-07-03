@@ -367,7 +367,7 @@ fn ollama_model() -> String {
 }
 
 fn debug_enabled() -> bool {
-    std::env::var("COPYOSITY_DEBUG_OLLAMA")
+    std::env::var("CLIPGLASS_DEBUG_OLLAMA")
         .map(|v| {
             let value = v.trim().to_ascii_lowercase();
             value == "1" || value == "true" || value == "yes" || value == "on"
@@ -377,7 +377,7 @@ fn debug_enabled() -> bool {
 
 fn log_debug(message: impl AsRef<str>) {
     if debug_enabled() {
-        eprintln!("copyosity[ollama]: {}", message.as_ref());
+        eprintln!("clipglass[ollama]: {}", message.as_ref());
     }
 }
 
@@ -636,7 +636,7 @@ pub fn ensure_runtime() {
         log_debug(format!("ensure_runtime start model={}", model));
 
         if !ollama_cli_available() {
-            eprintln!("copyosity: ollama cli not found, local tagging disabled");
+            eprintln!("clipglass: ollama cli not found, local tagging disabled");
             return;
         }
 
@@ -651,12 +651,12 @@ pub fn ensure_runtime() {
         }
 
         if !ollama_available() {
-            eprintln!("copyosity: ollama server did not start, local tagging disabled");
+            eprintln!("clipglass: ollama server did not start, local tagging disabled");
             return;
         }
 
         if !model_installed(&model) {
-            eprintln!("copyosity: pulling ollama model {}", model);
+            eprintln!("clipglass: pulling ollama model {}", model);
             pull_model(&model);
         } else {
             log_debug(format!("model already installed: {}", model));
@@ -692,7 +692,7 @@ pub fn backfill_existing_tags(app: AppHandle, db: Arc<Database>) {
                 Ok(entries) => entries,
                 Err(err) => {
                     eprintln!(
-                        "copyosity[ollama]: failed to load entries for retag: {}",
+                        "clipglass[ollama]: failed to load entries for retag: {}",
                         err
                     );
                     return;
@@ -709,7 +709,7 @@ pub fn backfill_existing_tags(app: AppHandle, db: Arc<Database>) {
                     if tags != next_tags {
                         if let Err(err) = db.set_entry_tags(entry_id, &next_tags) {
                             eprintln!(
-                                "copyosity[ollama]: failed to update heuristic tags for entry {}: {}",
+                                "clipglass[ollama]: failed to update heuristic tags for entry {}: {}",
                                 entry_id, err
                             );
                             continue;
@@ -745,7 +745,7 @@ pub fn backfill_existing_tags(app: AppHandle, db: Arc<Database>) {
                 Ok(entries) => entries,
                 Err(err) => {
                     eprintln!(
-                        "copyosity[ollama]: failed to load untagged entries: {}",
+                        "clipglass[ollama]: failed to load untagged entries: {}",
                         err
                     );
                     return;
@@ -770,7 +770,7 @@ pub fn backfill_existing_tags(app: AppHandle, db: Arc<Database>) {
                     Some(tags) => {
                         if let Err(err) = db.set_entry_tags(entry_id, &tags) {
                             eprintln!(
-                                "copyosity[ollama]: failed to save tags for entry {}: {}",
+                                "clipglass[ollama]: failed to save tags for entry {}: {}",
                                 entry_id, err
                             );
                             continue;

@@ -33,7 +33,7 @@ use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut,
 use tauri_nspanel::{ManagerExt, WebviewWindowExt};
 
 #[cfg(target_os = "macos")]
-tauri_nspanel::tauri_panel!(panel!(CopyosityPanel {
+tauri_nspanel::tauri_panel!(panel!(ClipglassPanel {
     config: {
         can_become_key_window: true,
         is_floating_panel: true
@@ -53,7 +53,7 @@ const PANEL_LEVEL_ACTIVE: i64 = macos_window::FULLSCREEN_AUXILIARY_LEVEL;
 
 /// PID of the app that was frontmost when the voice hotkey was pressed.
 /// Used to deliver the synthesized Cmd+V directly to that app instead of
-/// whatever is frontmost at paste time (which may be Copyosity itself).
+/// whatever is frontmost at paste time (which may be Clipglass itself).
 static VOICE_TARGET_PID: AtomicI32 = AtomicI32::new(0);
 
 /// Base64 PNG screenshot of the target window captured at hotkey-press time,
@@ -341,7 +341,7 @@ pub fn run() {
 
                 let window = app.get_webview_window("main").unwrap();
                 let panel = window
-                    .to_panel::<CopyosityPanel>()
+                    .to_panel::<ClipglassPanel>()
                     .expect("Failed to convert window to panel");
 
                 // Floating above other windows like Spotlight
@@ -360,7 +360,7 @@ pub fn run() {
 
             let tray = TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
-                .tooltip("Copyosity")
+                .tooltip("Clipglass")
                 .menu(&build_tray_menu(app.handle())?)
                 .on_menu_event(|app, event| match event.id().as_ref() {
                     "search" => toggle_command_palette(app.app_handle()),
@@ -410,7 +410,7 @@ pub fn run() {
                 eprintln!("Voice shortcut registration failed: {}", e);
             }
             eprintln!(
-                "copyosity: global shortcut registered = {}",
+                "clipglass: global shortcut registered = {}",
                 app.global_shortcut().is_registered(shortcut)
             );
 
@@ -627,7 +627,7 @@ fn main_panel_visible(app: &tauri::AppHandle) -> bool {
 
 fn build_tray_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
     let version = &app.package_info().version;
-    let version_label = format!("Copyosity v{}", version);
+    let version_label = format!("Clipglass v{}", version);
 
     let hub_enabled = app
         .try_state::<std::sync::Arc<db::Database>>()
@@ -958,7 +958,7 @@ fn ensure_voice_overlay(app: &tauri::AppHandle) {
             use tauri_nspanel::panel::NSWindowStyleMask;
             use tauri_nspanel::WebviewWindowExt;
 
-            if let Ok(panel) = win.to_panel::<CopyosityPanel>() {
+            if let Ok(panel) = win.to_panel::<ClipglassPanel>() {
                 panel.set_style_mask(
                     NSWindowStyleMask::Borderless | NSWindowStyleMask::NonactivatingPanel,
                 );
@@ -1179,7 +1179,7 @@ fn ensure_command_palette(app: &tauri::AppHandle) {
     if let Ok(win) = builder.build() {
         use tauri_nspanel::panel::NSWindowStyleMask;
         use tauri_nspanel::WebviewWindowExt;
-        if let Ok(panel) = win.to_panel::<CopyosityPanel>() {
+        if let Ok(panel) = win.to_panel::<ClipglassPanel>() {
             panel.set_style_mask(
                 NSWindowStyleMask::Borderless
                     | NSWindowStyleMask::NonactivatingPanel
@@ -1356,7 +1356,7 @@ fn capture_selection(pid: i32) -> Option<String> {
     let mut clipboard = arboard::Clipboard::new().ok()?;
     let original = clipboard.get_text().ok();
     // Sentinel lets us distinguish "copy did nothing" from "copied real text".
-    let sentinel = "\u{0}copyosity-sel\u{0}";
+    let sentinel = "\u{0}clipglass-sel\u{0}";
     let _ = clipboard.set_text(sentinel);
     drop(clipboard);
 

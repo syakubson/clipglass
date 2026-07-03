@@ -55,7 +55,7 @@ pub(crate) static PASTE_MOUSE_Y: AtomicU64 = AtomicU64::new(0);
 
 #[cfg(target_os = "macos")]
 pub(crate) fn paste_debug_enabled() -> bool {
-    std::env::var("COPYOSITY_DEBUG_PASTE")
+    std::env::var("CLIPGLASS_DEBUG_PASTE")
         .map(|v| {
             let value = v.trim().to_ascii_lowercase();
             value == "1" || value == "true" || value == "yes" || value == "on"
@@ -257,7 +257,7 @@ pub fn remember_paste_target() {
     }
 }
 
-/// Reactivate the app that had focus before Copyosity (call after `hide_panel`, before Cmd+V).
+/// Reactivate the app that had focus before Clipglass (call after `hide_panel`, before Cmd+V).
 #[cfg(target_os = "macos")]
 pub fn restore_paste_target() {
     let pid = PASTE_TARGET_PID.load(Ordering::SeqCst);
@@ -289,7 +289,7 @@ fn frontmost_pid_excluding_self() -> Option<i32> {
     Some(pid)
 }
 
-/// Last non-Copyosity app remembered before the panel took focus.
+/// Last non-Clipglass app remembered before the panel took focus.
 #[cfg(target_os = "macos")]
 pub fn paste_target_pid() -> Option<i32> {
     let pid = PASTE_TARGET_PID.load(Ordering::SeqCst);

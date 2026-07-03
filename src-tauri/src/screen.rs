@@ -9,7 +9,7 @@
 pub fn capture_context_png() -> Option<Vec<u8>> {
     use std::process::Command;
 
-    let path = std::env::temp_dir().join(format!("copyosity_ctx_{}.png", std::process::id()));
+    let path = std::env::temp_dir().join(format!("clipglass_ctx_{}.png", std::process::id()));
 
     // -x: silent (no shutter sound). -t png. Non-interactive capture of the
     // main display. The voice overlay is tiny and we capture before it covers

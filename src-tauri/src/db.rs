@@ -338,7 +338,7 @@ pub struct Database {
 impl Database {
     pub fn new(app_dir: PathBuf) -> Result<Self, rusqlite::Error> {
         std::fs::create_dir_all(&app_dir).ok();
-        let db_path = app_dir.join("copyosity.db");
+        let db_path = app_dir.join("clipglass.db");
         let conn = Connection::open(db_path)?;
 
         conn.execute_batch(

@@ -497,7 +497,7 @@ pub(crate) fn has_paste_focus() -> bool {
     PASTE_TARGET_FOCUS.lock().unwrap().is_some()
 }
 
-/// Whether Copyosity may use Accessibility APIs (not the frontmost app's AX tree).
+/// Whether Clipglass may use Accessibility APIs (not the frontmost app's AX tree).
 #[cfg(target_os = "macos")]
 fn accessibility_live_check() -> bool {
     if !accessibility_process_trusted() {

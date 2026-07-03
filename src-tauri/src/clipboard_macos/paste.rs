@@ -53,7 +53,7 @@ pub fn paste_into_target() {
         if remembered_focus { "yes" } else { "no" }
     ));
 
-    // Let the main run loop finish hiding Copyosity and transferring focus.
+    // Let the main run loop finish hiding Clipglass and transferring focus.
     std::thread::sleep(std::time::Duration::from_millis(180));
     restore_paste_target();
     let activated = wait_for_frontmost(pid);

@@ -168,7 +168,7 @@ pub fn transcribe_audio(
     let wav_bytes = encode_wav(&samples, sample_rate)?;
 
     // Build multipart/form-data body manually
-    let boundary = "----CopyosityWhisperBoundary7kRx92";
+    let boundary = "----ClipglassWhisperBoundary7kRx92";
     let mut body: Vec<u8> = Vec::new();
 
     // --- file field ---

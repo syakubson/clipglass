@@ -2,7 +2,7 @@ use std::collections::HashMap;
 #[cfg(target_os = "macos")]
 use std::path::{Path, PathBuf};
 
-pub const COPYOSITY_BUNDLE_ID: &str = "com.vkovalskii.copyosity";
+pub const CLIPGLASS_BUNDLE_ID: &str = "com.syakubson.clipglass";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AppIdentity {
@@ -10,8 +10,8 @@ pub struct AppIdentity {
     pub display_name: String,
 }
 
-pub fn is_copyosity_bundle(bundle_id: &str) -> bool {
-    bundle_id == COPYOSITY_BUNDLE_ID
+pub fn is_clipglass_bundle(bundle_id: &str) -> bool {
+    bundle_id == CLIPGLASS_BUNDLE_ID
 }
 
 #[cfg(target_os = "macos")]
@@ -28,20 +28,20 @@ pub fn frontmost_app_identity() -> Option<AppIdentity> {
     None
 }
 
-/// Whether Copyosity is the frontmost application (clipboard capture must skip).
+/// Whether Clipglass is the frontmost application (clipboard capture must skip).
 #[cfg(target_os = "macos")]
-pub fn is_copyosity_frontmost() -> bool {
+pub fn is_clipglass_frontmost() -> bool {
     use objc2_app_kit::NSWorkspace;
 
     let workspace = NSWorkspace::sharedWorkspace();
     workspace
         .frontmostApplication()
         .and_then(|app| app.bundleIdentifier().map(|s| s.to_string()))
-        .is_some_and(|id| is_copyosity_bundle(&id))
+        .is_some_and(|id| is_clipglass_bundle(&id))
 }
 
 #[cfg(not(target_os = "macos"))]
-pub fn is_copyosity_frontmost() -> bool {
+pub fn is_clipglass_frontmost() -> bool {
     false
 }
 
@@ -61,7 +61,7 @@ pub fn app_identity_from_app_bundle_path(path: &Path) -> Option<AppIdentity> {
     let ns_path = NSString::from_str(path_str);
     let bundle = NSBundle::bundleWithPath(&ns_path)?;
     let bundle_id = bundle.bundleIdentifier()?.to_string();
-    if bundle_id.is_empty() || is_copyosity_bundle(&bundle_id) {
+    if bundle_id.is_empty() || is_clipglass_bundle(&bundle_id) {
         return None;
     }
 
@@ -154,12 +154,12 @@ fn list_display_name_for_bundle_id(
 /// Resolve a user-entered app name or bundle ID to a stable bundle identifier.
 pub fn resolve_app_identity_from_input(input: &str) -> Option<AppIdentity> {
     let trimmed = input.trim();
-    if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("copyosity") {
+    if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("clipglass") {
         return None;
     }
 
     if looks_like_bundle_id(trimmed) {
-        if is_copyosity_bundle(trimmed) {
+        if is_clipglass_bundle(trimmed) {
             return None;
         }
         return Some(AppIdentity {
@@ -333,7 +333,7 @@ fn title_case_words(value: &str) -> String {
 #[cfg(target_os = "macos")]
 fn identity_from_running_app(app: &objc2_app_kit::NSRunningApplication) -> Option<AppIdentity> {
     let bundle_id = app.bundleIdentifier()?.to_string();
-    if bundle_id.is_empty() || is_copyosity_bundle(&bundle_id) {
+    if bundle_id.is_empty() || is_clipglass_bundle(&bundle_id) {
         return None;
     }
     let display_name = app
@@ -623,16 +623,16 @@ mod tests {
 
     #[test]
     fn resolves_bundle_id_input_to_humanized_name_when_not_installed() {
-        let bundle_id = "com.copyosity.tests.uninstalled-app";
+        let bundle_id = "com.clipglass.tests.uninstalled-app";
         let identity = resolve_app_identity_from_input(bundle_id).expect("bundle id");
         assert_eq!(identity.bundle_id, bundle_id);
         assert_eq!(identity.display_name, "Uninstalled App");
     }
 
     #[test]
-    fn ignores_copyosity_bundle_id_input() {
-        assert!(resolve_app_identity_from_input(COPYOSITY_BUNDLE_ID).is_none());
-        assert!(resolve_app_identity_from_input("Copyosity").is_none());
+    fn ignores_clipglass_bundle_id_input() {
+        assert!(resolve_app_identity_from_input(CLIPGLASS_BUNDLE_ID).is_none());
+        assert!(resolve_app_identity_from_input("Clipglass").is_none());
     }
 
     #[test]
@@ -803,7 +803,7 @@ mod tests {
     #[cfg(target_os = "macos")]
     fn collect_app_bundle_paths_finds_nested_apps() {
         let root =
-            std::env::temp_dir().join(format!("copyosity-nested-apps-{}", std::process::id()));
+            std::env::temp_dir().join(format!("clipglass-nested-apps-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         let nested = root.join("Utilities");
         std::fs::create_dir_all(&nested).unwrap();

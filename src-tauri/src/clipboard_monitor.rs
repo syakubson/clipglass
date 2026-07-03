@@ -217,7 +217,7 @@ pub fn probe_clipboard_hash(clipboard: &mut Clipboard) -> Option<String> {
 
 fn should_skip_source(db: &Database, bundle_id: &Option<String>) -> bool {
     match bundle_id {
-        Some(id) if crate::macos_app::is_copyosity_bundle(id) => true,
+        Some(id) if crate::macos_app::is_clipglass_bundle(id) => true,
         Some(id) => match db.is_app_excluded(id) {
             Ok(excluded) => excluded,
             Err(err) => {
@@ -225,7 +225,7 @@ fn should_skip_source(db: &Database, bundle_id: &Option<String>) -> bool {
                 true
             }
         },
-        None => crate::macos_app::is_copyosity_frontmost(),
+        None => crate::macos_app::is_clipglass_frontmost(),
     }
 }
 
@@ -692,15 +692,15 @@ mod tests {
     }
 
     #[test]
-    fn should_skip_source_copyosity_and_excluded_apps() {
+    fn should_skip_source_clipglass_and_excluded_apps() {
         let db = test_db();
         assert!(should_skip_source(
             &db,
-            &Some(crate::macos_app::COPYOSITY_BUNDLE_ID.to_owned()),
+            &Some(crate::macos_app::CLIPGLASS_BUNDLE_ID.to_owned()),
         ));
         assert_eq!(
             should_skip_source(&db, &None),
-            crate::macos_app::is_copyosity_frontmost()
+            crate::macos_app::is_clipglass_frontmost()
         );
         assert!(!should_skip_source(
             &db,

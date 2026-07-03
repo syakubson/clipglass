@@ -31,7 +31,7 @@ fn run_osascript(script: &str, args: &[&str]) -> Result<String, String> {
     } else {
         let err = String::from_utf8_lossy(&out.stderr).trim().to_string();
         if err.contains("-1743") {
-            Err("Automation access not granted. Allow Copyosity in System Settings → Privacy & Security → Automation.".to_string())
+            Err("Automation access not granted. Allow Clipglass in System Settings → Privacy & Security → Automation.".to_string())
         } else {
             Err(err)
         }
