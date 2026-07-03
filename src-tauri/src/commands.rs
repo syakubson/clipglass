@@ -691,7 +691,7 @@ pub fn list_microphones() -> Result<Vec<crate::whisper::AudioInputDevice>, Strin
     Ok(crate::whisper::list_input_devices())
 }
 
-/// Test connectivity to the NeuralDeep hub. Uses provided url/token when given,
+/// Test connectivity to the custom API hub. Uses provided url/token when given,
 /// otherwise falls back to the saved settings. Returns the number of models.
 #[tauri::command]
 pub fn hub_test_connection(

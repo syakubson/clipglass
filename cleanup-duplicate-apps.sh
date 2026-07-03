@@ -4,8 +4,8 @@
 # Проверь список и раскомментируй (или запусти целиком). Ничего не удаляется без твоего запуска.
 set -e
 
-# --- Старая копия всего проекта Copyosity в папке coplys (вероятно опечатка) ---
-rm -rf "/Users/v.kovalskii/coplys/copyosity/src-tauri/target/release/bundle/macos/Copyosity.app"
+# --- Старая копия всего проекта Clipglass в папке coplys (вероятно опечатка) ---
+rm -rf "/Users/v.kovalskii/coplys/clipglass/src-tauri/target/release/bundle/macos/Clipglass.app"
 
 # --- ValeDesk: установленная версия в /Applications дублирует dev-сборку (сносим билд) ---
 rm -rf "/Users/v.kovalskii/KVDesk/ValeDesk/src-tauri/target/release/bundle/macos/ValeDesk.app"

@@ -114,7 +114,7 @@
   let settingsNotice = $state("");
   let savedModel = $state("");
 
-  const A11Y_NOTICE_ENABLE = "Enable Copyosity in the list.";
+  const A11Y_NOTICE_ENABLE = "Enable Clipglass in the list.";
   const A11Y_NOTICE_VERIFIED = "Accessibility verified — paste automation is ready.";
 
   let accessibilityGranted = $state<boolean | null>(null);
@@ -725,7 +725,7 @@
   type Pane = "hub" | "voice" | "ai" | "history" | "permissions" | "updates";
   let activePane = $state<Pane>("hub");
   const panes: { id: Pane; label: string; icon: SectionIconName }[] = [
-    { id: "hub", label: "NeuralDeep", icon: "hub" },
+    { id: "hub", label: "Custom API", icon: "hub" },
     { id: "voice", label: "Voice", icon: "voice" },
     { id: "ai", label: "Local AI", icon: "ai-tagging" },
     { id: "history", label: "History", icon: "clipboard-panel" },
@@ -860,18 +860,18 @@
   <main class="settings-content">
     {#if activePane === "hub"}
       <div class="pane-head">
-        <div class="pane-title">NeuralDeep Hub</div>
+        <div class="pane-title">Custom API (OpenAI-compatible)</div>
         <div class="pane-subtitle">Cloud models for tagging, transcription, web search and the research agent.</div>
       </div>
 
       <section class="form-section">
         <div class="form-section-header">
-          <div class="form-section-title form-section-title--with-icon"><SectionIcon name="hub" />NeuralDeep Hub</div>
+          <div class="form-section-title form-section-title--with-icon"><SectionIcon name="hub" />Custom API (OpenAI-compatible)</div>
           <label class="toggle">
             <input
               type="checkbox"
               role="switch"
-              aria-label="Enable NeuralDeep hub"
+              aria-label="Enable custom API"
               checked={settings.hub_enabled}
               onchange={(e) => handleHubToggle((e.currentTarget as HTMLInputElement).checked)}
             />
@@ -1051,7 +1051,7 @@
           <div class="form-subsection">
             <div class="form-subsection-title form-subsection-title--with-icon"><SectionIcon name="ollama-model" />Transcription model</div>
             <div class="form-hint">
-              With <strong>hub transcription</strong> on (NeuralDeep tab), audio goes to the hub model below.
+              With <strong>hub transcription</strong> on (Custom API tab), audio goes to the hub model below.
               Otherwise it uses the custom Whisper server.
             </div>
             <div class="inset-list">
@@ -1099,7 +1099,7 @@
             <div class="form-hint">
               After transcription, run the text through the hub LLM to add punctuation,
               remove filler, format lists, and match the app you're pasting into.
-              Returns only the cleaned text. Requires the NeuralDeep hub.
+              Returns only the cleaned text. Requires the custom API.
             </div>
             <div class="inset-list">
               <label class="form-checkbox">
@@ -1186,7 +1186,7 @@
                     class="form-textarea"
                     rows="3"
                     bind:value={settings.voice_dictionary}
-                    placeholder={"NeuralDeep\nCopyosity\nKubernetes"}
+                    placeholder={"Slack\nKubernetes\nDocker"}
                   ></textarea>
                   <div class="form-hint">The model will keep these terms spelled exactly as written.</div>
                 </label>
@@ -1224,7 +1224,7 @@
               {#if accessibilityGranted === false}
                 <div class="status-hint">
                   Required for paste automation (Cmd+V) and global shortcut.<br />
-                  Click "Request" to open System Settings, then enable <strong>Copyosity</strong>.
+                  Click "Request" to open System Settings, then enable <strong>Clipglass</strong>.
                 </div>
               {/if}
               {#if accessibilityNotice}
@@ -1237,7 +1237,7 @@
                 </div>
               {/if}
               <div class="status-hint">
-                After a new build or reinstall, remove Copyosity from Accessibility and add it again if paste stops working.
+                After a new build or reinstall, remove Clipglass from Accessibility and add it again if paste stops working.
               </div>
             </div>
           </div>
@@ -1246,7 +1246,7 @@
     {:else if activePane === "updates"}
       <div class="pane-head">
         <div class="pane-title">Updates</div>
-        <div class="pane-subtitle">Copyosity updates itself from GitHub Releases — signed and verified.</div>
+        <div class="pane-subtitle">Clipglass updates itself from GitHub Releases — signed and verified.</div>
       </div>
 
       <section class="form-section">

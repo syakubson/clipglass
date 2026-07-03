@@ -1198,7 +1198,7 @@ fn palette_search(app: tauri::AppHandle, query: String) -> Result<String, String
     let db = app.state::<std::sync::Arc<db::Database>>();
     let s = db.get_app_settings().map_err(|e| e.to_string())?;
     if !s.hub_enabled {
-        return Err("NeuralDeep hub is disabled in Settings".to_string());
+        return Err("Custom API is disabled in Settings".to_string());
     }
     hub::web_search(&s.hub_url, &s.hub_token, &query, 5)
 }
@@ -1216,7 +1216,7 @@ fn palette_agent(app: tauri::AppHandle, query: String) -> Result<(), String> {
     let db = app.state::<std::sync::Arc<db::Database>>();
     let s = db.get_app_settings().map_err(|e| e.to_string())?;
     if !s.hub_enabled {
-        return Err("NeuralDeep hub is disabled in Settings".to_string());
+        return Err("Custom API is disabled in Settings".to_string());
     }
     std::thread::spawn(move || {
         agent::run(&app, &s.hub_url, &s.hub_token, &query);

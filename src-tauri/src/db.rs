@@ -21,10 +21,10 @@ pub struct AppSettings {
     pub ai_tagging_enabled: bool,
     /// When false, hide the footer shortcut strip on the clipboard overlay (default on).
     pub overlay_shortcut_hints_enabled: bool,
-    // --- NeuralDeep hub integration ---
+    // --- Custom API hub integration ---
     /// When false, hub API calls and the agent-search shortcut are disabled (default off).
     pub hub_enabled: bool,
-    /// Base URL of the NeuralDeep hub (OpenAI-compatible), e.g. https://neuraldeep.ru
+    /// Base URL of the custom API hub (OpenAI-compatible), e.g. https://api.example.com
     pub hub_url: String,
     /// Per-user API token for the hub (Bearer).
     pub hub_token: String,

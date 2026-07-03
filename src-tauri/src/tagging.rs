@@ -1,4 +1,4 @@
-//! Tagging dispatcher: route clipboard tagging to the NeuralDeep hub when it is
+//! Tagging dispatcher: route clipboard tagging to the custom API hub when it is
 //! enabled and configured, otherwise fall back to the local Ollama model.
 
 use crate::db::{ClipboardEntry, Database};

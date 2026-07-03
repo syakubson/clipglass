@@ -123,7 +123,7 @@
   const panelTransitionEpoch = createPanelTransitionEpoch();
 
   const SETTINGS_SYNC_USER_NOTICE =
-    "Couldn't load app settings. Tags and filters may not work properly. Restart Copyosity.";
+    "Couldn't load app settings. Tags and filters may not work properly. Restart Clipglass.";
 
   async function loadLayout() {
     try {

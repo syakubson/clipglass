@@ -152,7 +152,7 @@ export async function updateAppSettings(opts: {
   });
 }
 
-/** Test the NeuralDeep hub connection. Returns the number of available models. */
+/** Test the custom API connection. Returns the number of available models. */
 export async function hubTestConnection(url?: string, token?: string): Promise<number> {
   return invoke("hub_test_connection", { url: url ?? null, token: token ?? null });
 }

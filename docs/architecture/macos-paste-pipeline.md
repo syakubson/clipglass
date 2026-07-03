@@ -1,6 +1,6 @@
 # macOS paste pipeline
 
-How Copyosity writes to the system pasteboard and pastes into the target app on macOS.
+How Clipglass writes to the system pasteboard and pastes into the target app on macOS.
 
 Applies to **overlay activate**, **voice transcription**, and **command palette insert** flows.
 
@@ -78,7 +78,7 @@ All macOS paste delivery goes through `PASTE_TARGET_PID` and optional AX focus /
 
 | API                                  | When to call                                                                                                   |
 | ------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
-| `remember_paste_target()`            | Before overlay `show_and_make_key` — captures frontmost app excluding Copyosity                                |
+| `remember_paste_target()`            | Before overlay `show_and_make_key` — captures frontmost app excluding Clipglass                                |
 | `remember_paste_target_for_pid(pid)` | Voice hotkey press/release, palette open/insert — explicit PID from `VOICE_TARGET_PID` or `PALETTE_TARGET_PID` |
 
 Each remember call stores:
@@ -90,7 +90,7 @@ Each remember call stores:
 
 `open_settings_window` also calls `remember_paste_target` before hiding the panel so settings can open without losing the paste target.
 
-Call `remember_paste_target` **before** `show_and_make_key`, or focus capture points at Copyosity.
+Call `remember_paste_target` **before** `show_and_make_key`, or focus capture points at Clipglass.
 
 **Voice:** `VOICE_TARGET_PID` is captured when the voice hotkey is pressed (before the voice overlay appears). On transcription complete, `remember_paste_target_for_pid` refreshes the target from that PID, then `spawn_automated_paste(false)` runs the full pipeline. If no PID was captured (`pid <= 0`), `simulate_cmd_v` falls back to the session event tap (frontmost app).
 
@@ -139,13 +139,13 @@ After every write, `mark_own_clipboard_write` records the pasteboard `changeCoun
 
 For `ClipboardWriteMode::Paste`, animated GIFs prefer a temp file plus `file_list` on the pasteboard (more reliable in Telegram/Finder). On failure, raw GIF bytes are written via `write_gif_to_pasteboard`.
 
-Temp files live under `$TMPDIR/copyosity-gif-paste/`. `paste_into_target` schedules `cleanup_pending_gif_temp` (60s delay) so the target app can read asynchronously. Stale files from prior sessions are swept on startup (`sweep_stale_gif_temp_files`, 24h max age).
+Temp files live under `$TMPDIR/clipglass-gif-paste/`. `paste_into_target` schedules `cleanup_pending_gif_temp` (60s delay) so the target app can read asynchronously. Stale files from prior sessions are swept on startup (`sweep_stale_gif_temp_files`, 24h max age).
 
 ## Paste strategy (`paste_into_target`)
 
 Runs on a background thread after optional Accessibility prompt.
 
-1. **Settle** — 180ms sleep so the main run loop finishes hiding Copyosity.
+1. **Settle** — 180ms sleep so the main run loop finishes hiding Clipglass.
 2. **Restore target** — `restore_paste_target`: activate PID (with retries), restore AX focus (system-wide first, then per-app).
 3. **Wait for frontmost** — up to 25 attempts (`activate_pid` + incremental backoff) until the target PID is frontmost.
 4. **Refresh focus** — if no element was remembered, re-walk the AX tree (`refresh_paste_focus_if_needed`).
@@ -185,7 +185,7 @@ When the focused element cannot be read, the AX tree walk picks the best editabl
 
 ### Accessibility trust probe
 
-`accessibility_trusted` uses `AXIsProcessTrusted` plus a live probe on Copyosity's own AX element (`probe_own_ax_access`). This avoids false negatives when an Electron app (e.g. Cursor) is frontmost but Copyosity already has Accessibility permission.
+`accessibility_trusted` uses `AXIsProcessTrusted` plus a live probe on Clipglass's own AX element (`probe_own_ax_access`). This avoids false negatives when an Electron app (e.g. Cursor) is frontmost but Clipglass already has Accessibility permission.
 
 ## Extending keyboard-paste apps
 
@@ -200,10 +200,10 @@ Use `bundle_prefers_keyboard_paste(bundle_id)` in unit tests to verify matching.
 
 ## Debugging
 
-Set `COPYOSITY_DEBUG_PASTE=1` (also `true`, `yes`, `on`) when running the app. Paste steps log to stderr with a `[paste]` prefix:
+Set `CLIPGLASS_DEBUG_PASTE=1` (also `true`, `yes`, `on`) when running the app. Paste steps log to stderr with a `[paste]` prefix:
 
 ```bash
-COPYOSITY_DEBUG_PASTE=1 npm run tauri dev
+CLIPGLASS_DEBUG_PASTE=1 npm run tauri dev
 ```
 
 Typical log lines:
@@ -240,7 +240,7 @@ Run `cargo test clipboard_macos::` and `cargo test clipboard_write::`.
 
 ## Validation checklist
 
-Manual QA after pipeline changes. Run with `COPYOSITY_DEBUG_PASTE=1 npm run tauri dev` and watch stderr for `[paste]` lines.
+Manual QA after pipeline changes. Run with `CLIPGLASS_DEBUG_PASTE=1 npm run tauri dev` and watch stderr for `[paste]` lines.
 
 ### Overlay (`spawn_automated_paste(true)`)
 

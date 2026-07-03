@@ -43,10 +43,10 @@ help:
 # --- App lifecycle ---
 
 dev:
-	cd $(APP_DIR) && COPYOSITY_OLLAMA_MODEL='$(OLLAMA_MODEL)' COPYOSITY_DEBUG_OLLAMA='$(OLLAMA_DEBUG)' $(NPM) run tauri dev
+	cd $(APP_DIR) && CLIPGLASS_OLLAMA_MODEL='$(OLLAMA_MODEL)' CLIPGLASS_DEBUG_OLLAMA='$(OLLAMA_DEBUG)' $(NPM) run tauri dev
 
 build:
-	cd $(APP_DIR) && COPYOSITY_OLLAMA_MODEL='$(OLLAMA_MODEL)' COPYOSITY_DEBUG_OLLAMA='$(OLLAMA_DEBUG)' $(NPM) run tauri build
+	cd $(APP_DIR) && CLIPGLASS_OLLAMA_MODEL='$(OLLAMA_MODEL)' CLIPGLASS_DEBUG_OLLAMA='$(OLLAMA_DEBUG)' $(NPM) run tauri build
 
 install:
 	cd $(APP_DIR) && $(NPM) install
@@ -97,9 +97,9 @@ clean-cache:
 	@echo "[clean-cache] done"
 
 clean-cache-aggressive: clean-cache
-	@echo "[clean-cache-aggressive] build-script cache + copyosity crate artifacts (third-party deps kept)"
+	@echo "[clean-cache-aggressive] build-script cache + clipglass crate artifacts (third-party deps kept)"
 	find $(TAURI_DIR)/target -type d -path '*/debug/build' -exec rm -rf {} + 2>/dev/null || true
-	cd $(TAURI_DIR) && cargo clean -p copyosity
+	cd $(TAURI_DIR) && cargo clean -p clipglass
 	@echo "[clean-cache-aggressive] done"
 
 clean-all:

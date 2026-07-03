@@ -1,6 +1,6 @@
 import type { ContentKind } from "$lib/overlay-filters";
 
-const CONTENT_KIND_SESSION_KEY = "copyosity.overlay.contentKind";
+const CONTENT_KIND_SESSION_KEY = "clipglass.overlay.contentKind";
 
 export function readContentKindSession(): ContentKind | null {
   if (typeof sessionStorage === "undefined") return null;

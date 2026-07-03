@@ -1,4 +1,4 @@
-//! Minimal ReAct agent loop over the NeuralDeep hub.
+//! Minimal ReAct agent loop over the custom API hub.
 //!
 //! Uses qwen3.6 (native tool-calls) via /v1/chat/completions with a single
 //! `web_search` tool backed by the hub Search API. Runs in a background thread
@@ -81,7 +81,7 @@ fn run_inner(
 ) -> Result<(), String> {
     let base = normalize_base(base_url);
     if base.is_empty() || token.trim().is_empty() {
-        return Err("Set the NeuralDeep hub URL and token in Settings".to_string());
+        return Err("Set the custom API hub URL and token in Settings".to_string());
     }
     let query = query.trim();
     if query.is_empty() {

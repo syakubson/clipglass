@@ -41,12 +41,12 @@ build_tauri() {
 package_dmg() {
   echo "[build] packaging dmg"
   local tmpdir
-  tmpdir="$(mktemp -d /tmp/copyosity-dmg.XXXXXX)"
-  mkdir -p "$tmpdir/Copyosity"
-  cp -R "$APP_BUNDLE" "$tmpdir/Copyosity/Copyosity.app"
-  ln -s /Applications "$tmpdir/Copyosity/Applications"
+  tmpdir="$(mktemp -d /tmp/clipglass-dmg.XXXXXX)"
+  mkdir -p "$tmpdir/Clipglass"
+  cp -R "$APP_BUNDLE" "$tmpdir/Clipglass/Clipglass.app"
+  ln -s /Applications "$tmpdir/Clipglass/Applications"
   rm -f "$DIST_DMG"
-  hdiutil create -volname Copyosity -srcfolder "$tmpdir/Copyosity" -ov -format UDZO "$DIST_DMG"
+  hdiutil create -volname Clipglass -srcfolder "$tmpdir/Clipglass" -ov -format UDZO "$DIST_DMG"
   rm -rf "$tmpdir"
 }
 
@@ -69,7 +69,7 @@ publish_artifacts() {
   echo " APP:  $DIST_APP"
   echo " Raw:  $APP_BUNDLE"
   echo ""
-  file "$DIST_APP/Contents/MacOS/copyosity" 2>/dev/null || file "$DIST_APP/Contents/MacOS/"* 2>/dev/null || true
+  file "$DIST_APP/Contents/MacOS/clipglass" 2>/dev/null || file "$DIST_APP/Contents/MacOS/"* 2>/dev/null || true
 }
 
 main() {

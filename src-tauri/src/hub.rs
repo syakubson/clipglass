@@ -1,4 +1,4 @@
-//! NeuralDeep hub integration — an OpenAI-compatible LLM proxy.
+//! Custom API hub integration — an OpenAI-compatible LLM proxy.
 //!
 //! The hub exposes standard OpenAI routes (`/v1/models`, `/v1/chat/completions`,
 //! `/v1/audio/transcriptions`). Each user configures their own base URL + Bearer

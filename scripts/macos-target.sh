@@ -60,11 +60,11 @@ macos_resolve_target() {
     TARGET_DIR="$root/src-tauri/target/$RUST_TARGET/release"
   fi
 
-  APP_BUNDLE="$TARGET_DIR/bundle/macos/Copyosity.app"
-  DMG_BASENAME="Copyosity_${version}_${MACOS_ARCH_LABEL}.dmg"
+  APP_BUNDLE="$TARGET_DIR/bundle/macos/Clipglass.app"
+  DMG_BASENAME="Clipglass_${version}_${MACOS_ARCH_LABEL}.dmg"
   DIST_DIR="$root/dist/macos"
   DIST_DMG="$DIST_DIR/$DMG_BASENAME"
-  DIST_APP="$DIST_DIR/Copyosity_${MACOS_ARCH_LABEL}.app"
+  DIST_APP="$DIST_DIR/Clipglass_${MACOS_ARCH_LABEL}.app"
 }
 
 macos_ensure_rust_target() {

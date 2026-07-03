@@ -9,9 +9,9 @@ wrapper="$("$RUN_RUST" 'printf %s "${RUSTC_WRAPPER:-}"')"
 
 if command -v sccache >/dev/null 2>&1; then
   expected="$(command -v sccache)"
-  disabled_wrapper="$(COPYOSITY_DISABLE_SCCACHE=1 "$RUN_RUST" 'printf %s "${RUSTC_WRAPPER:-}"')"
+  disabled_wrapper="$(CLIPGLASS_DISABLE_SCCACHE=1 "$RUN_RUST" 'printf %s "${RUSTC_WRAPPER:-}"')"
 
-  if [[ "${COPYOSITY_DISABLE_SCCACHE:-0}" != "1" ]]; then
+  if [[ "${CLIPGLASS_DISABLE_SCCACHE:-0}" != "1" ]]; then
     if [[ "$wrapper" != "$expected" ]]; then
       echo "error: expected RUSTC_WRAPPER=$expected, got: ${wrapper:-<empty>}" >&2
       exit 1
@@ -19,7 +19,7 @@ if command -v sccache >/dev/null 2>&1; then
   fi
 
   if [[ -n "$disabled_wrapper" ]]; then
-    echo "error: COPYOSITY_DISABLE_SCCACHE=1 should not set RUSTC_WRAPPER, got: $disabled_wrapper" >&2
+    echo "error: CLIPGLASS_DISABLE_SCCACHE=1 should not set RUSTC_WRAPPER, got: $disabled_wrapper" >&2
     exit 1
   fi
 elif [[ -z "${RUSTC_WRAPPER:-}" && -n "$wrapper" ]]; then

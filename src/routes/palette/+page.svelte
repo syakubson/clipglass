@@ -319,7 +319,7 @@
       type="text"
       placeholder={mode === "agent"
         ? "Ask the agent — it will search and analyze…"
-        : "Search the web via NeuralDeep…"}
+        : "Search the web via your API…"}
       autocomplete="off"
       spellcheck="false"
     />

@@ -13,7 +13,7 @@ else {
 var hits = 0
 for entry in info {
     guard let owner = entry[kCGWindowOwnerName as String] as? String,
-          owner.localizedCaseInsensitiveContains("copyosity") else { continue }
+          owner.localizedCaseInsensitiveContains("clipglass") else { continue }
 
     let title = entry[kCGWindowName as String] as? String ?? ""
     let layer = entry[kCGWindowLayer as String] as? Int ?? -1
@@ -21,15 +21,15 @@ for entry in info {
     let height = bounds["Height"] ?? 0
     if height < 40 { continue }
 
-    print("copyosity window: title='\(title)' layer=\(layer) height=\(Int(height))")
+    print("clipglass window: title='\(title)' layer=\(layer) height=\(Int(height))")
     if layer == expectedLayer {
         hits += 1
     }
 }
 
 if hits == 0 {
-    fputs("no Copyosity windows at auxiliary level \(expectedLayer)\n", stderr)
+    fputs("no Clipglass windows at auxiliary level \(expectedLayer)\n", stderr)
     exit(2)
 }
 
-print("ok: \(hits) Copyosity window(s) at level \(expectedLayer)")
+print("ok: \(hits) Clipglass window(s) at level \(expectedLayer)")
