@@ -1,44 +1,49 @@
-# Workflow Rules
+# Clipglass — agent notes
 
-These rules are mandatory for all future work in this repository.
+macOS-native clipboard assistant. Tauri 2 (Rust backend) + Svelte 5 (SvelteKit
+static). macOS only — NSPanel overlay, CGEvent paste, Apple Vision OCR.
 
-1. After each release, create a new development branch before continuing feature work.
-2. Push all new features and fixes to the active development branch, not directly to the release branch.
-3. After code changes, run the narrowest fix/check cycle below before claiming done.
-4. Record completed work in git with clear commits and keep project process notes updated in this file and in `CLAUDE.md`.
+## Commands
 
-## Required Validation
+- `make dev` — run in dev mode
+- `make check` — the full gate (frontend typecheck/tests/lint + Rust
+  compile/clippy/fmt/tests). Must be green before any commit.
+- Pre-commit hooks: lefthook (oxlint/oxfmt/stylelint auto-fix on staged files).
 
-Command contract: `make fix` auto-fixes, `make lint` checks lint/format only, and `make check` is the final gate (types, compile, lint, format, tests).
+## Conventions
 
-| Changed                      | Run                                        |
-| ---------------------------- | ------------------------------------------ |
-| Frontend only                | `make fix-frontend && make check-frontend` |
-| Rust/backend only            | `make fix-backend && make check-backend`   |
-| Full stack / shared workflow | `make fix && make check`                   |
+- Conventional commits.
+- Do not add cloud calls or telemetry: local-first; AI features are opt-in and
+  user-configured.
+- Rust: keep modules focused (one concern per file, as in the existing layout).
 
-## Linting stack
+## Local AI Onboarding
 
-- Frontend: `svelte-check`, Oxlint, Oxfmt, Stylelint.
-- Backend: `cargo check`, Clippy (`-D warnings --all-targets`), rustfmt, `cargo test`.
-- Pre-commit: Lefthook (`lefthook.yml`) auto-fixes staged files in parallel with Oxfmt, Oxlint, Stylelint, `cargo fmt` (staged paths only), and `cargo clippy --fix --lib` (faster than `--all-targets`; full Clippy gate is `make check` / CI). Install hooks via `npm install` / `lefthook install`; local overrides in gitignored `lefthook-local.yml`.
+When working on Ollama onboarding in the app, follow this product rule set:
 
-## Branching
+1. If Ollama is not installed, do not silently install it.
+2. Show a clear onboarding state with a download action and short instructions.
+3. If Ollama is installed but not running, show that state separately and offer a start/check-again action.
+4. If Ollama is installed but the selected model is missing, the app may offer to download the model directly.
+5. If both Ollama and the model are ready, show a clear ready state.
 
-- Release work can land on a release branch or `main`.
-- All follow-up development must continue in a new branch created after the release.
-- Current development branch names should be descriptive, for example `prerelease/dev-fixes`.
+Expected user-facing states:
 
-## Commit Discipline
+- `Ollama not installed`
+- `Ollama installed, server not running`
+- `Model not installed`
+- `Local AI ready`
 
-- Commit completed fixes and features with descriptive messages.
-- If process or workflow changes, update both `AGENTS.md` and `CLAUDE.md`.
+Expected actions:
 
-## Load by task
+- `Download Ollama`
+- `Start Ollama`
+- `Download model`
+- `Check again`
+- `Change model`
 
-| Topic                                             | File                                                                                                   |
-| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| macOS paste automation (AXPaste, Cmd+V, Messages) | [docs/architecture/macos-paste-pipeline.md](docs/architecture/macos-paste-pipeline.md)                 |
-| Features backlog                                  | [docs/plans/features-backlog.md](docs/plans/features-backlog.md)                                       |
-| Overlay content & tag filters                     | [docs/plans/feature-overlay-content-tag-filters.md](docs/plans/feature-overlay-content-tag-filters.md) |
-| Appearance / light mode (theme switching)         | [docs/plans/feature-appearance-theme.md](docs/plans/feature-appearance-theme.md)                       |
+Product policy:
+
+- System-level Ollama installation should be explicit and user-approved.
+- Model downloads may be initiated from inside the app once Ollama is present.
+- The UI should always explain what is missing: runtime, server, or model.
