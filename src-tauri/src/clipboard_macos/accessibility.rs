@@ -9,9 +9,14 @@ use objc2_foundation::NSString;
 #[cfg(target_os = "macos")]
 use super::{paste_log, restore_paste_target, FocusRef, PASTE_TARGET_FOCUS, PASTE_TARGET_PID};
 
-/// Bundle IDs where `AXPaste` is unreliable; use synthetic Cmd+V instead.
+/// Apps where `AXPaste` reports success without pasting (Qt/Chromium and Apple Messages).
 #[cfg(any(target_os = "macos", test))]
-pub(crate) const KEYBOARD_PASTE_BUNDLE_IDS: &[&str] = &["com.apple.MobileSMS", "com.apple.iChat"];
+pub(crate) const KEYBOARD_PASTE_BUNDLE_IDS: &[&str] = &[
+    "com.apple.MobileSMS",
+    "com.apple.iChat",
+    "com.tdesktop.Telegram",
+    "ai.perplexity.comet",
+];
 
 #[cfg(any(target_os = "macos", test))]
 pub(crate) fn bundle_prefers_keyboard_paste(bundle_id: &str) -> bool {
@@ -601,6 +606,8 @@ mod tests {
     fn bundle_prefers_keyboard_paste_matches_messages() {
         assert!(bundle_prefers_keyboard_paste("com.apple.MobileSMS"));
         assert!(bundle_prefers_keyboard_paste("com.apple.iChat"));
+        assert!(bundle_prefers_keyboard_paste("com.tdesktop.Telegram"));
+        assert!(bundle_prefers_keyboard_paste("ai.perplexity.comet"));
         assert!(!bundle_prefers_keyboard_paste("com.apple.Notes"));
         assert!(!bundle_prefers_keyboard_paste("com.tinyspeck.slackmacgap"));
     }
