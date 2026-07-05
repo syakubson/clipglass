@@ -64,8 +64,10 @@
     shouldScheduleTrackpadLeadingSync,
   } from "$lib/overlay-browse-sync";
   import { initPlatform, platformIsMacOS } from "$lib/platform.svelte";
+  import { badgeDigitForIndex, entryIdForDigit, quickSelectDigit } from "$lib/overlay-quick-select";
 
   const overlayShortcutHints: KeyboardHint[] = [
+    { keys: "1-9", action: "Paste entry" },
     { prefix: "Click", action: "copy" },
     { keys: "↵", action: "paste" },
     { prefix: "Double-click", action: "paste" },
@@ -74,6 +76,7 @@
   ];
 
   const overlayVerticalShortcutHints: KeyboardHint[] = [
+    { keys: "1-9", action: "Paste entry" },
     { prefix: "Click", action: "copy" },
     { keys: "↵", action: "paste" },
     { prefix: "2× click", action: "paste" },
@@ -656,6 +659,23 @@
         return;
       }
 
+      const digit = quickSelectDigit(e.key, {
+        searchFocused,
+        typingInField,
+        hasModifier: e.metaKey || e.ctrlKey || e.altKey,
+      });
+      if (digit !== null) {
+        const entryId = entryIdForDigit(digit, filteredEntries);
+        if (entryId !== null) {
+          e.preventDefault();
+          e.stopPropagation();
+          setInputModality("keyboard");
+          selectedIndex = digit - 1;
+          void activateSelectedEntry(entryId);
+        }
+        return;
+      }
+
       if (e.key === "ArrowRight" || e.key === "ArrowLeft" || e.key === "ArrowDown" || e.key === "ArrowUp") {
         if (typingInField && !searchFocused) return;
         if (overlay.displayListPending || overlay.displayFetchFailed) return;
@@ -1210,6 +1230,7 @@
             retagAvailable={overlay.retagAvailable}
             aiTaggingEnabled={overlay.aiTaggingEnabled}
             selected={i === selectedIndex}
+            quickDigit={badgeDigitForIndex(i)}
             onselect={() => handleCardSelect(i)}
             ondeleted={() => overlay.removeEntry(entry.id)}
             onpinned={() => overlay.handlePinned(entry.id, !entry.is_pinned)}
