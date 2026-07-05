@@ -67,7 +67,7 @@
   import { badgeDigitForIndex, entryIdForDigit, quickSelectDigit } from "$lib/overlay-quick-select";
 
   const overlayShortcutHints: KeyboardHint[] = [
-    { keys: "1-9", action: "Paste entry" },
+    { keys: "1-9", action: "paste entry" },
     { prefix: "Click", action: "copy" },
     { keys: "↵", action: "paste" },
     { prefix: "Double-click", action: "paste" },
@@ -76,7 +76,7 @@
   ];
 
   const overlayVerticalShortcutHints: KeyboardHint[] = [
-    { keys: "1-9", action: "Paste entry" },
+    { keys: "1-9", action: "paste entry" },
     { prefix: "Click", action: "copy" },
     { keys: "↵", action: "paste" },
     { prefix: "2× click", action: "paste" },
